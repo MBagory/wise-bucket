@@ -15,7 +15,7 @@ chrono = { version = "0.4.45", features = ["serde"] }
 directories = "6.0.0"
 dunce = "1.0.5"
 flate2 = "1.1.10"
-getrandom = "0.3"
+getrandom = "0.4"
 hex = "0.4.3"
 semver = "1.0.28"
 serde = { version = "1.0.229", features = ["derive"] }
