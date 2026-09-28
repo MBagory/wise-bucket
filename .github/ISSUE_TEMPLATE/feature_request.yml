@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an idea or a use case
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What investigation or workflow is hard today?
+      description: Describe the robot, the data and the question you were trying to answer.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you use today instead?

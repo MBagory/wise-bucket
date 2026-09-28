@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use Wise Bucket in your research, please cite it as below."
+title: "Wise Bucket: evidence-backed, iterative robot investigations for AI coding agents"
+type: software
+authors:
+  - family-names: "Bagory"
+    given-names: "Matthieu"
+license: Apache-2.0
+repository-code: "https://github.com/MBagory/wise-bucket"
+version: 0.1.0
+keywords:
+  - robotics
+  - ROS 2
+  - MCP
+  - debugging
+  - observability

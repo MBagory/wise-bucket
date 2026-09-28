@@ -1,0 +1,14 @@
+[book]
+title = "Wise Bucket"
+description = "Evidence-backed, iterative robot investigations for your AI coding agent"
+authors = ["Wise Bucket contributors"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/MBagory/wise-bucket"
+edit-url-template = "https://github.com/MBagory/wise-bucket/edit/main/docs/{path}"
+site-url = "/wise-bucket/"
+
+[output.html.search]
+enable = true

@@ -1,0 +1,6 @@
+* text=auto eol=lf
+fixtures/** binary
+*.mcap binary
+*.db3 binary
+*.bag binary
+*.ulg binary

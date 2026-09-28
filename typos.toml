@@ -1,0 +1,6 @@
+[files]
+extend-exclude = ["LICENSE", "CODE_OF_CONDUCT.md", "*.lock", "docs/book/**"]
+
+[default.extend-words]
+# Domain vocabulary
+ulog = "ulog"
