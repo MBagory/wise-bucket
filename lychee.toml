@@ -1,0 +1,9 @@
+# Link checker configuration (https://lychee.cli.rs)
+max_retries = 3
+timeout = 20
+accept = ["200..=299", "403", "429"]
+exclude = [
+  # Not reachable until the repository is public.
+  "^https://github.com/MBagory/wise-bucket",
+  "^http://localhost",
+]

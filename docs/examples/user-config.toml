@@ -1,0 +1,20 @@
+# ~/.config/wisebucket/config.toml (Linux)
+# ~/Library/Application Support/wisebucket/config.toml (macOS)
+
+# Optional: where the database, caches and logs live.
+# state_dir = "~/wisebucket-state"
+
+[database]
+mode = "managed"        # or "external" (URL from WB_DATABASE_URL, never stored here)
+keep_running = false    # stop PostgreSQL when the last session ends
+
+[[roots]]
+name = "bags"                                  # logs are referenced as bags:2026-09-24/dock_run3
+path = "~/robot-logs/bags"
+robot = "rover-b"                              # optional default robot for these recordings
+include = ["**/*.mcap", "**/metadata.yaml"]    # optional
+exclude = ["**/tmp/**"]                        # optional
+
+[[roots]]
+name = "nas-flights"
+path = "/Volumes/lab-nas/px4"

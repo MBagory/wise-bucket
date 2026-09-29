@@ -1,0 +1,8 @@
+# <robot-repo>/.wisebucket/config.toml (commit this file)
+project = "rover-docking"
+default_robot = "rover-b"
+
+# Project roots must be relative paths inside the repository.
+[[roots]]
+name = "repo-bags"
+path = "./bags"

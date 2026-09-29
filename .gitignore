@@ -1,0 +1,25 @@
+# Build output
+/target
+*.profraw
+
+# Secrets: never commit database URLs or credentials
+.env
+.env.*
+
+# Wise Bucket backups written inside the repository
+*.dump
+
+# Editors and OS
+.DS_Store
+*.swp
+.idea/
+
+# Local agent tooling state
+/.kilo/
+.claude/settings.local.json
+
+# Temporarily unversioned
+/AGENT.md
+
+# Local notes (demos, spikes), not versioned
+/doc/

@@ -1,0 +1,314 @@
+//! `doctor`: one command that checks the whole installation.
+
+use serde::Serialize;
+use serde_json::json;
+use wb_core::config::{self, Database, EffectiveConfig};
+use wb_core::db::{self, Purpose};
+use wb_core::error::{ErrorKind, Result, WbError, docs_ref, err};
+use wb_core::{fsutil, roots};
+
+use crate::cli::GlobalArgs;
+use crate::commands::init::{SERVER_KEY, harness_file};
+use crate::ui;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Status {
+    Ok,
+    Warn,
+    Fail,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Check {
+    pub name: String,
+    pub status: Status,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub docs_ref: Option<String>,
+}
+
+impl Check {
+    fn ok(name: &str, message: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            status: Status::Ok,
+            message: message.into(),
+            code: None,
+            docs_ref: None,
+        }
+    }
+    fn warn(name: &str, message: impl Into<String>, kind: Option<ErrorKind>) -> Self {
+        Self {
+            name: name.into(),
+            status: Status::Warn,
+            message: message.into(),
+            code: kind.map(|k| k.code()),
+            docs_ref: kind.map(docs_ref),
+        }
+    }
+    fn fail(name: &str, e: &WbError) -> Self {
+        Self {
+            name: name.into(),
+            status: Status::Fail,
+            message: e.message().to_string(),
+            code: Some(e.code()),
+            docs_ref: Some(e.docs_ref()),
+        }
+    }
+}
+
+pub async fn run(global: &GlobalArgs) -> Result<()> {
+    let checks = collect(global).await;
+    let failed = checks.iter().filter(|c| c.status == Status::Fail).count();
+    let warned = checks.iter().filter(|c| c.status == Status::Warn).count();
+    if global.json {
+        ui::json(&json!({ "checks": checks, "failed": failed, "warnings": warned }));
+    } else {
+        for c in &checks {
+            let sym = match c.status {
+                Status::Ok => "✔",
+                Status::Warn => "⚠",
+                Status::Fail => "✖",
+            };
+            println!("{sym} {:<18} {}", c.name, c.message);
+            if let (Some(code), Some(r)) = (c.code, &c.docs_ref) {
+                println!("  {:<18} ↳ {code} · {}", "", ui::docs_url(r));
+            }
+        }
+        println!();
+        println!(
+            "{} check(s), {failed} failed, {warned} warning(s)",
+            checks.len()
+        );
+    }
+    if failed > 0 {
+        // The failures and their fixes are already listed; only the exit status is left to report.
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+async fn collect(global: &GlobalArgs) -> Vec<Check> {
+    let mut checks = Vec::new();
+    let cfg = match config::load(&global.overrides()) {
+        Ok(c) => {
+            checks.push(Check::ok(
+                "configuration",
+                format!("loaded ({})", c.user_config_path.value.display()),
+            ));
+            c
+        }
+        Err(e) => {
+            checks.push(Check::fail("configuration", &e));
+            return checks;
+        }
+    };
+    if !cfg.user_config_exists {
+        checks.push(Check::warn(
+            "user config",
+            "not created yet: run `wise-bucket-server setup`",
+            Some(ErrorKind::DbNotInitialized),
+        ));
+    }
+
+    // State directory and disk space.
+    match fsutil::ensure_private_dir(&cfg.state_dir.value) {
+        Ok(()) => {
+            let free = fsutil::available_space(&cfg.state_dir.value);
+            match free {
+                Some(f) if f < 1024 * 1024 * 1024 => checks.push(Check::warn(
+                    "state directory",
+                    format!(
+                        "{} · only {} free",
+                        cfg.state_dir.value.display(),
+                        ui::bytes(f)
+                    ),
+                    Some(ErrorKind::Io),
+                )),
+                Some(f) => checks.push(Check::ok(
+                    "state directory",
+                    format!("{} · {} free", cfg.state_dir.value.display(), ui::bytes(f)),
+                )),
+                None => checks.push(Check::ok(
+                    "state directory",
+                    cfg.state_dir.value.display().to_string(),
+                )),
+            }
+        }
+        Err(e) => checks.push(Check::fail(
+            "state directory",
+            &err(
+                ErrorKind::StateDirUnavailable,
+                format!("{}: {}", cfg.state_dir.value.display(), e.message()),
+            ),
+        )),
+    }
+
+    database_checks(&cfg, &mut checks).await;
+
+    // Roots.
+    let set = roots::resolve(&cfg);
+    if cfg.roots.is_empty() {
+        checks.push(Check::warn(
+            "data roots",
+            "none declared: `wise-bucket-server roots add <name> <path>`",
+            Some(ErrorKind::OutsideRoots),
+        ));
+    }
+    for r in &set.roots {
+        checks.push(Check::ok(
+            "data root",
+            format!("{} → {} ({})", r.name, r.path.display(), r.origin),
+        ));
+    }
+    for (_, e) in &set.problems {
+        checks.push(Check::fail("data root", e));
+    }
+
+    // Project and harness configuration.
+    match &cfg.project {
+        None => checks.push(Check::warn(
+            "project",
+            "no `.wisebucket/config.toml` found from here: run `wise-bucket-server init` in your robot repository",
+            None,
+        )),
+        Some(p) => {
+            checks.push(Check::ok(
+                "project",
+                format!(
+                    "{} ({})",
+                    p.name.as_ref().map(|n| n.value.as_str()).unwrap_or("unnamed"),
+                    p.dir.display()
+                ),
+            ));
+            let exe = std::env::current_exe().ok().and_then(|e| dunce::canonicalize(e).ok());
+            let mut found_any = false;
+            for h in [crate::cli::Harness::Claude, crate::cli::Harness::Kilo] {
+                let Some(file) = harness_file(h, &p.dir) else { continue };
+                let Ok(text) = std::fs::read_to_string(&file) else { continue };
+                found_any = true;
+                let entry = serde_json::from_str::<serde_json::Value>(&text)
+                    .ok()
+                    .and_then(|v| v.get("mcpServers").and_then(|s| s.get(SERVER_KEY)).cloned());
+                match entry {
+                    None => checks.push(Check::warn(
+                        "harness config",
+                        format!("{} has no `{SERVER_KEY}` server: run `wise-bucket-server init --merge`", file.display()),
+                        Some(ErrorKind::McpConfigExists),
+                    )),
+                    Some(e) => {
+                        let cmd = e.get("command").and_then(|c| c.as_str()).map(std::path::PathBuf::from);
+                        match cmd {
+                            Some(c) if !c.is_file() => checks.push(Check::warn(
+                                "harness config",
+                                format!("{}: command {} does not exist; re-run `init --merge`", file.display(), c.display()),
+                                None,
+                            )),
+                            Some(c) if exe.as_ref().is_some_and(|x| *x != c) => checks.push(Check::warn(
+                                "harness config",
+                                format!("{} launches {} (this binary is {})", file.display(), c.display(), exe.as_ref().map(|x| x.display().to_string()).unwrap_or_default()),
+                                None,
+                            )),
+                            _ => checks.push(Check::ok("harness config", format!("{} → `{SERVER_KEY}`", file.display()))),
+                        }
+                    }
+                }
+            }
+            if !found_any {
+                checks.push(Check::warn("harness config", "no .mcp.json found in the project: run `wise-bucket-server init`", None));
+            }
+        }
+    }
+    checks
+}
+
+async fn database_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
+    if let Some(m) = db::managed_for(cfg) {
+        if !m.is_runtime_installed() {
+            checks.push(Check::fail(
+                "postgresql",
+                &err(
+                    ErrorKind::DbNotInitialized,
+                    "managed PostgreSQL is not installed",
+                ),
+            ));
+            return;
+        }
+        checks.push(Check::ok(
+            "postgresql",
+            format!("{} installed", db::managed::PG_VERSION),
+        ));
+        match m.installed_pgvector_version() {
+            Some(v) if v == db::managed::PGVECTOR_VERSION => {
+                checks.push(Check::ok("pgvector", format!("{v} installed")))
+            }
+            Some(v) => checks.push(Check::warn(
+                "pgvector",
+                format!(
+                    "{v} installed, {} expected: re-run setup",
+                    db::managed::PGVECTOR_VERSION
+                ),
+                Some(ErrorKind::VectorExtensionMissing),
+            )),
+            None => {
+                let e = db::managed::check_toolchain().err().unwrap_or_else(|| {
+                    err(
+                        ErrorKind::VectorExtensionMissing,
+                        "pgvector is not installed: re-run setup",
+                    )
+                });
+                checks.push(Check::fail("pgvector", &e));
+                return;
+            }
+        }
+        if !m.is_initialized() {
+            checks.push(Check::fail(
+                "database",
+                &err(ErrorKind::DbNotInitialized, "cluster not initialized"),
+            ));
+            return;
+        }
+        match m.socket_dir() {
+            Ok(d) => checks.push(Check::ok("socket", d.display().to_string())),
+            Err(e) => {
+                checks.push(Check::fail("socket", &e));
+                return;
+            }
+        }
+    }
+    match db::open(cfg, Purpose::Cli).await {
+        Ok(handle) => {
+            let i = &handle.info;
+            let sessions = wb_core::session::active(&handle.pool)
+                .await
+                .map(|s| s.len())
+                .unwrap_or(0);
+            checks.push(Check::ok(
+                "database",
+                format!(
+                    "{} · PostgreSQL {} · vector {} · pg_trgm {} · {} active session(s){}",
+                    match &cfg.database.value {
+                        Database::Managed => "managed".to_string(),
+                        Database::External { .. } => cfg.database.value.describe(),
+                    },
+                    i.server_version,
+                    i.vector_version.as_deref().unwrap_or("?"),
+                    i.pg_trgm_version.as_deref().unwrap_or("?"),
+                    sessions,
+                    if handle.started_here {
+                        " (started for this check)"
+                    } else {
+                        ""
+                    }
+                ),
+            ));
+            if let Err(e) = handle.release(cfg).await {
+                checks.push(Check::fail("database stop", &e));
+            }
+        }
+        Err(e) => checks.push(Check::fail("database", &e)),
+    }
+}

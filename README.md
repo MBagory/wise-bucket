@@ -1,0 +1,216 @@
+<div align="center">
+
+# 🪣 Wise Bucket
+
+**An open-source MCP server that gives R&D teams long-term context and insights on their time-series data.**
+
+[![CI](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml/badge.svg)](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-guide-blue)](docs/guide.md)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![MSRV](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](Cargo.toml)
+![Status: alpha](https://img.shields.io/badge/status-alpha-red)
+
+[Overview](#overview) · [Getting started](#getting-started) · [Everyday use](#everyday-use) · [Platforms](#platforms) · [Docs](#documentation) · [Contributing](#contributing)
+
+</div>
+
+## Overview
+
+Wise Bucket connects your **AI agent** to the **time-series data on your machine**, in the formats R&D teams actually record:
+
+- Tabular exports: CSV, Parquet
+- Test benches and instruments: ASAM MDF4 (`.mf4`), NI TDMS (`.tdms`), HDF5 (`.h5`)
+- Buses and telemetry: CAN captures (candump, Vector ASC/BLF) decoded with a DBC file, MAVLink (`.tlog`)
+- Robotics and embedded logs: MCAP / ROS bags, PX4 ULog (`.ulg`), ArduPilot DataFlash (`.bin`)
+
+The goal is to give the agent **the full context it usually lacks**, by *standardizing metadata* and *asking you for whatever seems missing*.
+
+*Next*, it will compute and store **signal-processing metrics** and **embeddings**, to surface *analogies* and *weak signals* across all your recordings. Whether you ask a new question or come back to an old one, your agent will answer with **long-term context**.
+
+> [!WARNING]
+> **Work in progress.** Wise Bucket is in early alpha and under active development. Commands, configuration and on-disk formats may change without notice, and it is not ready for production use. Feedback and [issues](https://github.com/MBagory/wise-bucket/issues) are welcome.
+
+## Getting started
+
+### 1. Install
+
+**Requirements:** Linux or macOS (Windows through WSL2), [Rust](https://rustup.rs), and a C compiler (`xcode-select --install` on macOS, `build-essential` on Debian/Ubuntu).
+
+```sh
+git clone https://github.com/MBagory/wise-bucket && cd wise-bucket
+cargo install --path crates/wb-server --locked
+```
+
+### 2. Set up your machine (once, about a minute)
+
+```sh
+wise-bucket-server setup
+```
+
+`setup` asks a few questions; *the defaults are fine*. Re-run it any time: **it only does what's missing**.
+
+<details>
+<summary>Example session</summary>
+
+```text
+$ wise-bucket-server setup
+Wise Bucket setup
+? State directory (database, caches, logs) › ~/.local/share/wisebucket
+? Database › Managed local PostgreSQL + pgvector (recommended)
+… Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
+… Building pgvector 0.8.6 (about 15 s)
+✔ PostgreSQL 17.11.0 + pgvector 0.8.6 ready
+✔ database ready: PostgreSQL 17.11, vector 0.8.6, pg_trgm 1.6
+? Add a folder containing recordings (rosbags, MCAP, …)? › yes
+  Folder path › ~/robot-logs/bags
+  Short name › bags
+  Default robot for these recordings (optional) › rover-b
+✔ root "bags" → /home/me/robot-logs/bags · 37 candidate recordings (31 MCAP, 6 rosbag2 folders, 0 ROS 1, 0 ULog)
+? Add another folder? › no
+✔ configuration written to ~/.config/wisebucket/config.toml
+```
+
+</details>
+
+> [!TIP]
+> **For scripts and CI:** `wise-bucket-server setup --yes --root bags=~/robot-logs/bags`
+
+### 3. Connect your agent (once per repository)
+
+```sh
+cd ~/code/rover
+wise-bucket-server init --robot rover-b
+```
+
+| Agent | How to connect |
+| --- | --- |
+| **Claude Code** | `wise-bucket-server init`: writes `.mcp.json` in the repository |
+| **Kilo Code** | `wise-bucket-server init --harness kilo`: writes `.kilocode/mcp.json` |
+| **Cursor** | Copy the `wise-bucket-server init --print` entry into `.cursor/mcp.json` (same format) |
+| **OpenAI Codex** | Add the entry to `~/.codex/config.toml` (below) |
+| **Cline** | `wise-bucket-server init --harness cline`: prints the entry for Cline's MCP settings |
+
+```toml
+# ~/.codex/config.toml
+[mcp_servers.wise-bucket]
+command = "/home/me/.cargo/bin/wise-bucket-server"
+args = ["serve", "--project", "/home/me/code/rover"]
+```
+
+> [!NOTE]
+> `init` **never overwrites your files**. If a config already lists other servers, it shows the entry to add, or adds it for you with `--merge`.
+
+### 4. Talk to your agent
+
+Open your agent **in the repository** and approve the `wise-bucket` server (in Claude Code, `/mcp` lists it). Then just ask:
+
+```text
+you   › Is Wise Bucket ready? Which recording folders can you use?
+
+agent › ⏺ wise-bucket · server_info
+        Wise Bucket 0.1.0 is connected and its database is running
+        (PostgreSQL 17.11, pgvector 0.8.6, 1 active session).
+        Project "rover", default robot rover-b.
+        I can use one recording folder: bags → /home/me/robot-logs/bags.
+```
+
+<details>
+<summary>When something isn't right, the answer tells you what to do</summary>
+
+```text
+you   › Is Wise Bucket ready?
+
+agent › ⏺ wise-bucket · server_info
+        Not yet: the database hasn't been set up on this machine
+        (db_not_initialized). Run `wise-bucket-server setup` once,
+        then start a new session.
+        Docs: https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#db_not_initialized
+```
+
+</details>
+
+## Everyday use
+
+### Commands
+
+| You want to… | Run |
+| --- | --- |
+| Add a recording folder (a NAS mount works too) | `wise-bucket-server roots add flights /Volumes/lab-nas/px4` |
+| See what your folders contain | `wise-bucket-server roots check` |
+| See which agent windows are connected | `wise-bucket-server db status` |
+| Check that everything works | `wise-bucket-server doctor` |
+| Back up (and restore) your data | `wise-bucket-server backup wb.dump` · `restore wb.dump --yes` |
+| See your settings and where each comes from | `wise-bucket-server config show --origin` |
+| Use your own PostgreSQL instead | `export WB_DATABASE_URL=…` then `wise-bucket-server setup --yes` |
+
+> [!IMPORTANT]
+> After changing folders, **start a new agent session** to pick them up. Your recordings are **never modified, moved or included in backups**; `roots remove` only *forgets* a folder.
+
+### Check your installation
+
+`doctor` **checks everything** and links each problem to *its fix*:
+
+<details>
+<summary>Example output</summary>
+
+```text
+$ wise-bucket-server doctor
+✔ configuration      loaded (~/.config/wisebucket/config.toml)
+✔ state directory    ~/.local/share/wisebucket · 84.6 GB free
+✔ postgresql         17.11.0 installed
+✔ pgvector           0.8.6 installed
+✔ database           managed · PostgreSQL 17.11 · vector 0.8.6 · pg_trgm 1.6 · 0 active session(s)
+✔ data root          bags → /home/me/robot-logs/bags
+✖ data root          root "old-bags": /home/me/old-bags is not accessible
+                     ↳ root_invalid · https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#root_invalid
+✔ project            rover (/home/me/code/rover)
+✔ harness config     /home/me/code/rover/.mcp.json → `wise-bucket`
+
+9 check(s), 1 failed, 0 warning(s)
+```
+
+</details>
+
+### Where your files are
+
+| What | Where |
+| --- | --- |
+| Your settings and recording folders | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` |
+| The project's name and default robot (commit it) | `<repo>/.wisebucket/config.toml` |
+| How your agent starts Wise Bucket | `<repo>/.mcp.json` (or your agent's equivalent) |
+| Database, logs, generated passwords | Linux `~/.local/share/wisebucket/`, macOS `~/Library/Application Support/wisebucket/` (about 250 MB) |
+
+## Platforms
+
+| Platform | Status |
+| --- | --- |
+| Linux x86_64 / arm64 | ✅ |
+| macOS Apple Silicon / Intel | ✅ |
+| Windows | through WSL2 |
+
+## Documentation
+
+- [User guide](docs/guide.md): install, setup, recording folders, connecting your agent, everyday use
+- [Troubleshooting and FAQ](docs/troubleshooting.md)
+- Reference: [CLI](docs/reference/cli.md) · [Configuration](docs/reference/configuration.md) · [Errors](docs/reference/errors.md)
+- [Security and privacy](SECURITY.md)
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+```sh
+cargo build
+cargo test --workspace               # first run downloads PostgreSQL and builds pgvector (~1 min)
+cargo run -p wb-server -- docs gen   # regenerate reference pages after changing the CLI, errors or config
+```
+
+The acceptance tests drive **the real binary** through **a real MCP client**. They cover two concurrent sessions, stop-after-last, recording folders, `doctor`, backup/restore, and your own PostgreSQL.
+
+## Security
+
+**Recordings and the database stay on your machine.** Downloads are *pinned and verified*. What your agent sends to its own model follows your agent's terms. Report vulnerabilities **privately**: see [SECURITY.md](SECURITY.md).
+
+## License
+
+[Apache License 2.0](LICENSE). Built on [PostgreSQL](https://www.postgresql.org), [pgvector](https://github.com/pgvector/pgvector), [theseus-rs PostgreSQL binaries](https://github.com/theseus-rs/postgresql-binaries), the [Rust MCP SDK](https://github.com/modelcontextprotocol/rust-sdk) and [SQLx](https://github.com/launchbadge/sqlx). To cite Wise Bucket, use [CITATION.cff](CITATION.cff).

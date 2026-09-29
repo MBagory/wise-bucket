@@ -1,0 +1,36 @@
+[package]
+name = "wb-core"
+description = "Wise Bucket core: configuration, errors, storage and database lifecycle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+chrono = { version = "0.4.45", features = ["serde"] }
+directories = "6.0.0"
+dunce = "1.0.5"
+flate2 = "1.1.10"
+getrandom = "0.3"
+hex = "0.4.3"
+semver = "1.0.28"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+sha2 = "0.11.0"
+sqlx = { version = "0.9", default-features = false, features = ["postgres", "runtime-tokio", "tls-rustls", "uuid", "chrono", "json", "migrate", "macros"] }
+tar = "0.4.46"
+thiserror = "2.0.21"
+tokio = { version = "1.53.1", features = ["full"] }
+toml = "1.1.6"
+toml_edit = "0.25.15"
+tracing = "0.1.44"
+ureq = "3.4"
+uuid = { version = "1.26.1", features = ["v7", "serde"] }
+
+[dev-dependencies]
+tempfile = "3"
