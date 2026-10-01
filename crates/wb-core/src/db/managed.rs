@@ -9,7 +9,7 @@
 //! * The server listens **only** on a Unix socket in a private directory; there
 //!   is no TCP listener.
 
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -211,7 +211,7 @@ impl Managed {
         );
         let downloads = self.runtime_dir.join("downloads");
         let archive = downloads.join(&name);
-        download_verified(&url, &archive, archive_sha256(target)?, progress)?;
+        fsutil::download_verified(&url, &archive, archive_sha256(target)?, progress)?;
 
         progress("Unpacking PostgreSQL");
         let staging = self
@@ -253,7 +253,7 @@ impl Managed {
             .runtime_dir
             .join("downloads")
             .join(format!("pgvector-{PGVECTOR_VERSION}.tar.gz"));
-        download_verified(&url, &archive, PGVECTOR_SHA256, progress)?;
+        fsutil::download_verified(&url, &archive, PGVECTOR_SHA256, progress)?;
 
         let build_root = self.runtime_dir.join("build");
         let src = build_root.join(format!("pgvector-{PGVECTOR_VERSION}"));
@@ -635,58 +635,6 @@ pub fn check_toolchain() -> Result<()> {
         ));
     }
     Ok(())
-}
-
-/// Downloads `url` to `dest` unless a file with the right checksum is already there.
-fn download_verified(url: &str, dest: &Path, sha256: &str, progress: Progress) -> Result<()> {
-    if dest.is_file() && file_sha256(dest)? == sha256 {
-        return Ok(());
-    }
-    std::fs::create_dir_all(dest.parent().unwrap_or(Path::new(".")))?;
-    progress(&format!("Downloading {url}"));
-    let resp = ureq::get(url)
-        .call()
-        .map_err(|e| err(ErrorKind::DownloadFailed, format!("{url}: {e}")))?;
-    let mut reader = resp.into_body().into_reader();
-    let partial = dest.with_extension("partial");
-    let mut file = std::fs::File::create(&partial)?;
-    let mut hasher = Sha256::new();
-    let mut buf = vec![0u8; 1 << 16];
-    loop {
-        let n = reader
-            .read(&mut buf)
-            .map_err(|e| err(ErrorKind::DownloadFailed, format!("{url}: {e}")))?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-        file.write_all(&buf[..n])?;
-    }
-    file.sync_all()?;
-    let got = hex::encode(hasher.finalize());
-    if got != sha256 {
-        let _ = std::fs::remove_file(&partial);
-        return Err(err(
-            ErrorKind::ChecksumMismatch,
-            format!("{url}: expected sha256 {sha256}, got {got}"),
-        ));
-    }
-    std::fs::rename(&partial, dest)?;
-    Ok(())
-}
-
-fn file_sha256(path: &Path) -> Result<String> {
-    let mut f = std::fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buf = vec![0u8; 1 << 16];
-    loop {
-        let n = f.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(hex::encode(hasher.finalize()))
 }
 
 fn unpack_tar_gz(archive: &Path, into: &Path) -> Result<()> {

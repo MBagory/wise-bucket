@@ -25,6 +25,7 @@ This document contains the help content for the `wise-bucket-server` command-lin
 * [`wise-bucket-server backup`↴](#wise-bucket-server-backup)
 * [`wise-bucket-server restore`↴](#wise-bucket-server-restore)
 * [`wise-bucket-server doctor`↴](#wise-bucket-server-doctor)
+* [`wise-bucket-server demo`↴](#wise-bucket-server-demo)
 * [`wise-bucket-server docs`↴](#wise-bucket-server-docs)
 * [`wise-bucket-server docs gen`↴](#wise-bucket-server-docs-gen)
 
@@ -47,6 +48,7 @@ Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 * `backup` — Write a backup of the Wise Bucket database (custom pg_dump format)
 * `restore` — Restore a backup made with `backup` (replaces current data)
 * `doctor` — Check the whole installation and explain how to fix problems
+* `demo` — Download public sample recordings and declare them as the `demo` data root
 * `docs` — Documentation helpers
 
 ###### **Options:**
@@ -291,6 +293,27 @@ Restore a backup made with `backup` (replaces current data)
 Check the whole installation and explain how to fix problems
 
 **Usage:** `wise-bucket-server doctor`
+
+
+
+## `wise-bucket-server demo`
+
+Download public sample recordings and declare them as the `demo` data root
+
+**Usage:** `wise-bucket-server demo [OPTIONS] [FORMAT]...`
+
+###### **Arguments:**
+
+* `<FORMAT>` — Formats to download (default: choose interactively, or all without a terminal)
+
+  Possible values: `ros2-mcap`, `ros2-db3`, `mcap`, `ros1-bag`, `ulog`, `dataflash`, `tlog`, `can`, `mdf4`, `parquet`
+
+
+###### **Options:**
+
+* `--all` — Download every format
+* `--list` — List the formats, their sources and licenses, then exit
+* `-y`, `--yes` — Never prompt (downloads every format unless some are named)
 
 
 

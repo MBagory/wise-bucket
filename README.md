@@ -10,7 +10,7 @@
 [![MSRV](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](Cargo.toml)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-red)
 
-[Overview](#overview) · [Getting started](#getting-started) · [Everyday use](#everyday-use) · [Platforms](#platforms) · [Docs](#documentation) · [Contributing](#contributing)
+[Overview](#overview) · [Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Platforms](#platforms) · [Docs](#documentation) · [Contributing](#contributing)
 
 </div>
 
@@ -129,6 +129,36 @@ agent › ⏺ wise-bucket · server_info
 
 </details>
 
+## Try it with sample data
+
+No recordings at hand? `demo` downloads small **public sample files**, one set per format, and declares them as a data root named `demo`:
+
+```sh
+wise-bucket-server demo                 # pick formats from a list
+wise-bucket-server demo ros2-mcap ulog  # or name them
+wise-bucket-server demo --all           # everything (about 4 MB)
+wise-bucket-server demo --list          # formats, sizes and licenses
+```
+
+The files go to `<state dir>/demo/<format>/`. They are fetched from their upstream projects at a pinned commit and checked against a SHA-256, and they **stay under their own licenses** (Apache-2.0, MIT, BSD-3-Clause, LGPL-3.0): this repository does not include them. Re-running `demo` only downloads what is missing. Start a new agent session to see the `demo` root; remove it with `wise-bucket-server roots remove demo` and by deleting the folder.
+
+### Investigations to try
+
+Wise Bucket currently **lists and counts** recordings; it does not read them yet. Each line below says which milestone makes the investigation runnable.
+
+| Format | Sample | Ask your agent | Runnable from |
+| --- | --- | --- | --- |
+| *all* | everything you downloaded | *"Which recordings does Wise Bucket see in the demo root?"* | now (M0) |
+| `ros2-mcap` · `ros2-db3` | ROS 2 talker demo, 4.5 s: `/topic` (`std_msgs/String`) and `/rosout`, 10 messages each, as MCAP and as SQLite | *"Is `/topic` published at a steady rate?"* · *"Do the MCAP and SQLite copies hold the same messages?"* | M3 (MCAP), E2 (`.db3`) |
+| `mcap` | ROS 1-encoded demo (`/chatter`, `/diagnostics`) and an MCAP spec conformance file | *"Which topics are in `demo.mcap`, and at what rates?"* · *"Does the conformance file decode to exactly ten messages?"* | M3 (conformance), E3 (ROS 1 encoding) |
+| `ros1-bag` | demo bag plus one bag (`/chatter`, `/numbers`) stored uncompressed, LZ4 and BZ2 | *"Do the three compressions decode to the same `/numbers` sequence? Any gaps?"* | E3 (ROS 1) |
+| `ulog` | PX4 autopilot on the bench, disarmed, 69 s, no barometer detected | *"Why is the barometric altitude flat?"* · *"What is the IMU noise floor at rest?"* · *"When does CPU load peak (83 %) and what runs then?"* | E3 (ULog), M4 (metrics) |
+| `dataflash` | ArduPlane 3.8 software-in-the-loop log: attitude, PIDs, EKF, GPS, battery, vibration | *"How large is the roll tracking error (`ATT.DesRoll` vs `ATT.Roll`)?"* · *"Does battery voltage sag with current?"* · *"Are vibration levels within ArduPilot's limits?"* | E3 (DataFlash), M4 |
+| `tlog` | one MAVLink 2 `BATTERY_STATUS` (12.59 V, 100 %) followed by a truncated packet | *"What battery state was reported?"* · *"Is the truncated tail reported instead of failing the whole file?"* | E3 (MAVLink) |
+| `can` | Vector ASC capture (20 frames, 9 IDs, 4 error frames, 28 s), a BLF file, and an unrelated DBC | *"Which IDs are on the bus, how often, and when do the error frames occur?"* · *"Which frames can't this DBC decode?"* (all of them, so Wise Bucket should ask you for the right one) | E3 (CAN) |
+| `mdf4` | MDF 4.10 file whose four channels have meaningless names | *"What do these channels measure?"* Wise Bucket cannot guess, so it should ask you to bind them | E3 (MDF4) |
+| `parquet` | 8-row table covering the Parquet primitive types | no investigation: it checks the format of Wise Bucket's decoded cache | M3 |
+
 ## Everyday use
 
 ### Commands
@@ -203,6 +233,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT
 cargo build
 cargo test --workspace               # first run downloads PostgreSQL and builds pgvector (~1 min)
 cargo run -p wb-server -- docs gen   # regenerate reference pages after changing the CLI, errors or config
+cargo test -p wb-server --test samples -- --ignored  # per-format sample checks (downloads ~4 MB once)
 ```
 
 The acceptance tests drive **the real binary** through **a real MCP client**. They cover two concurrent sessions, stop-after-last, recording folders, `doctor`, backup/restore, and your own PostgreSQL.

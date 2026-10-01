@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added: sample data
+
+- `demo [FORMAT…] | --all | --list`: downloads public sample recordings (ROS 2 MCAP and SQLite bags, MCAP, ROS 1 bags, PX4 ULog, ArduPilot DataFlash, MAVLink tlog, CAN ASC/BLF + DBC, MDF4, Parquet) from their upstream projects at pinned commits, verifies their SHA-256, and declares them as the `demo` data root. Nothing is redistributed by this repository.
+- Per-format sample tests (`cargo test -p wb-server --test samples -- --ignored`), run by a dedicated CI job per format.
+
 ### Added: milestone M0 (foundation)
 
 - `wise-bucket-server` binary: MCP server over stdio (`serve`) and command-line tool.

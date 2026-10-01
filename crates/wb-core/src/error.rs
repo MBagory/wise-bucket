@@ -68,10 +68,10 @@ error_kinds! {
         "Managed mode supports Linux (x86_64, aarch64) and macOS (x86_64, arm64). On Windows, use WSL2. Otherwise use your own PostgreSQL with `--database-url`.";
     DownloadFailed => "download_failed",
         "A download failed",
-        "Check your network connection or proxy, then re-run `wise-bucket-server setup` (it resumes where it stopped).";
+        "Check your network connection or proxy, then re-run the command (`setup` or `demo`): it resumes where it stopped.";
     ChecksumMismatch => "checksum_mismatch",
         "A downloaded file does not match its pinned checksum",
-        "The file was corrupted or tampered with. Delete the runtime directory shown in the message and re-run `wise-bucket-server setup`. If it persists, report it (see SECURITY.md).";
+        "The file was corrupted, tampered with, or changed upstream. Re-run the command (`setup` or `demo`): files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).";
     ToolchainMissing => "toolchain_missing",
         "A C toolchain is required to build pgvector",
         "macOS: run `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`. Fedora: `sudo dnf install gcc make`. Then re-run `wise-bucket-server setup`.";

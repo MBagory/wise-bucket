@@ -40,6 +40,7 @@ async fn run(cli: Cli) -> Result<()> {
         Some(Command::Backup { file }) => commands::db_cmd::backup(g, file).await,
         Some(Command::Restore { file, yes }) => commands::db_cmd::restore(g, file, *yes).await,
         Some(Command::Doctor) => commands::doctor::run(g).await,
+        Some(Command::Demo(a)) => commands::demo::run(g, a),
         Some(Command::Docs(cli::DocsCommand::Gen { check, out })) => {
             commands::docs::run(out, *check)
         }

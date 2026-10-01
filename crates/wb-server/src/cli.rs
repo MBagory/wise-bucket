@@ -80,6 +80,8 @@ pub enum Command {
     },
     /// Check the whole installation and explain how to fix problems
     Doctor,
+    /// Download public sample recordings and declare them as the `demo` data root
+    Demo(DemoArgs),
     /// Documentation helpers
     #[command(subcommand)]
     Docs(DocsCommand),
@@ -141,6 +143,25 @@ pub struct InitArgs {
     pub merge: bool,
 
     /// Never prompt
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct DemoArgs {
+    /// Formats to download (default: choose interactively, or all without a terminal)
+    #[arg(value_name = "FORMAT", value_parser = clap::builder::PossibleValuesParser::new(wb_core::samples::keys()))]
+    pub formats: Vec<String>,
+
+    /// Download every format
+    #[arg(long, conflicts_with = "formats")]
+    pub all: bool,
+
+    /// List the formats, their sources and licenses, then exit
+    #[arg(long)]
+    pub list: bool,
+
+    /// Never prompt (downloads every format unless some are named)
     #[arg(long, short = 'y')]
     pub yes: bool,
 }

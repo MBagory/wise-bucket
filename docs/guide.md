@@ -119,6 +119,8 @@ wise-bucket-server roots remove flights                          # the folder it
 - **Your decision only:** Wise Bucket gives your agent no tool to add a folder. You add folders from the command line or a configuration file.
 - **Restart the agent session** after changing folders: the server reads its configuration when it starts.
 
+**No recordings yet?** `wise-bucket-server demo` downloads public sample files (MCAP, ROS bags, ULog, DataFlash, MAVLink, CAN, MDF4, Parquet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data) for the formats and the investigations they support.
+
 **Folders inside a repository** can be shared with your team through the project configuration. Their paths must be relative and stay inside the repository:
 
 ```sh

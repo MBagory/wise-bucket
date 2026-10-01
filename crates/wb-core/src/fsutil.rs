@@ -1,10 +1,13 @@
-//! Small file-system helpers: atomic writes, private files, cross-process locks.
+//! Small file-system helpers: atomic writes, private files, cross-process locks,
+//! checksum-verified downloads.
 
 use std::fs::{File, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
-use crate::error::{IoContext, Result};
+use sha2::{Digest, Sha256};
+
+use crate::error::{ErrorKind, IoContext, Result, err};
 
 /// Writes a file atomically (temporary file in the same directory, then rename).
 pub fn write_atomic(path: &Path, data: &[u8]) -> Result<()> {
@@ -98,6 +101,64 @@ impl Drop for FileLock {
     fn drop(&mut self) {
         let _ = self.file.unlock();
     }
+}
+
+/// Downloads `url` to `dest` unless a file with the right checksum is already there.
+pub fn download_verified(
+    url: &str,
+    dest: &Path,
+    sha256: &str,
+    progress: &dyn Fn(&str),
+) -> Result<()> {
+    if dest.is_file() && file_sha256(dest)? == sha256 {
+        return Ok(());
+    }
+    std::fs::create_dir_all(dest.parent().unwrap_or(Path::new(".")))?;
+    progress(&format!("Downloading {url}"));
+    let resp = ureq::get(url)
+        .call()
+        .map_err(|e| err(ErrorKind::DownloadFailed, format!("{url}: {e}")))?;
+    let mut reader = resp.into_body().into_reader();
+    let partial = dest.with_extension("partial");
+    let mut file = std::fs::File::create(&partial)?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1 << 16];
+    loop {
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| err(ErrorKind::DownloadFailed, format!("{url}: {e}")))?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+        file.write_all(&buf[..n])?;
+    }
+    file.sync_all()?;
+    let got = hex::encode(hasher.finalize());
+    if got != sha256 {
+        let _ = std::fs::remove_file(&partial);
+        return Err(err(
+            ErrorKind::ChecksumMismatch,
+            format!("{url}: expected sha256 {sha256}, got {got}"),
+        ));
+    }
+    std::fs::rename(&partial, dest)?;
+    Ok(())
+}
+
+/// Hex SHA-256 of a file.
+pub fn file_sha256(path: &Path) -> Result<String> {
+    let mut f = std::fs::File::open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1 << 16];
+    loop {
+        let n = f.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hex::encode(hasher.finalize()))
 }
 
 /// Free space in bytes on the file system holding `path` (best effort).
