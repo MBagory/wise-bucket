@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🪣 Wise Bucket
+<img src="docs/assets/banner.svg" alt="Wise Bucket: long-term context and insights for your time-series data" width="100%">
 
 **An open-source MCP server that gives R&D teams long-term context and insights on their time-series data.**
 
