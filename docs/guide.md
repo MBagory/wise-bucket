@@ -47,8 +47,7 @@ Run this once per machine:
 ```text
 $ wise-bucket-server setup
 Wise Bucket setup
-? State directory (database, caches, logs) › ~/.local/share/wisebucket
-? Database › Managed local PostgreSQL + pgvector (recommended)
+✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
 … Building pgvector 0.8.6 (about 15 s)
 ✔ PostgreSQL 17.11.0 + pgvector 0.8.6 ready
@@ -75,29 +74,6 @@ Wise Bucket setup
 ```sh
 wise-bucket-server setup --yes --root bags=~/robot-logs/bags --root flights=/mnt/nas/px4
 ```
-
-### Use your own PostgreSQL
-
-Instead of the managed database, you can use a PostgreSQL **15 or newer** server with **pgvector 0.8 or newer** and the `pg_trgm` extension, for example a lab server or the `pgvector/pgvector:pg17` Docker image. No C toolchain is needed in that case.
-
-1. As a superuser, create a database and a user that owns it, then the extensions:
-
-   ```sql
-   CREATE ROLE wisebucket LOGIN PASSWORD '…';
-   CREATE DATABASE wisebucket OWNER wisebucket;
-   \c wisebucket
-   CREATE EXTENSION vector;
-   CREATE EXTENSION pg_trgm;
-   ```
-
-2. Pass the URL through the environment. It is never written to a file:
-
-   ```sh
-   export WB_DATABASE_URL='postgres://wisebucket:…@db.lab.local:5432/wisebucket'
-   wise-bucket-server setup --yes
-   ```
-
-`init` then configures your agent to pass `WB_DATABASE_URL` along from its environment.
 
 ## Recording folders
 
@@ -198,7 +174,7 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 | Your settings and recording folders | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` |
 | The project's name and default robot | `<repo>/.wisebucket/config.toml` |
 | How your agent starts Wise Bucket | `<repo>/.mcp.json` (or your agent's equivalent) |
-| State directory | Linux `~/.local/share/wisebucket/`, macOS `~/Library/Application Support/wisebucket/` |
+| State directory | Linux `~/.local/share/wisebucket/`, macOS `~/Library/Application Support/wisebucket/`. To use another disk, set `state_dir = "…"` in your settings **before** running `setup` |
 
 ```text
 <state directory>/

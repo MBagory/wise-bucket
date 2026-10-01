@@ -55,7 +55,6 @@ Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 
 * `--config <FILE>` — User configuration file [env: WB_CONFIG]
 * `--state-dir <DIR>` — State directory (database, caches, logs) [env: WB_STATE_DIR]
-* `--database-url <URL>` — Use your own PostgreSQL (>= 15 with pgvector >= 0.8) instead of the managed one [env: WB_DATABASE_URL]
 * `--project <DIR>` — Robot repository whose `.wisebucket/config.toml` applies [env: WB_PROJECT_DIR]
 * `--keep-running` — Keep the managed PostgreSQL running after the last session [env: WB_KEEP_RUNNING]
 * `--json` — Machine-readable JSON output (where supported)

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use dialoguer::Input;
 use serde_json::{Map, Value, json};
-use wb_core::config::{self, Database, ProjectConfigFile, RootDecl, RootSpec};
+use wb_core::config::{self, ProjectConfigFile, RootDecl, RootSpec};
 use wb_core::error::{ErrorKind, Result, err};
 use wb_core::{fsutil, paths, roots};
 
@@ -16,7 +16,7 @@ use crate::ui;
 pub const SERVER_KEY: &str = "wise-bucket";
 
 /// Builds the MCP server entry launching this binary for `project_dir`.
-pub fn server_entry(global: &GlobalArgs, project_dir: &Path, external_db: bool) -> Result<Value> {
+pub fn server_entry(global: &GlobalArgs, project_dir: &Path) -> Result<Value> {
     let exe = std::env::current_exe()?;
     let exe = dunce::canonicalize(&exe).unwrap_or(exe);
     let mut args = vec![
@@ -41,13 +41,7 @@ pub fn server_entry(global: &GlobalArgs, project_dir: &Path, external_db: bool) 
                 .to_string(),
         ]);
     }
-    let mut entry = json!({ "command": exe.display().to_string(), "args": args });
-    if external_db {
-        // Never write the secret: let the harness expand it from the environment.
-        entry["env"] =
-            json!({ (paths::env::DATABASE_URL): format!("${{{}}}", paths::env::DATABASE_URL) });
-    }
-    Ok(entry)
+    Ok(json!({ "command": exe.display().to_string(), "args": args }))
 }
 
 /// Where each harness reads its project MCP configuration (None: global settings only).
@@ -132,11 +126,10 @@ pub async fn run(global: &GlobalArgs, args: &InitArgs) -> Result<()> {
         .map_err(|e| err(ErrorKind::Io, format!("{}: {e}", dir.display())))?;
     let interactive = ui::interactive(args.yes) && !args.print;
 
-    // Configuration as seen from this project (user config, database mode, …).
+    // Configuration as seen from this project (user config, roots, …).
     let mut overrides = global.overrides();
     overrides.project_dir = Some(dir.clone());
     let cfg = config::load(&overrides)?;
-    let external = matches!(cfg.database.value, Database::External { .. });
 
     // --- project configuration
     let project_cfg_path = dir.join(paths::PROJECT_CONFIG_REL);
@@ -209,7 +202,7 @@ pub async fn run(global: &GlobalArgs, args: &InitArgs) -> Result<()> {
     }
 
     // --- harness configuration
-    let entry = server_entry(global, &dir, external)?;
+    let entry = server_entry(global, &dir)?;
     let snippet = serde_json::to_string_pretty(&json!({ "mcpServers": { SERVER_KEY: entry } }))
         .unwrap_or_default();
     let target = harness_file(args.harness, &dir);
@@ -258,12 +251,6 @@ pub async fn run(global: &GlobalArgs, args: &InitArgs) -> Result<()> {
             Harness::Cline => eprintln!(
                 "Next: paste the snippet in Cline's MCP settings and enable `{SERVER_KEY}`."
             ),
-        }
-        if external {
-            ui::info(format!(
-                "External database: make sure {} is set in the environment your harness starts from.",
-                paths::env::DATABASE_URL
-            ));
         }
     }
     Ok(())

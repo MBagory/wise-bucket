@@ -57,7 +57,6 @@ impl WbServer {
                 let active = session::active(&db.pool).await.map(|v| v.len()).ok();
                 json!({
                     "status": "ok",
-                    "mode": db.info.mode,
                     "postgresql": db.info.server_version,
                     "pgvector": db.info.vector_version,
                     "pg_trgm": db.info.pg_trgm_version,
@@ -68,7 +67,7 @@ impl WbServer {
                 let mut j = e.to_json();
                 j["status"] = json!("error");
                 j["docs_url"] = json!(ui::docs_url(&e.docs_ref()));
-                json!({ "status": "error", "mode": s.cfg.database.value.mode_name(), "error": j })
+                json!({ "status": "error", "error": j })
             }
         };
         let project = s.cfg.project.as_ref().map(|p| {
@@ -125,8 +124,7 @@ fn summary(v: &Value) -> String {
     let db = &v["database"];
     let db_line = if db["status"] == "ok" {
         format!(
-            "database: {} · PostgreSQL {} · pgvector {} · {} active session(s)",
-            db["mode"].as_str().unwrap_or("?"),
+            "database: PostgreSQL {} · pgvector {} · {} active session(s)",
             db["postgresql"].as_str().unwrap_or("?"),
             db["pgvector"].as_str().unwrap_or("?"),
             db["active_sessions"]

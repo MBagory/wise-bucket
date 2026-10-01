@@ -19,7 +19,7 @@ pub const BIN: &str = env!("CARGO_BIN_EXE_wise-bucket-server");
 pub fn runtime_dir() -> PathBuf {
     std::env::var_os("WB_TEST_RUNTIME_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("wb-runtime"))
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("wb runtime"))
 }
 
 pub struct TestEnv {
@@ -58,8 +58,7 @@ impl TestEnv {
     }
 
     fn apply(&self, cmd: &mut std::process::Command) {
-        cmd.env_remove("WB_DATABASE_URL")
-            .env_remove("WB_PROJECT_DIR")
+        cmd.env_remove("WB_PROJECT_DIR")
             .env_remove("WB_KEEP_RUNNING")
             .env("WB_CONFIG", &self.config)
             .env("WB_STATE_DIR", &self.state)

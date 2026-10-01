@@ -63,19 +63,9 @@ pub struct RootSpec {
     pub exclude: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "snake_case")]
-pub enum DbModeName {
-    #[default]
-    Managed,
-    External,
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DatabaseSection {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub mode: Option<DbModeName>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keep_running: Option<bool>,
 }
@@ -102,59 +92,6 @@ pub struct ProjectConfigFile {
     pub default_robot: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub roots: Vec<RootSpec>,
-}
-
-/// Database connection mode.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Database {
-    /// PostgreSQL + pgvector provisioned and run by Wise Bucket.
-    Managed,
-    /// A PostgreSQL server provided by the user.
-    External { url: String },
-}
-
-impl Database {
-    pub fn mode_name(&self) -> &'static str {
-        match self {
-            Database::Managed => "managed",
-            Database::External { .. } => "external",
-        }
-    }
-
-    /// Human description; passwords are never shown.
-    pub fn describe(&self) -> String {
-        match self {
-            Database::Managed => "managed (local PostgreSQL run by Wise Bucket)".into(),
-            Database::External { url } => format!("external ({})", mask_url(url)),
-        }
-    }
-}
-
-impl Serialize for Database {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
-        s.serialize_str(&self.describe())
-    }
-}
-
-/// Replaces the password of a `postgres://user:pass@host/db` URL with `***`.
-pub fn mask_url(url: &str) -> String {
-    let Some(scheme_end) = url.find("://") else {
-        return url.to_string();
-    };
-    let rest = &url[scheme_end + 3..];
-    let Some(at) = rest.rfind('@') else {
-        return url.to_string();
-    };
-    let creds = &rest[..at];
-    match creds.find(':') {
-        Some(colon) => format!(
-            "{}{}:***{}",
-            &url[..scheme_end + 3],
-            &creds[..colon],
-            &rest[at..]
-        ),
-        None => url.to_string(),
-    }
 }
 
 /// A root declaration before validation, with the directory relative paths resolve against.
@@ -185,7 +122,6 @@ pub struct EffectiveConfig {
     pub project: Option<ProjectInfo>,
     pub state_dir: Sourced<PathBuf>,
     pub runtime_dir: Sourced<PathBuf>,
-    pub database: Sourced<Database>,
     pub keep_running: Sourced<bool>,
     pub roots: Vec<RootDecl>,
 }
@@ -195,7 +131,6 @@ pub struct EffectiveConfig {
 pub struct Overrides {
     pub config_path: Option<PathBuf>,
     pub state_dir: Option<PathBuf>,
-    pub database_url: Option<String>,
     pub project_dir: Option<PathBuf>,
     pub keep_running: Option<bool>,
 }
@@ -341,31 +276,6 @@ pub fn load_with(overrides: &Overrides, envs: &dyn EnvSource) -> Result<Effectiv
 
     // --- database
     let db_section = user.database.clone().unwrap_or_default();
-    let database = if let Some(url) = &overrides.database_url {
-        Sourced::new(
-            Database::External { url: url.clone() },
-            Origin::Cli("--database-url".into()),
-        )
-    } else if let Some(url) = envs.get(env::DATABASE_URL) {
-        Sourced::new(
-            Database::External { url },
-            Origin::Env(env::DATABASE_URL.into()),
-        )
-    } else if db_section.mode == Some(DbModeName::External) {
-        return Err(err(
-            ErrorKind::ConfigInvalid,
-            format!(
-                "{}: database.mode = \"external\" requires the URL in {} (secrets are never stored in config files)",
-                user_config_path.value.display(),
-                env::DATABASE_URL
-            ),
-        ));
-    } else if db_section.mode == Some(DbModeName::Managed) {
-        Sourced::new(Database::Managed, user_origin.clone())
-    } else {
-        Sourced::new(Database::Managed, Origin::Default)
-    };
-
     let keep_running = if let Some(v) = overrides.keep_running {
         Sourced::new(v, Origin::Cli("--keep-running".into()))
     } else if let Some(v) = envs.get(env::KEEP_RUNNING) {
@@ -405,7 +315,6 @@ pub fn load_with(overrides: &Overrides, envs: &dyn EnvSource) -> Result<Effectiv
         project: project_info,
         state_dir,
         runtime_dir,
-        database,
         keep_running,
         roots,
     })
@@ -518,7 +427,7 @@ pub fn remove_root_from_file(path: &Path, name: &str) -> Result<bool> {
     Ok(true)
 }
 
-/// Sets a top-level or dotted scalar key (e.g. `database.mode`).
+/// Sets a top-level or dotted scalar key (e.g. `database.keep_running`).
 pub fn set_key_in_file(
     path: &Path,
     key: &str,
@@ -575,20 +484,12 @@ pub const KEYS: &[KeyDoc] = &[
         description: "Where Wise Bucket keeps its database, caches and logs.",
     },
     KeyDoc {
-        key: "database.mode",
-        layer: "user",
-        env: env::DATABASE_URL,
-        cli: "--database-url",
-        default: "`managed`",
-        description: "`managed` runs a local PostgreSQL + pgvector; `external` uses your server. The external URL comes only from the environment or the command line, never from a file.",
-    },
-    KeyDoc {
         key: "database.keep_running",
         layer: "user",
         env: env::KEEP_RUNNING,
         cli: "--keep-running",
         default: "`false`",
-        description: "Managed mode: keep PostgreSQL running after the last session ends.",
+        description: "Keep PostgreSQL running after the last session ends.",
     },
     KeyDoc {
         key: "[[roots]] name",
@@ -764,30 +665,6 @@ mod tests {
     }
 
     #[test]
-    fn external_mode_requires_url_from_env() {
-        let d = tempfile::tempdir().unwrap();
-        let cfg = d.path().join("config.toml");
-        std::fs::write(&cfg, "[database]\nmode = \"external\"\n").unwrap();
-        let p = cfg.to_string_lossy().to_string();
-        let e =
-            load_with(&Overrides::default(), &fake(d.path(), &[(env::CONFIG, &p)])).unwrap_err();
-        assert_eq!(e.kind(), ErrorKind::ConfigInvalid);
-        let c = load_with(
-            &Overrides::default(),
-            &fake(
-                d.path(),
-                &[
-                    (env::CONFIG, &p),
-                    (env::DATABASE_URL, "postgres://u:secret@h/db"),
-                ],
-            ),
-        )
-        .unwrap();
-        assert_eq!(c.database.value.mode_name(), "external");
-        assert!(!c.database.value.describe().contains("secret"));
-    }
-
-    #[test]
     fn unknown_keys_are_rejected() {
         let d = tempfile::tempdir().unwrap();
         let cfg = d.path().join("config.toml");
@@ -820,15 +697,6 @@ mod tests {
         assert_eq!(p.default_robot.unwrap().value, "rover-b");
         assert_eq!(c.roots.len(), 1);
         assert!(c.roots[0].from_project);
-    }
-
-    #[test]
-    fn mask_url_hides_password() {
-        assert_eq!(
-            mask_url("postgres://u:p@h:5432/db"),
-            "postgres://u:***@h:5432/db"
-        );
-        assert_eq!(mask_url("postgres://h/db"), "postgres://h/db");
     }
 
     #[test]

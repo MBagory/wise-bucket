@@ -9,7 +9,7 @@ use serde::Serialize;
 use sqlx::postgres::{PgConnectOptions, PgPoolOptions};
 use sqlx::{ConnectOptions, PgPool};
 
-use crate::config::{Database, EffectiveConfig};
+use crate::config::EffectiveConfig;
 use crate::error::{ErrorKind, Result, err};
 use crate::fsutil::FileLock;
 use managed::{Managed, connect_err, db_err};
@@ -19,8 +19,6 @@ pub const SESSION_APP_NAME: &str = "wisebucket";
 /// `application_name` of short-lived CLI connections (never counted as sessions).
 pub const CLI_APP_NAME: &str = "wisebucket-cli";
 
-/// Minimum supported PostgreSQL version (`server_version_num`).
-pub const MIN_SERVER_VERSION_NUM: i32 = 150000;
 /// Minimum supported pgvector version.
 pub const MIN_VECTOR_VERSION: (u64, u64) = (0, 8);
 
@@ -45,7 +43,6 @@ impl Purpose {
 /// Facts about the connected database.
 #[derive(Debug, Clone, Serialize)]
 pub struct DbInfo {
-    pub mode: &'static str,
     pub server_version: String,
     pub server_version_num: i32,
     pub vector_version: Option<String>,
@@ -58,31 +55,20 @@ pub struct DbInfo {
 pub struct Db {
     pub pool: PgPool,
     pub info: DbInfo,
-    managed: Option<Managed>,
+    managed: Managed,
     purpose: Purpose,
     /// `true` if this process started the managed server.
     pub started_here: bool,
 }
 
-/// Returns the managed-mode helper for a configuration, if applicable.
-pub fn managed_for(cfg: &EffectiveConfig) -> Option<Managed> {
-    matches!(cfg.database.value, Database::Managed)
-        .then(|| Managed::new(&cfg.state_dir.value, &cfg.runtime_dir.value))
+/// Returns the managed PostgreSQL helper for a configuration.
+pub fn managed_for(cfg: &EffectiveConfig) -> Managed {
+    Managed::new(&cfg.state_dir.value, &cfg.runtime_dir.value)
 }
 
 fn connect_options(cfg: &EffectiveConfig, purpose: Purpose) -> Result<PgConnectOptions> {
-    let opts = match &cfg.database.value {
-        Database::Managed => managed_for(cfg)
-            .ok_or_else(|| err(ErrorKind::Internal, "managed mode expected"))?
-            .app_options()?,
-        Database::External { url } => url.parse::<PgConnectOptions>().map_err(|e| {
-            err(
-                ErrorKind::ConfigInvalid,
-                format!("invalid database URL: {e}"),
-            )
-        })?,
-    };
-    Ok(opts
+    Ok(managed_for(cfg)
+        .app_options()?
         .application_name(purpose.app_name())
         .log_statements(tracing::log::LevelFilter::Debug)
         .log_slow_statements(tracing::log::LevelFilter::Info, Duration::from_secs(5)))
@@ -91,26 +77,23 @@ fn connect_options(cfg: &EffectiveConfig, purpose: Purpose) -> Result<PgConnectO
 /// Opens the database: starts the managed server if needed, checks requirements and migrates.
 pub async fn open(cfg: &EffectiveConfig, purpose: Purpose) -> Result<Db> {
     let managed = managed_for(cfg);
+    if !managed.is_initialized() {
+        return Err(err(
+            ErrorKind::DbNotInitialized,
+            format!("no managed database in {}", cfg.state_dir.value.display()),
+        ));
+    }
     let mut started_here = false;
-    let pool;
-    if let Some(m) = &managed {
-        if !m.is_initialized() {
-            return Err(err(
-                ErrorKind::DbNotInitialized,
-                format!("no managed database in {}", cfg.state_dir.value.display()),
-            ));
-        }
+    let pool = {
         // Start and connect under the lifecycle lock so a concurrent "stop if last" cannot interleave.
-        let _lock = FileLock::acquire(&m.lifecycle_lock_path())?;
-        if !m.is_running()? {
-            m.start()?;
+        let _lock = FileLock::acquire(&managed.lifecycle_lock_path())?;
+        if !managed.is_running()? {
+            managed.start()?;
             started_here = true;
         }
-        pool = pool_for(cfg, purpose).await?;
-    } else {
-        pool = pool_for(cfg, purpose).await?;
-    }
-    let info = inspect(&pool, cfg).await?;
+        pool_for(cfg, purpose).await?
+    };
+    let info = inspect(&pool).await?;
     check_requirements(&info)?;
     migrate(&pool).await?;
     Ok(Db {
@@ -142,7 +125,7 @@ async fn pool_for(cfg: &EffectiveConfig, purpose: Purpose) -> Result<PgPool> {
 }
 
 /// Reads versions and extensions of the connected database.
-pub async fn inspect(pool: &PgPool, cfg: &EffectiveConfig) -> Result<DbInfo> {
+pub async fn inspect(pool: &PgPool) -> Result<DbInfo> {
     let (server_version, num, database, user): (String, String, String, String) = sqlx::query_as(
         "SELECT current_setting('server_version'), current_setting('server_version_num'), current_database(), current_user",
     )
@@ -162,7 +145,6 @@ pub async fn inspect(pool: &PgPool, cfg: &EffectiveConfig) -> Result<DbInfo> {
         .map_err(db_err)
     };
     Ok(DbInfo {
-        mode: cfg.database.value.mode_name(),
         server_version,
         server_version_num: num.parse().unwrap_or(0),
         vector_version: ext("vector").await?,
@@ -180,15 +162,6 @@ fn version_at_least(v: &str, min: (u64, u64)) -> bool {
 
 /// Verifies server version and extension availability.
 pub fn check_requirements(info: &DbInfo) -> Result<()> {
-    if info.server_version_num < MIN_SERVER_VERSION_NUM {
-        return Err(err(
-            ErrorKind::DbVersionUnsupported,
-            format!(
-                "PostgreSQL {} found; 15 or newer is required",
-                info.server_version
-            ),
-        ));
-    }
     match &info.vector_version {
         Some(v) if version_at_least(v, MIN_VECTOR_VERSION) => {}
         Some(v) => {
@@ -218,25 +191,16 @@ pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 
 /// Applies pending migrations (concurrent callers are serialized by sqlx's advisory lock).
 pub async fn migrate(pool: &PgPool) -> Result<()> {
-    MIGRATOR.run(pool).await.map_err(|e| {
-        let msg = e.to_string();
-        if msg.contains("permission denied") {
-            err(
-                ErrorKind::DbPrivilegesInsufficient,
-                format!("{msg}. A superuser may need to run `CREATE EXTENSION vector; CREATE EXTENSION pg_trgm;` in this database"),
-            )
-        } else {
-            err(ErrorKind::MigrationFailed, msg)
-        }
-    })
+    MIGRATOR
+        .run(pool)
+        .await
+        .map_err(|e| err(ErrorKind::MigrationFailed, e.to_string()))
 }
 
 /// What happened to the managed server when a handle was released.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReleaseOutcome {
-    /// External database: nothing to do.
-    External,
     /// `keep_running` is set.
     KeptRunning,
     /// Other sessions are still connected.
@@ -246,19 +210,16 @@ pub enum ReleaseOutcome {
 }
 
 impl Db {
-    /// Closes the pool and, in managed mode, stops PostgreSQL if no session remains.
+    /// Closes the pool and stops PostgreSQL if no session remains.
     ///
     /// A CLI command only stops the server if it started it itself, so
     /// `db start` followed by `backup` leaves the server running.
     pub async fn release(&self, cfg: &EffectiveConfig) -> Result<ReleaseOutcome> {
         self.pool.close().await;
-        let Some(m) = &self.managed else {
-            return Ok(ReleaseOutcome::External);
-        };
         if cfg.keep_running.value || (self.purpose == Purpose::Cli && !self.started_here) {
             return Ok(ReleaseOutcome::KeptRunning);
         }
-        stop_if_idle(m).await
+        stop_if_idle(&self.managed).await
     }
 
     pub fn purpose(&self) -> Purpose {

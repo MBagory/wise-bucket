@@ -41,11 +41,6 @@ Look at `<state directory>/logs/postgres.log`. The usual causes:
 
 Restart the agent session after changing folders.
 
-### Using your own PostgreSQL
-
-- `vector_extension_missing`: install pgvector 0.8 or newer on the server, then run `CREATE EXTENSION vector;` as a superuser in the target database. `pg_trgm` is part of PostgreSQL's contrib package.
-- `db_privileges_insufficient`: the user must own the database, so migrations can create the `wb` and `wb_views` schemas.
-- `db_version_unsupported`: PostgreSQL 15 or newer is required.
 
 ### WSL2
 
@@ -69,7 +64,7 @@ No. Wise Bucket reads them where they are. Only the tool results your agent send
 
 ### Why PostgreSQL? Do I have to install it?
 
-PostgreSQL with pgvector gives Wise Bucket reliable storage that several agent windows can share, plus vector and full-text search. You don't install it yourself: `setup` downloads a private copy, verifies it, and Wise Bucket starts and stops it as needed. You can also [use your own server](guide.md#use-your-own-postgresql).
+PostgreSQL with pgvector gives Wise Bucket reliable storage that several agent windows can share, plus vector and full-text search. You don't install it yourself: `setup` downloads a private copy, verifies it, and Wise Bucket starts and stops it as needed. It's private to Wise Bucket: it listens only on a Unix socket, so it never conflicts with another PostgreSQL on the machine.
 
 ### Is PostgreSQL always running in the background?
 
@@ -77,7 +72,7 @@ No. It starts with your first agent session, in about 2 seconds, and stops when 
 
 ### Why does setup need a C compiler?
 
-pgvector is distributed as source code. `setup` builds the pinned, checksum-verified release once, in about 15 seconds, against the exact PostgreSQL it downloaded. If you use your own PostgreSQL, this step isn't needed.
+pgvector is distributed as source code. `setup` builds the pinned, checksum-verified release once, in about 15 seconds, against the exact PostgreSQL it downloaded.
 
 ### Can my agent read files outside my recording folders through Wise Bucket?
 

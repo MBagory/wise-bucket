@@ -10,21 +10,15 @@ Thank you for your interest! Wise Bucket is built **one milestone at a time**; e
 
 ## Development setup
 
-Requirements: Rust (the pinned toolchain in `rust-toolchain.toml` is installed automatically by rustup), a C compiler and `make` (used to build pgvector for tests), and optionally Docker (to test the bring-your-own-PostgreSQL mode).
+Requirements: Rust (the pinned toolchain in `rust-toolchain.toml` is installed automatically by rustup), a C compiler and `make` (used to build pgvector for tests).
 
 ```sh
 cargo build
 cargo test --workspace
 ```
 
-The first test run downloads PostgreSQL and builds pgvector into `target/tmp/wb-runtime` (about 1 minute); later runs reuse it. Set `WB_TEST_RUNTIME_DIR` to share it between checkouts.
+The first test run downloads PostgreSQL and builds pgvector into `target/tmp/wb runtime` (about 1 minute; the space in the name is deliberate); later runs reuse it. Set `WB_TEST_RUNTIME_DIR` to share it between checkouts.
 
-To also run the bring-your-own-PostgreSQL test:
-
-```sh
-docker run -d --rm --name wb-pg -e POSTGRES_PASSWORD=pw -p 127.0.0.1:55432:5432 pgvector/pgvector:pg17
-WB_TEST_DATABASE_URL=postgres://postgres:pw@127.0.0.1:55432/postgres cargo test --workspace
-```
 
 ## Before opening a pull request
 

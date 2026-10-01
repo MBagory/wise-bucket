@@ -4,28 +4,19 @@ use std::path::Path;
 
 use serde_json::json;
 use wb_core::config::{self, EffectiveConfig};
-use wb_core::db::{self, Purpose, managed::Managed};
+use wb_core::db::{self, Purpose};
 use wb_core::error::{ErrorKind, Result, err};
 use wb_core::session;
 
 use crate::cli::{DbCommand, GlobalArgs};
 use crate::ui;
 
-fn require_managed(cfg: &EffectiveConfig) -> Result<Managed> {
-    db::managed_for(cfg).ok_or_else(|| {
-        err(
-            ErrorKind::ConfigInvalid,
-            "this command controls the managed database; you are using an external PostgreSQL",
-        )
-    })
-}
-
 pub async fn run(global: &GlobalArgs, cmd: &DbCommand) -> Result<()> {
     let cfg = config::load(&global.overrides())?;
     match cmd {
         DbCommand::Status => status(global, &cfg).await,
         DbCommand::Start => {
-            let m = require_managed(&cfg)?;
+            let m = db::managed_for(&cfg);
             m.start()?;
             ui::ok(format!(
                 "managed PostgreSQL running (socket in {})",
@@ -37,7 +28,7 @@ pub async fn run(global: &GlobalArgs, cmd: &DbCommand) -> Result<()> {
             Ok(())
         }
         DbCommand::Stop { force } => {
-            let m = require_managed(&cfg)?;
+            let m = db::managed_for(&cfg);
             if !m.is_running()? {
                 ui::ok("managed PostgreSQL is not running");
                 return Ok(());
@@ -64,19 +55,17 @@ pub async fn run(global: &GlobalArgs, cmd: &DbCommand) -> Result<()> {
 }
 
 async fn status(global: &GlobalArgs, cfg: &EffectiveConfig) -> Result<()> {
-    let mut report = json!({ "mode": cfg.database.value.mode_name(), "database": cfg.database.value.describe() });
-    let managed = db::managed_for(cfg);
-    let mut running = true;
-    if let Some(m) = &managed {
-        running = m.is_running()?;
-        report["runtime_installed"] = json!(m.is_runtime_installed());
-        report["pgvector_installed"] = json!(m.installed_pgvector_version());
-        report["initialized"] = json!(m.is_initialized());
-        report["running"] = json!(running);
-        report["socket_dir"] = json!(m.socket_dir().ok());
-        report["data_dir"] = json!(m.data_dir());
-    }
-    if running && managed.as_ref().is_none_or(|m| m.is_initialized()) {
+    let m = db::managed_for(cfg);
+    let running = m.is_running()?;
+    let mut report = json!({
+        "runtime_installed": m.is_runtime_installed(),
+        "pgvector_installed": m.installed_pgvector_version(),
+        "initialized": m.is_initialized(),
+        "running": running,
+        "socket_dir": m.socket_dir().ok(),
+        "data_dir": m.data_dir(),
+    });
+    if running && m.is_initialized() {
         match db::open(cfg, Purpose::Cli).await {
             Ok(handle) => {
                 let sessions = session::active(&handle.pool).await?;
@@ -91,26 +80,23 @@ async fn status(global: &GlobalArgs, cfg: &EffectiveConfig) -> Result<()> {
         ui::json(&report);
         return Ok(());
     }
-    println!("mode              {}", cfg.database.value.describe());
-    if managed.is_some() {
-        println!(
-            "runtime           {}",
-            yes_no(report["runtime_installed"].as_bool())
-        );
-        println!(
-            "pgvector          {}",
-            report["pgvector_installed"]
-                .as_str()
-                .unwrap_or("not installed")
-        );
-        println!(
-            "initialized       {}",
-            yes_no(report["initialized"].as_bool())
-        );
-        println!("running           {}", yes_no(report["running"].as_bool()));
-        if let Some(s) = report["socket_dir"].as_str() {
-            println!("socket dir        {s}");
-        }
+    println!(
+        "runtime           {}",
+        yes_no(report["runtime_installed"].as_bool())
+    );
+    println!(
+        "pgvector          {}",
+        report["pgvector_installed"]
+            .as_str()
+            .unwrap_or("not installed")
+    );
+    println!(
+        "initialized       {}",
+        yes_no(report["initialized"].as_bool())
+    );
+    println!("running           {}", yes_no(report["running"].as_bool()));
+    if let Some(s) = report["socket_dir"].as_str() {
+        println!("socket dir        {s}");
     }
     if let Some(s) = report.get("server") {
         println!(

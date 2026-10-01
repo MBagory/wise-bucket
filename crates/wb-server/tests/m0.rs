@@ -19,7 +19,6 @@ async fn server_info_two_sessions_and_stop_after_last() {
     assert_eq!(a.tool_names().await, vec!["server_info".to_string()]);
     let info = a.server_info().await;
     assert_eq!(info["database"]["status"], "ok", "{info:#}");
-    assert_eq!(info["database"]["mode"], "managed");
     let pgvector = info["database"]["pgvector"].as_str().unwrap();
     assert!(pgvector.starts_with("0.8"), "pgvector {pgvector}");
     assert!(info["session"]["id"].is_string());
@@ -249,23 +248,6 @@ async fn docs_connect_your_harness() {
 
     let d = env.json(&["doctor"]);
     assert_eq!(d["failed"], 0, "{d:#}");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn bring_your_own_postgres() {
-    // Runs only when a PostgreSQL URL is provided (CI uses a pgvector service container).
-    let Ok(url) = std::env::var("WB_TEST_DATABASE_URL") else {
-        eprintln!("skipped: set WB_TEST_DATABASE_URL to run");
-        return;
-    };
-    let env = TestEnv::new().env("WB_DATABASE_URL", &url);
-    env.ok(&["setup", "--yes"]);
-    let s = env.session("c").await;
-    let info = s.server_info().await;
-    assert_eq!(info["database"]["status"], "ok", "{info:#}");
-    assert_eq!(info["database"]["mode"], "external");
-    s.close().await;
-    env.ok(&["doctor"]);
 }
 
 #[test]

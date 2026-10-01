@@ -47,7 +47,7 @@ cargo install --path crates/wb-server --locked
 wise-bucket-server setup
 ```
 
-`setup` asks a few questions; *the defaults are fine*. Re-run it any time: **it only does what's missing**.
+`setup` only asks which folders hold your recordings. Re-run it any time: **it only does what's missing**.
 
 <details>
 <summary>Example session</summary>
@@ -55,8 +55,7 @@ wise-bucket-server setup
 ```text
 $ wise-bucket-server setup
 Wise Bucket setup
-? State directory (database, caches, logs) › ~/.local/share/wisebucket
-? Database › Managed local PostgreSQL + pgvector (recommended)
+✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
 … Building pgvector 0.8.6 (about 15 s)
 ✔ PostgreSQL 17.11.0 + pgvector 0.8.6 ready
@@ -171,7 +170,7 @@ Wise Bucket currently **lists and counts** recordings; it does not read them yet
 | Check that everything works | `wise-bucket-server doctor` |
 | Back up (and restore) your data | `wise-bucket-server backup wb.dump` · `restore wb.dump --yes` |
 | See your settings and where each comes from | `wise-bucket-server config show --origin` |
-| Use your own PostgreSQL instead | `export WB_DATABASE_URL=…` then `wise-bucket-server setup --yes` |
+
 
 > [!IMPORTANT]
 > After changing folders, **start a new agent session** to pick them up. Your recordings are **never modified, moved or included in backups**; `roots remove` only *forgets* a folder.
@@ -236,7 +235,7 @@ cargo run -p wb-server -- docs gen   # regenerate reference pages after changing
 cargo test -p wb-server --test samples -- --ignored  # per-format sample checks (downloads ~4 MB once)
 ```
 
-The acceptance tests drive **the real binary** through **a real MCP client**. They cover two concurrent sessions, stop-after-last, recording folders, `doctor`, backup/restore, and your own PostgreSQL.
+The acceptance tests drive **the real binary** through **a real MCP client**. They cover two concurrent sessions, stop-after-last, recording folders, `doctor` and backup/restore.
 
 ## Security
 

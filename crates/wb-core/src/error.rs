@@ -65,7 +65,7 @@ error_kinds! {
         "Wise Bucket only reads files inside declared roots. Add the folder with `wise-bucket-server roots add <name> <path>` (there is deliberately no MCP tool for this).";
     UnsupportedPlatform => "unsupported_platform",
         "Managed PostgreSQL is not available for this platform",
-        "Managed mode supports Linux (x86_64, aarch64) and macOS (x86_64, arm64). On Windows, use WSL2. Otherwise use your own PostgreSQL with `--database-url`.";
+        "Wise Bucket supports Linux (x86_64, aarch64) and macOS (x86_64, arm64). On Windows, use WSL2.";
     DownloadFailed => "download_failed",
         "A download failed",
         "Check your network connection or proxy, then re-run the command (`setup` or `demo`): it resumes where it stopped.";
@@ -77,7 +77,7 @@ error_kinds! {
         "macOS: run `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`. Fedora: `sudo dnf install gcc make`. Then re-run `wise-bucket-server setup`.";
     PgvectorBuildFailed => "pgvector_build_failed",
         "Building the pgvector extension failed",
-        "See the build log path in the message. Make sure the C toolchain works, then re-run `wise-bucket-server setup`. As an alternative, use your own PostgreSQL with pgvector via `--database-url`.";
+        "See the build log path in the message. Make sure the C toolchain works, then re-run `wise-bucket-server setup`.";
     DbNotInitialized => "db_not_initialized",
         "The managed database has not been set up yet",
         "Run `wise-bucket-server setup` once on this machine.";
@@ -86,16 +86,10 @@ error_kinds! {
         "Look at `<state-dir>/logs/postgres.log`. Common causes: a full disk, a stale `postmaster.pid` after a crash, or a socket directory that is not writable. `wise-bucket-server doctor` checks all of them.";
     DbConnectFailed => "db_connect_failed",
         "Cannot connect to the database",
-        "Managed mode: run `wise-bucket-server db status`. External mode: check the URL in `WB_DATABASE_URL`/`--database-url`, network access and credentials.";
-    DbVersionUnsupported => "db_version_unsupported",
-        "The PostgreSQL server version is not supported",
-        "Wise Bucket needs PostgreSQL 15 or newer. Upgrade the server or use managed mode.";
+        "Run `wise-bucket-server db status`, then `wise-bucket-server doctor`.";
     VectorExtensionMissing => "vector_extension_missing",
         "The pgvector extension (0.8 or newer) is not available",
-        "Managed mode: re-run `wise-bucket-server setup`. External mode: install pgvector ≥ 0.8 on the server (e.g. `apt install postgresql-17-pgvector` or `brew install pgvector`) and run `CREATE EXTENSION vector;` as a superuser in the target database.";
-    DbPrivilegesInsufficient => "db_privileges_insufficient",
-        "The database user lacks required privileges",
-        "The user must own the database (or have `CREATE` on it) so migrations can create the `wb` and `wb_views` schemas. See `docs/guide.md`, section *Use your own PostgreSQL*.";
+        "Re-run `wise-bucket-server setup`: it rebuilds pgvector and recreates the extensions.";
     MigrationFailed => "migration_failed",
         "Applying database migrations failed",
         "Make a backup, then report the error with `wise-bucket-server doctor` output attached. Do not edit the `wb` schema by hand.";
@@ -107,7 +101,7 @@ error_kinds! {
         "Wise Bucket never overwrites your files. Merge the printed snippet by hand, or re-run with `--print` to only display it.";
     BackupFailed => "backup_failed",
         "Backup or restore failed",
-        "Check the message for the `pg_dump`/`pg_restore` output. In external mode the client tools must be on your `PATH` and match the server major version.";
+        "Check the message for the `pg_dump`/`pg_restore` output.";
     Io => "io_error",
         "A file-system operation failed",
         "Check the path, permissions and free disk space mentioned in the message.";

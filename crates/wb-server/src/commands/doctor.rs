@@ -2,7 +2,7 @@
 
 use serde::Serialize;
 use serde_json::json;
-use wb_core::config::{self, Database, EffectiveConfig};
+use wb_core::config::{self, EffectiveConfig};
 use wb_core::db::{self, Purpose};
 use wb_core::error::{ErrorKind, Result, WbError, docs_ref, err};
 use wb_core::{fsutil, roots};
@@ -226,57 +226,56 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
 }
 
 async fn database_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
-    if let Some(m) = db::managed_for(cfg) {
-        if !m.is_runtime_installed() {
-            checks.push(Check::fail(
-                "postgresql",
-                &err(
-                    ErrorKind::DbNotInitialized,
-                    "managed PostgreSQL is not installed",
-                ),
-            ));
-            return;
-        }
-        checks.push(Check::ok(
+    let m = db::managed_for(cfg);
+    if !m.is_runtime_installed() {
+        checks.push(Check::fail(
             "postgresql",
-            format!("{} installed", db::managed::PG_VERSION),
+            &err(
+                ErrorKind::DbNotInitialized,
+                "managed PostgreSQL is not installed",
+            ),
         ));
-        match m.installed_pgvector_version() {
-            Some(v) if v == db::managed::PGVECTOR_VERSION => {
-                checks.push(Check::ok("pgvector", format!("{v} installed")))
-            }
-            Some(v) => checks.push(Check::warn(
-                "pgvector",
-                format!(
-                    "{v} installed, {} expected: re-run setup",
-                    db::managed::PGVECTOR_VERSION
-                ),
-                Some(ErrorKind::VectorExtensionMissing),
-            )),
-            None => {
-                let e = db::managed::check_toolchain().err().unwrap_or_else(|| {
-                    err(
-                        ErrorKind::VectorExtensionMissing,
-                        "pgvector is not installed: re-run setup",
-                    )
-                });
-                checks.push(Check::fail("pgvector", &e));
-                return;
-            }
+        return;
+    }
+    checks.push(Check::ok(
+        "postgresql",
+        format!("{} installed", db::managed::PG_VERSION),
+    ));
+    match m.installed_pgvector_version() {
+        Some(v) if v == db::managed::PGVECTOR_VERSION => {
+            checks.push(Check::ok("pgvector", format!("{v} installed")))
         }
-        if !m.is_initialized() {
-            checks.push(Check::fail(
-                "database",
-                &err(ErrorKind::DbNotInitialized, "cluster not initialized"),
-            ));
+        Some(v) => checks.push(Check::warn(
+            "pgvector",
+            format!(
+                "{v} installed, {} expected: re-run setup",
+                db::managed::PGVECTOR_VERSION
+            ),
+            Some(ErrorKind::VectorExtensionMissing),
+        )),
+        None => {
+            let e = db::managed::check_toolchain().err().unwrap_or_else(|| {
+                err(
+                    ErrorKind::VectorExtensionMissing,
+                    "pgvector is not installed: re-run setup",
+                )
+            });
+            checks.push(Check::fail("pgvector", &e));
             return;
         }
-        match m.socket_dir() {
-            Ok(d) => checks.push(Check::ok("socket", d.display().to_string())),
-            Err(e) => {
-                checks.push(Check::fail("socket", &e));
-                return;
-            }
+    }
+    if !m.is_initialized() {
+        checks.push(Check::fail(
+            "database",
+            &err(ErrorKind::DbNotInitialized, "cluster not initialized"),
+        ));
+        return;
+    }
+    match m.socket_dir() {
+        Ok(d) => checks.push(Check::ok("socket", d.display().to_string())),
+        Err(e) => {
+            checks.push(Check::fail("socket", &e));
+            return;
         }
     }
     match db::open(cfg, Purpose::Cli).await {
@@ -289,11 +288,7 @@ async fn database_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
             checks.push(Check::ok(
                 "database",
                 format!(
-                    "{} · PostgreSQL {} · vector {} · pg_trgm {} · {} active session(s){}",
-                    match &cfg.database.value {
-                        Database::Managed => "managed".to_string(),
-                        Database::External { .. } => cfg.database.value.describe(),
-                    },
+                    "PostgreSQL {} · vector {} · pg_trgm {} · {} active session(s){}",
                     i.server_version,
                     i.vector_version.as_deref().unwrap_or("?"),
                     i.pg_trgm_version.as_deref().unwrap_or("?"),

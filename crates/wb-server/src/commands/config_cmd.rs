@@ -78,11 +78,7 @@ pub async fn run(global: &GlobalArgs, cmd: &ConfigCommand) -> Result<()> {
                 cfg.runtime_dir.value.display(),
                 o(&cfg.runtime_dir.origin)
             );
-            println!(
-                "database          {}{}",
-                cfg.database.value.describe(),
-                o(&cfg.database.origin)
-            );
+
             println!(
                 "keep_running      {}{}",
                 cfg.keep_running.value,

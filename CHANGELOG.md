@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- Managed `setup` no longer fails with `pgvector_build_failed` when the state or runtime directory contains a space (the default on macOS: `~/Library/Application Support`). pgvector is now built from a space-free scratch directory under `/tmp`.
+
 ### Added: sample data
 
 - `demo [FORMAT…] | --all | --list`: downloads public sample recordings (ROS 2 MCAP and SQLite bags, MCAP, ROS 1 bags, PX4 ULog, ArduPilot DataFlash, MAVLink tlog, CAN ASC/BLF + DBC, MDF4, Parquet) from their upstream projects at pinned commits, verifies their SHA-256, and declares them as the `demo` data root. Nothing is redistributed by this repository.
@@ -13,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added: milestone M0 (foundation)
 
 - `wise-bucket-server` binary: MCP server over stdio (`serve`) and command-line tool.
-- `setup`: provisions a managed PostgreSQL 17.11 + pgvector 0.8.6 (pinned, SHA-256 verified, pgvector built locally against the downloaded PostgreSQL), or checks your own PostgreSQL (`--database-url` / `WB_DATABASE_URL`); interactive or `--yes`.
+- `setup`: provisions a managed PostgreSQL 17.11 + pgvector 0.8.6 (pinned, SHA-256 verified, pgvector built locally against the downloaded PostgreSQL), then asks for recording folders (or `--yes`). The managed database is the only database mode.
 - Data roots: `roots add|list|remove|check`, user and project (`--in-project`) roots, overlap/symlink/containment validation, candidate-recording counts.
 - `init`: writes `.wisebucket/config.toml` and the harness MCP configuration (Claude Code `.mcp.json`, Kilo Code `.kilocode/mcp.json`, Cline snippet); never overwrites, `--merge` to add to an existing file.
 - Layered configuration (flags > `WB_*` env > project > user > defaults) with `config show --origin` and `config path`.

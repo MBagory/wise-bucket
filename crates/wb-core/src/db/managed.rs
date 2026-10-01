@@ -256,11 +256,12 @@ impl Managed {
         fsutil::download_verified(&url, &archive, PGVECTOR_SHA256, progress)?;
 
         let build_root = self.runtime_dir.join("build");
-        let src = build_root.join(format!("pgvector-{PGVECTOR_VERSION}"));
-        let _ = std::fs::remove_dir_all(&src);
-        unpack_tar_gz(&archive, &build_root)?;
+        std::fs::create_dir_all(&build_root)?;
         let log_path = build_root.join(format!("pgvector-{PGVECTOR_VERSION}-build.log"));
-        let pg_config = self.bin("pg_config")?;
+        let scratch = build_prefix(&self.pg_home()?)?;
+        unpack_tar_gz(&archive, scratch.path())?;
+        let src = scratch.path().join(format!("pgvector-{PGVECTOR_VERSION}"));
+        let pg_config = scratch.path().join("pg/bin/pg_config");
 
         progress(&format!(
             "Building pgvector {PGVECTOR_VERSION} (about 15 s)"
@@ -637,6 +638,39 @@ pub fn check_toolchain() -> Result<()> {
     Ok(())
 }
 
+/// A space-free scratch directory under /tmp whose `pg/` mirrors the PostgreSQL
+/// install at `home`, so PGXS can build there.
+///
+/// GNU make cannot handle spaces in paths, and the default macOS state directory
+/// is `~/Library/Application Support`. `pg_config` derives every path from its
+/// own resolved location, so it is copied; everything else is symlinked, and
+/// `make install` writes through the links into the real install.
+fn build_prefix(home: &Path) -> Result<tempfile::TempDir> {
+    use std::os::unix::fs::symlink;
+    let scratch = tempfile::Builder::new()
+        .prefix("wb-pgvector-")
+        .tempdir_in("/tmp")
+        .io_ctx(|| "create a build directory in /tmp".to_string())?;
+    let prefix = scratch.path().join("pg");
+    std::fs::create_dir_all(prefix.join("bin"))?;
+    for entry in std::fs::read_dir(home)? {
+        let entry = entry?;
+        if entry.file_name() != "bin" {
+            symlink(entry.path(), prefix.join(entry.file_name()))?;
+        }
+    }
+    for entry in std::fs::read_dir(home.join("bin"))? {
+        let entry = entry?;
+        let to = prefix.join("bin").join(entry.file_name());
+        if entry.file_name() == "pg_config" {
+            std::fs::copy(entry.path(), &to)?;
+        } else {
+            symlink(entry.path(), &to)?;
+        }
+    }
+    Ok(scratch)
+}
+
 fn unpack_tar_gz(archive: &Path, into: &Path) -> Result<()> {
     std::fs::create_dir_all(into)?;
     let f = std::fs::File::open(archive)?;
@@ -659,6 +693,24 @@ mod tests {
         let dir = m.socket_dir().unwrap();
         assert!(dir.to_string_lossy().starts_with("/tmp/wb-"));
         assert!(dir.join(".s.PGSQL.5432").as_os_str().len() <= MAX_SOCKET_PATH);
+    }
+
+    #[test]
+    fn build_prefix_mirrors_install_without_spaces() {
+        let d = tempfile::tempdir().unwrap();
+        let home = d.path().join("Application Support/pg");
+        std::fs::create_dir_all(home.join("bin")).unwrap();
+        std::fs::create_dir_all(home.join("lib")).unwrap();
+        std::fs::write(home.join("bin/pg_config"), "x").unwrap();
+        std::fs::write(home.join("bin/postgres"), "x").unwrap();
+        let scratch = build_prefix(&home).unwrap();
+        let pg = scratch.path().join("pg");
+        assert!(!pg.to_string_lossy().contains(' '));
+        let meta = |p: &str| std::fs::symlink_metadata(pg.join(p)).unwrap().file_type();
+        assert!(meta("bin/pg_config").is_file());
+        assert!(meta("bin/postgres").is_symlink());
+        assert!(meta("lib").is_symlink());
+        assert!(meta("bin").is_dir());
     }
 
     #[test]

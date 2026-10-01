@@ -3,8 +3,8 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use dialoguer::{Confirm, Input, Select};
-use wb_core::config::{self, Database, EffectiveConfig, Origin, RootSpec};
+use dialoguer::{Confirm, Input};
+use wb_core::config::{self, EffectiveConfig, RootSpec};
 use wb_core::db::{self, Purpose, managed::Managed};
 use wb_core::error::{ErrorKind, Result, err};
 use wb_core::{fsutil, paths, roots};
@@ -26,33 +26,13 @@ pub fn parse_root_arg(s: &str) -> Result<(String, PathBuf)> {
 
 pub async fn run(global: &GlobalArgs, args: &SetupArgs) -> Result<()> {
     let interactive = ui::interactive(args.yes);
-    let mut cfg = config::load(&global.overrides())?;
+    let cfg = config::load(&global.overrides())?;
     let user_cfg = cfg.user_config_path.value.clone();
 
     eprintln!("Wise Bucket setup");
     ui::info(format!("user configuration: {}", user_cfg.display()));
 
     // --- state directory
-    if interactive && cfg.state_dir.origin == Origin::Default {
-        let answer: String = Input::new()
-            .with_prompt("State directory (database, caches, logs)")
-            .default(cfg.state_dir.value.display().to_string())
-            .interact_text()
-            .map_err(ui::prompt_err)?;
-        let chosen = paths::absolutize(
-            PathBuf::from(answer.trim()).as_path(),
-            &std::env::current_dir()?,
-        );
-        if chosen != cfg.state_dir.value {
-            config::set_key_in_file(
-                &user_cfg,
-                "state_dir",
-                chosen.display().to_string().into(),
-                false,
-            )?;
-            cfg = config::load(&global.overrides())?;
-        }
-    }
     let state_dir = cfg.state_dir.value.clone();
     fsutil::ensure_private_dir(&state_dir).map_err(|e| {
         err(
@@ -65,57 +45,21 @@ pub async fn run(global: &GlobalArgs, args: &SetupArgs) -> Result<()> {
         && free < 2 * 1024 * 1024 * 1024
     {
         ui::warn(format!(
-            "only {} free on this disk; managed PostgreSQL needs about 200 MB now and more as data grows",
-            ui::bytes(free)
+            "only {} free on this disk; managed PostgreSQL needs about 200 MB now and more as data grows. To use another disk, re-run with `--state-dir <dir>` or set `state_dir` in {}",
+            ui::bytes(free),
+            user_cfg.display()
         ));
     }
 
     // --- database
-    let mut use_external = matches!(cfg.database.value, Database::External { .. });
-    if interactive && !use_external {
-        let choice = Select::new()
-            .with_prompt("Database")
-            .items([
-                "Managed local PostgreSQL + pgvector (recommended)",
-                "My own PostgreSQL server (>= 15 with pgvector >= 0.8)",
-            ])
-            .default(0)
-            .interact()
-            .map_err(ui::prompt_err)?;
-        if choice == 1 {
-            let url: String = Input::new()
-                .with_prompt("PostgreSQL URL (postgres://user:password@host:5432/db)")
-                .interact_text()
-                .map_err(ui::prompt_err)?;
-            cfg.database = config::Sourced::new(
-                Database::External {
-                    url: url.trim().to_string(),
-                },
-                Origin::Cli("setup".into()),
-            );
-            use_external = true;
-        }
-    }
-
-    if use_external {
-        setup_external(&cfg).await?;
-        config::set_key_in_file(&user_cfg, "database.mode", "external".into(), false)?;
-    } else {
-        setup_managed(&cfg).await?;
-        if !cfg.user_config_exists || cfg.database.origin == Origin::Default {
-            config::set_key_in_file(&user_cfg, "database.mode", "managed".into(), false)?;
-        }
+    setup_managed(&cfg).await?;
+    if !cfg.user_config_exists {
+        // Creates the user config so later commands know setup has run.
+        config::set_key_in_file(&user_cfg, "database.keep_running", false.into(), false)?;
     }
 
     // --- roots
-    let cfg = config::load(&global.overrides()).or_else(|e| {
-        // External mode written to the file needs the URL from the environment; reuse the in-memory config.
-        if use_external {
-            Ok(cfg.clone())
-        } else {
-            Err(e)
-        }
-    })?;
+    let cfg = config::load(&global.overrides())?;
     let mut added = 0usize;
     for spec in &args.roots {
         let (name, path) = parse_root_arg(spec)?;
@@ -271,23 +215,5 @@ async fn setup_managed(cfg: &EffectiveConfig) -> Result<()> {
     if !was_running && !cfg.keep_running.value {
         db::stop_if_idle(&m).await?;
     }
-    Ok(())
-}
-
-async fn setup_external(cfg: &EffectiveConfig) -> Result<()> {
-    ui::step(format!("checking {}", cfg.database.value.describe()));
-    let handle = db::open(cfg, Purpose::Cli).await?;
-    ui::ok(format!(
-        "database ready: PostgreSQL {}, vector {}, pg_trgm {}, user {}",
-        handle.info.server_version,
-        handle.info.vector_version.as_deref().unwrap_or("?"),
-        handle.info.pg_trgm_version.as_deref().unwrap_or("?"),
-        handle.info.user
-    ));
-    handle.release(cfg).await?;
-    ui::info(format!(
-        "The URL is not stored. Export it for your harness, e.g. `export {}=…`, or add `--database-url` to the MCP config args.",
-        wb_core::paths::env::DATABASE_URL
-    ));
     Ok(())
 }

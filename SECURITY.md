@@ -14,8 +14,8 @@ Useful details: affected version (`wise-bucket-server --version`), platform, ste
 
 - **Stays on your machine:**
   - Your recordings: Wise Bucket reads them in place and never uploads, copies or modifies them.
-  - The database: in managed mode it listens only on a Unix socket in a private directory, never on the network.
-  - Credentials: generated database passwords live in `<state directory>/secrets/db.toml` (mode 0600), and an external database URL is read from the environment and never written to a file.
+  - The database: it listens only on a Unix socket in a private directory, never on the network.
+  - Credentials: generated database passwords live in `<state directory>/secrets/db.toml` (mode 0600).
 - **Reaches your model provider:** only the tool results your agent sends to its own model, under your agent's terms. Wise Bucket's results are bounded summaries: today, versions, the project name, and recording-folder names and paths.
 - **No model calls:** Wise Bucket never contacts an LLM.
 - **No network use at runtime:** only `setup` downloads files (PostgreSQL, pgvector sources), each verified against a pinned SHA-256 checksum.
@@ -29,7 +29,7 @@ Wise Bucket runs locally, for one engineer, next to an AI harness.
 - **Data roots:** only folders declared by the engineer can be read; symlinks escaping a root are refused; no MCP tool can add a root.
 - **Managed database:** listens only on a Unix socket in a directory with mode 0700; generated passwords are stored in a 0600 file; no TCP listener.
 - **Supply chain at setup:** PostgreSQL binaries and pgvector sources are pinned by version and verified with SHA-256 before use.
-- **Secrets:** an external database URL is never written to configuration files; `config show` masks passwords.
+
 
 **Out of scope / residual risks:**
 

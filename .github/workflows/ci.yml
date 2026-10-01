@@ -29,7 +29,7 @@ jobs:
       - name: Cache managed PostgreSQL runtime
         uses: actions/cache@v4
         with:
-          path: target/tmp/wb-runtime
+          path: target/tmp/wb runtime
           key: wb-runtime-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('crates/wb-core/src/db/managed.rs') }}
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
@@ -62,26 +62,6 @@ jobs:
           key: samples-${{ matrix.format }}-${{ hashFiles('crates/wb-core/src/samples.rs') }}
       - name: Fetch and check ${{ matrix.format }} samples
         run: cargo test -p wb-server --test samples ${{ matrix.format }} -- --ignored --exact
-
-  byo-postgres:
-    name: bring-your-own PostgreSQL (pgvector container)
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_PASSWORD: pw
-          POSTGRES_DB: wbtest
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo test -p wb-server --test m0 bring_your_own_postgres -- --nocapture
-        env:
-          WB_TEST_DATABASE_URL: postgres://postgres:pw@localhost:5432/wbtest
 
   docs:
     name: docs

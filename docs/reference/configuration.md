@@ -7,8 +7,7 @@ Precedence, highest first: **command line** > **`WB_*` environment variables** >
 | Key | Layer | Environment | Command line | Default | Description |
 | --- | --- | --- | --- | --- | --- |
 | `state_dir` | user | `WB_STATE_DIR` | `--state-dir` | Linux `~/.local/share/wisebucket`, macOS `~/Library/Application Support/wisebucket` | Where Wise Bucket keeps its database, caches and logs. |
-| `database.mode` | user | `WB_DATABASE_URL` | `--database-url` | `managed` | `managed` runs a local PostgreSQL + pgvector; `external` uses your server. The external URL comes only from the environment or the command line, never from a file. |
-| `database.keep_running` | user | `WB_KEEP_RUNNING` | `--keep-running` | `false` | Managed mode: keep PostgreSQL running after the last session ends. |
+| `database.keep_running` | user | `WB_KEEP_RUNNING` | `--keep-running` | `false` | Keep PostgreSQL running after the last session ends. |
 | `[[roots]] name` | user, project |  | `roots add <name>` |  | Short unique name used in log references (`name:relative/path`). Lowercase letters, digits, `-`, `_`; max 32. |
 | `[[roots]] path` | user, project |  | `roots add <name> <path>` |  | Folder Wise Bucket may read. User roots: absolute or `~/…`. Project roots: relative to the repository and inside it. |
 | `[[roots]] robot` | user, project |  | `--robot` |  | Default robot for recordings found in this root (used from milestone M3). |
@@ -31,7 +30,6 @@ Precedence, highest first: **command line** > **`WB_*` environment variables** >
 # state_dir = "~/wisebucket-state"
 
 [database]
-mode = "managed"        # or "external" (URL from WB_DATABASE_URL, never stored here)
 keep_running = false    # stop PostgreSQL when the last session ends
 
 [[roots]]

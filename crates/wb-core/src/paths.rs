@@ -11,7 +11,7 @@ pub mod env {
     pub const CONFIG: &str = "WB_CONFIG";
     pub const STATE_DIR: &str = "WB_STATE_DIR";
     pub const RUNTIME_DIR: &str = "WB_RUNTIME_DIR";
-    pub const DATABASE_URL: &str = "WB_DATABASE_URL";
+
     pub const PROJECT_DIR: &str = "WB_PROJECT_DIR";
     pub const KEEP_RUNNING: &str = "WB_KEEP_RUNNING";
 }

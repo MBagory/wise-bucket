@@ -5,7 +5,6 @@
 # state_dir = "~/wisebucket-state"
 
 [database]
-mode = "managed"        # or "external" (URL from WB_DATABASE_URL, never stored here)
 keep_running = false    # stop PostgreSQL when the last session ends
 
 [[roots]]

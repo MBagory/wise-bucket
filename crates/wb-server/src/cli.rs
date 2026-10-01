@@ -27,10 +27,6 @@ pub struct GlobalArgs {
     #[arg(long, global = true, value_name = "DIR")]
     pub state_dir: Option<PathBuf>,
 
-    /// Use your own PostgreSQL (>= 15 with pgvector >= 0.8) instead of the managed one [env: WB_DATABASE_URL]
-    #[arg(long, global = true, value_name = "URL", hide_env_values = true)]
-    pub database_url: Option<String>,
-
     /// Robot repository whose `.wisebucket/config.toml` applies [env: WB_PROJECT_DIR]
     #[arg(long, global = true, value_name = "DIR")]
     pub project: Option<PathBuf>,
@@ -244,7 +240,7 @@ impl GlobalArgs {
         wb_core::config::Overrides {
             config_path: self.config.clone(),
             state_dir: self.state_dir.clone(),
-            database_url: self.database_url.clone(),
+
             project_dir: self.project.clone(),
             keep_running: self.keep_running.then_some(true),
         }
