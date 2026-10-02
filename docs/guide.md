@@ -14,29 +14,35 @@ When something goes wrong, see [Troubleshooting and FAQ](troubleshooting.md). Ev
 
 ## Install
 
-| | Linux (x86_64, arm64) | macOS (Apple Silicon, Intel) | Windows |
-| --- | --- | --- | --- |
-| Wise Bucket | ✅ | ✅ | through [WSL2](#windows-wsl2) |
-| C toolchain (one-time pgvector build) | `sudo apt install build-essential` (Debian/Ubuntu) or `sudo dnf install gcc make` (Fedora) | `xcode-select --install` | inside WSL2 |
-| Disk | about 250 MB (PostgreSQL, pgvector, an empty database) | same | same |
-
-You also need [Rust](https://rustup.rs) (until pre-built binaries are published) and an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
-
 ```sh
-git clone https://github.com/MBagory/wise-bucket
-cd wise-bucket
-cargo install --path crates/wb-server --locked
+curl -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh
 wisebucket --version
 ```
 
-`cargo install` puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. Make sure that directory is on your `PATH`.
+The installer puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin` and adds that directory to your `PATH` (open a new terminal afterwards). To update, run it again. You also need an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
+
+| | Requirement |
+| --- | --- |
+| macOS | 15 (Sequoia) or later, Apple Silicon or Intel |
+| Linux | x86_64 or arm64 with glibc 2.34 or later: Ubuntu 22.04+, Debian 12+, RHEL / Rocky / Alma 9+, Fedora, Amazon Linux 2023, Arch. Not Alpine. |
+| Windows | through [WSL2](#windows-wsl2) |
+| Disk | about 250 MB (PostgreSQL, pgvector, an empty database) |
+
+`setup` downloads PostgreSQL and the pgvector extension, both prebuilt and checksum-verified, so no compiler is needed. On Linux, PostgreSQL uses a few system libraries that desktops and servers already have. A minimal container image may lack them; install them with:
+
+```sh
+sudo apt install libssl3 libxml2 libzstd1 liblz4-1 libgssapi-krb5-2 zlib1g tzdata   # Debian, Ubuntu
+sudo dnf install openssl-libs libxml2 libzstd lz4-libs krb5-libs zlib tzdata         # RHEL family, Fedora
+```
+
+**Build from source** instead (needs [Rust](https://rustup.rs)): `cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked`.
 
 ### Windows: WSL2
 
 Native Windows support is planned. Today, run Wise Bucket inside WSL2, where it behaves exactly as on Linux:
 
 1. Install WSL2 with Ubuntu: `wsl --install -d Ubuntu`.
-2. Inside Ubuntu, install Rust and `build-essential`, then follow the steps above.
+2. Inside Ubuntu, run the install command above.
 3. Run your agent **from WSL** (for example, start `claude` in the WSL terminal, or use VS Code's WSL remote) so it can launch the Linux binary.
 4. Recordings on the Windows side are reachable as `/mnt/c/...` and can be declared as recording folders. Access through `/mnt/c` is slower; for large recordings, prefer a folder inside the WSL file system.
 
@@ -49,7 +55,7 @@ $ wisebucket setup
 Wise Bucket setup
 ✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
-… Building pgvector 0.8.6 (about 15 s)
+… Downloading https://github.com/MBagory/wise-bucket/releases/…/pgvector-0.8.6-pg17.11.0-x86_64-unknown-linux-gnu.tar.gz
 ✔ PostgreSQL 17.11.0 + pgvector 0.8.6 ready
 ✔ database ready: PostgreSQL 17.11, vector 0.8.6, pg_trgm 1.6
 ? Add a folder containing recordings (rosbags, MCAP, …)? › yes
@@ -67,10 +73,9 @@ Other agents (Kilo Code, Cline, Cursor, …): add this to their global MCP setti
 ```
 
 **What happens:**
-1. **Download:** PostgreSQL 17.11 is downloaded and checked against a pinned SHA-256 checksum.
-2. **Build:** pgvector 0.8.6 is compiled against it, which takes about 15 s.
-3. **Database:** the database is created, with generated passwords stored in a file only you can read.
-4. **Your answers** are written to your user configuration.
+1. **Download:** PostgreSQL 17.11 and pgvector 0.8.6 (prebuilt for that exact PostgreSQL) are downloaded and checked against pinned SHA-256 checksums.
+2. **Database:** the database is created, with generated passwords stored in a file only you can read.
+3. **Your answers** are written to your user configuration.
 
 `setup` is idempotent: re-run it any time and it only does what's missing.
 
@@ -172,7 +177,7 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 
 ```sh
 wisebucket db stop      # if it is running
-cargo uninstall wb-server
+rm ~/.cargo/bin/wisebucket ~/.cargo/bin/wbk
 ```
 
 Your data stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it.

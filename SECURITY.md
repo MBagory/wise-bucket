@@ -18,7 +18,7 @@ Useful details: affected version (`wisebucket --version`), platform, steps to re
   - Credentials: generated database passwords live in `<state directory>/secrets/db.toml` (mode 0600).
 - **Reaches your model provider:** only the tool results your agent sends to its own model, under your agent's terms. Wise Bucket's results are bounded summaries: today, versions, the project name, and recording-folder names and paths.
 - **No model calls:** Wise Bucket never contacts an LLM.
-- **No network use at runtime:** only `setup` downloads files (PostgreSQL, pgvector sources), each verified against a pinned SHA-256 checksum.
+- **No network use at runtime:** only `setup` downloads files (PostgreSQL, prebuilt pgvector), each verified against a pinned SHA-256 checksum.
 
 ## Threat model (summary)
 
@@ -28,7 +28,7 @@ Wise Bucket runs locally, for one engineer, next to an AI harness.
 
 - **Data roots:** only folders declared by the engineer can be read; symlinks escaping a root are refused; no MCP tool can add a root.
 - **Managed database:** listens only on a Unix socket in a directory with mode 0700; generated passwords are stored in a 0600 file; no TCP listener.
-- **Supply chain at setup:** PostgreSQL binaries and pgvector sources are pinned by version and verified with SHA-256 before use.
+- **Supply chain at setup:** PostgreSQL binaries and the prebuilt pgvector are pinned by version and verified with SHA-256 before use. pgvector is built from its checksum-verified source by this repository's public `pgvector` workflow (`.github/build-pgvector.sh`).
 
 
 **Out of scope / residual risks:**

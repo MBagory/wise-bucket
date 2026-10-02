@@ -34,14 +34,11 @@ The goal is to give the agent **the full context it usually lacks**, by *standar
 
 ### 1. Install
 
-**Requirements:** Linux or macOS (Windows through WSL2), [Rust](https://rustup.rs), and a C compiler (`xcode-select --install` on macOS, `build-essential` on Debian/Ubuntu).
-
 ```sh
-git clone https://github.com/MBagory/wise-bucket && cd wise-bucket
-cargo install --path crates/wb-server --locked
+curl -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh
 ```
 
-This installs `wisebucket` and its short alias `wbk`.
+This installs `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. You don't need Rust or a C compiler. To update, run the same command again. Check [Platforms](#platforms) first; to build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### 2. Set up your machine (once, about a minute)
 
@@ -59,7 +56,7 @@ $ wisebucket setup
 Wise Bucket setup
 ✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
-… Building pgvector 0.8.6 (about 15 s)
+… Downloading https://github.com/MBagory/wise-bucket/releases/…/pgvector-0.8.6-pg17.11.0-x86_64-unknown-linux-gnu.tar.gz
 ✔ PostgreSQL 17.11.0 + pgvector 0.8.6 ready
 ✔ database ready: PostgreSQL 17.11, vector 0.8.6, pg_trgm 1.6
 ? Add a folder containing recordings (rosbags, MCAP, …)? › yes
@@ -210,11 +207,14 @@ $ wisebucket doctor
 
 ## Platforms
 
-| Platform | Status |
+| Platform | Supported |
 | --- | --- |
-| Linux x86_64 / arm64 | ✅ |
-| macOS Apple Silicon / Intel | ✅ |
+| macOS 15 or later, Apple Silicon / Intel | ✅ |
+| Linux x86_64 / arm64 with glibc 2.34 or later: Ubuntu 22.04+, Debian 12+, RHEL / Rocky / Alma 9+, Fedora, Amazon Linux 2023, Arch | ✅ |
+| Older Linux (Ubuntu 20.04, Debian 11, RHEL 8), Alpine and other musl distros | ❌ |
 | Windows | through WSL2 |
+
+The limits come from the PostgreSQL binaries that `setup` downloads. On Linux they also need a few common system libraries, which are already installed on desktops and servers; minimal containers may lack them (see [the guide](docs/guide.md#install)).
 
 ## Documentation
 
@@ -229,9 +229,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT
 
 ```sh
 cargo build
-cargo test --workspace               # first run downloads PostgreSQL and builds pgvector (~1 min)
-cargo run -p wb-server -- docs gen   # regenerate reference pages after changing the CLI, errors or config
-cargo test -p wb-server --test samples -- --ignored  # per-format sample checks (downloads ~4 MB once)
+cargo test --workspace               # first run downloads PostgreSQL and pgvector (~1 min)
+cargo run -p wisebucket -- docs gen   # regenerate reference pages after changing the CLI, errors or config
+cargo test -p wisebucket --test samples -- --ignored  # per-format sample checks (downloads ~4 MB once)
 ```
 
 The acceptance tests drive **the real binary** through **a real MCP client**. They cover two concurrent sessions, stop-after-last, recording folders, `doctor` and backup/restore.

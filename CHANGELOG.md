@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added: prebuilt binaries and installer
+
+- Install with `curl -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh`. You no longer need Rust. Releases ship static binaries for macOS (Apple Silicon, Intel) and Linux (x86_64, arm64), built by [dist](https://github.com/axodotdev/cargo-dist) when a `v*` tag is pushed.
+- `setup` downloads a prebuilt, checksum-pinned pgvector instead of compiling it, so a C compiler is no longer needed. The `toolchain_missing` and `pgvector_build_failed` error codes are removed.
+- The Cargo package is renamed from `wb-server` to `wisebucket` (`cargo run -p wisebucket`, `cargo test -p wisebucket`).
+- Documented platform limits, set by the managed PostgreSQL binaries: macOS 15 or later; Linux with glibc 2.34 or later (Ubuntu 22.04+, Debian 12+, RHEL 9+).
+
 ### Changed
 
 - Wise Bucket is now **user-wide only**: data is organized by recording folder, not by repository. `init`, the project configuration (`.wisebucket/config.toml`), the global `--project` flag, `WB_PROJECT_DIR` and `roots add|remove --in-project` are removed, as are the `root_outside_project` and `mcp_config_exists` error codes. `setup` now ends by printing how to register the server once for your user (`claude mcp add --scope user …`, or the JSON entry for other agents). Existing databases must be recreated (the `session.project` column is gone from the initial schema).
@@ -23,7 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added: sample data
 
 - `demo [FORMAT…] | --all | --list`: downloads public sample recordings (ROS 2 MCAP and SQLite bags, MCAP, ROS 1 bags, PX4 ULog, ArduPilot DataFlash, MAVLink tlog, CAN ASC/BLF + DBC, MDF4, Parquet) from their upstream projects at pinned commits, verifies their SHA-256, and declares them as the `demo` data root. Nothing is redistributed by this repository.
-- Per-format sample tests (`cargo test -p wb-server --test samples -- --ignored`), run by a dedicated CI job per format.
+- Per-format sample tests (`cargo test -p wisebucket --test samples -- --ignored`), run by a dedicated CI job per format.
 
 ### Added: milestone M0 (foundation)
 

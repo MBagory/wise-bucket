@@ -5,8 +5,8 @@
 //! tests need the network, so they are ignored by default:
 //!
 //! ```text
-//! cargo test -p wb-server --test samples -- --ignored            # every format
-//! cargo test -p wb-server --test samples ulog -- --ignored --exact
+//! cargo test -p wisebucket --test samples -- --ignored            # every format
+//! cargo test -p wisebucket --test samples ulog -- --ignored --exact
 //! ```
 //!
 //! From M3 on, each format test grows a decode check against its manifest.

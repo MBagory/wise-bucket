@@ -189,13 +189,13 @@ async fn database_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
             Some(ErrorKind::VectorExtensionMissing),
         )),
         None => {
-            let e = db::managed::check_toolchain().err().unwrap_or_else(|| {
-                err(
+            checks.push(Check::fail(
+                "pgvector",
+                &err(
                     ErrorKind::VectorExtensionMissing,
                     "pgvector is not installed: re-run setup",
-                )
-            });
-            checks.push(Check::fail("pgvector", &e));
+                ),
+            ));
             return;
         }
     }

@@ -17,9 +17,9 @@
 
 Run `wisebucket setup` once on this machine. If you use `--state-dir` or `WB_STATE_DIR`, use the same value for `setup` and in your agent's entry; the entry printed by `setup` includes it.
 
-### Setup fails with `toolchain_missing` or `pgvector_build_failed`
+### Setup fails with `error while loading shared libraries` (Linux)
 
-Install the C toolchain (see [Install](guide.md#install)) and re-run `setup`. The error message gives the path of the build log. On macOS, if Xcode was updated, run `xcode-select --install` again.
+The managed PostgreSQL needs a few common system libraries that minimal containers can lack. Install the ones listed in [Install](guide.md#install) and re-run `setup`. A `GLIBC_2.34 not found` error means the distribution is too old: see the supported list there.
 
 ### Setup fails with `download_failed` or `checksum_mismatch`
 
@@ -69,9 +69,9 @@ PostgreSQL with pgvector gives Wise Bucket reliable storage that several agent w
 
 No. It starts with your first agent session, in about 2 seconds, and stops when the last one ends. To keep it running, set `keep_running = true` under `[database]` in your user configuration, or `WB_KEEP_RUNNING=true`.
 
-### Why does setup need a C compiler?
+### Where does pgvector come from?
 
-pgvector is distributed as source code. `setup` builds the pinned, checksum-verified release once, in about 15 seconds, against the exact PostgreSQL it downloaded.
+pgvector is distributed as source code. The project's `pgvector` workflow builds the pinned, checksum-verified release once per platform against the exact PostgreSQL that `setup` downloads, and publishes it as a [release](https://github.com/MBagory/wise-bucket/releases) of this repository. `setup` downloads it and checks it against a SHA-256 checksum compiled into `wisebucket`. The build script is `.github/build-pgvector.sh`.
 
 ### Can my agent read files outside my recording folders through Wise Bucket?
 

@@ -40,7 +40,7 @@ jobs:
           path: target/tmp/samples
           key: samples-demo-${{ hashFiles('crates/wb-core/src/samples.rs') }}
       - name: demo command (fetches samples)
-        run: cargo test -p wb-server --test samples demo_command -- --ignored --exact
+        run: cargo test -p wisebucket --test samples demo_command -- --ignored --exact
 
   samples:
     name: samples (${{ matrix.format }})
@@ -61,7 +61,7 @@ jobs:
           path: target/tmp/samples
           key: samples-${{ matrix.format }}-${{ hashFiles('crates/wb-core/src/samples.rs') }}
       - name: Fetch and check ${{ matrix.format }} samples
-        run: cargo test -p wb-server --test samples ${{ matrix.format }} -- --ignored --exact
+        run: cargo test -p wisebucket --test samples ${{ matrix.format }} -- --ignored --exact
 
   docs:
     name: docs
@@ -71,7 +71,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Generated reference pages are up to date
-        run: cargo run -q -p wb-server -- docs gen --check
+        run: cargo run -q -p wisebucket -- docs gen --check
       - name: Spell check
         uses: crate-ci/typos@v1
       - name: Link check

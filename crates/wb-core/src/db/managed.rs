@@ -3,9 +3,9 @@
 //! * PostgreSQL binaries come from the `theseus-rs/postgresql-binaries` releases
 //!   (the same builds used by the `postgresql_embedded` crate), pinned by version
 //!   and SHA-256.
-//! * pgvector is built from its pinned, checksum-verified source release against
-//!   those exact binaries (PGXS), with `PG_SYSROOT` set to the local SDK on macOS
-//!   and `OPTFLAGS=""` for a portable build.
+//! * pgvector is prebuilt against those exact binaries by `.github/build-pgvector.sh`
+//!   (the `pgvector` workflow), published once as a release of this repository,
+//!   and pinned by SHA-256 here. Users need no C toolchain.
 //! * The server listens **only** on a Unix socket in a private directory; there
 //!   is no TCP listener.
 
@@ -23,9 +23,16 @@ use crate::fsutil;
 pub const PG_VERSION: &str = "17.11.0";
 /// Pinned pgvector version.
 pub const PGVECTOR_VERSION: &str = "0.8.6";
-/// SHA-256 of `https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.6.tar.gz`.
-pub const PGVECTOR_SHA256: &str =
-    "10bf9938906e5d643bbc4a7eea104b6f57ba4898e5b76b20e60484ea1d5a7f8f";
+/// Where the prebuilt pgvector archives are published (one release per pgvector/PostgreSQL pair).
+const PGVECTOR_RELEASES: &str = "https://github.com/MBagory/wise-bucket/releases/download";
+
+/// SHA-256 of each prebuilt pgvector archive (printed by the `pgvector` workflow).
+const PGVECTOR_ARCHIVES: &[(&str, &str)] = &[
+    ("x86_64-apple-darwin", "TODO"),
+    ("aarch64-apple-darwin", "TODO"),
+    ("x86_64-unknown-linux-gnu", "TODO"),
+    ("aarch64-unknown-linux-gnu", "TODO"),
+];
 
 /// SHA-256 of each supported PostgreSQL archive.
 const PG_ARCHIVES: &[(&str, &str)] = &[
@@ -77,8 +84,8 @@ pub fn target() -> Result<&'static str> {
     Ok(t)
 }
 
-fn archive_sha256(target: &str) -> Result<&'static str> {
-    PG_ARCHIVES
+fn pinned_sha256(table: &[(&str, &'static str)], target: &str) -> Result<&'static str> {
+    table
         .iter()
         .find(|(t, _)| *t == target)
         .map(|(_, h)| *h)
@@ -211,7 +218,12 @@ impl Managed {
         );
         let downloads = self.runtime_dir.join("downloads");
         let archive = downloads.join(&name);
-        fsutil::download_verified(&url, &archive, archive_sha256(target)?, progress)?;
+        fsutil::download_verified(
+            &url,
+            &archive,
+            pinned_sha256(PG_ARCHIVES, target)?,
+            progress,
+        )?;
 
         progress("Unpacking PostgreSQL");
         let staging = self
@@ -238,76 +250,26 @@ impl Managed {
         Ok(())
     }
 
-    /// Builds and installs the pinned pgvector release into the managed PostgreSQL (idempotent).
+    /// Downloads the pinned prebuilt pgvector into the managed PostgreSQL (idempotent).
     pub fn install_pgvector(&self, progress: Progress) -> Result<()> {
         let _lock = fsutil::FileLock::acquire(&self.runtime_dir.join("install.lock"))?;
         if self.is_pgvector_installed() {
             progress(&format!("pgvector {PGVECTOR_VERSION} already installed"));
             return Ok(());
         }
-        check_toolchain()?;
-        let url = format!(
-            "https://github.com/pgvector/pgvector/archive/refs/tags/v{PGVECTOR_VERSION}.tar.gz"
-        );
-        let archive = self
-            .runtime_dir
-            .join("downloads")
-            .join(format!("pgvector-{PGVECTOR_VERSION}.tar.gz"));
-        fsutil::download_verified(&url, &archive, PGVECTOR_SHA256, progress)?;
-
-        let build_root = self.runtime_dir.join("build");
-        std::fs::create_dir_all(&build_root)?;
-        let log_path = build_root.join(format!("pgvector-{PGVECTOR_VERSION}-build.log"));
-        let scratch = build_prefix(&self.pg_home()?)?;
-        unpack_tar_gz(&archive, scratch.path())?;
-        let src = scratch.path().join(format!("pgvector-{PGVECTOR_VERSION}"));
-        let pg_config = scratch.path().join("pg/bin/pg_config");
-
-        progress(&format!(
-            "Building pgvector {PGVECTOR_VERSION} (about 15 s)"
-        ));
-        let jobs = std::thread::available_parallelism()
-            .map(|n| n.get())
-            .unwrap_or(2);
-        let mut make_args = vec![
-            format!("PG_CONFIG={}", pg_config.display()),
-            // Portable build: no -march=native, so the binary survives CPU changes.
-            "OPTFLAGS=".to_string(),
-        ];
-        if cfg!(target_os = "macos") {
-            // PGXS records the SDK path of the machine that built PostgreSQL; use ours.
-            if let Some(sdk) = command_stdout("xcrun", &["--show-sdk-path"]) {
-                make_args.push(format!("PG_SYSROOT={sdk}"));
-            }
-        }
-        let mut log = std::fs::File::create(&log_path)?;
-        for step in [vec![format!("-j{jobs}")], vec!["install".to_string()]] {
-            let out = Command::new("make")
-                .current_dir(&src)
-                .args(&step)
-                .args(&make_args)
-                .output()
-                .map_err(|e| err(ErrorKind::ToolchainMissing, format!("cannot run make: {e}")))?;
-            log.write_all(&out.stdout)?;
-            log.write_all(&out.stderr)?;
-            if !out.status.success() {
-                return Err(err(
-                    ErrorKind::PgvectorBuildFailed,
-                    format!(
-                        "`make {}` failed; see {}",
-                        step.join(" "),
-                        log_path.display()
-                    ),
-                ));
-            }
-        }
+        let target = target()?;
+        let tag = format!("pgvector-{PGVECTOR_VERSION}-pg{PG_VERSION}");
+        let name = format!("{tag}-{target}.tar.gz");
+        let url = format!("{PGVECTOR_RELEASES}/{tag}/{name}");
+        let archive = self.runtime_dir.join("downloads").join(&name);
+        let sha = pinned_sha256(PGVECTOR_ARCHIVES, target)?;
+        fsutil::download_verified(&url, &archive, sha, progress)?;
+        // The archive holds `lib/vector.*` and `share/extension/vector*`, relative to the install.
+        unpack_tar_gz(&archive, &self.pg_home()?)?;
         if !self.is_pgvector_installed() {
             return Err(err(
-                ErrorKind::PgvectorBuildFailed,
-                format!(
-                    "pgvector files missing after install; see {}",
-                    log_path.display()
-                ),
+                ErrorKind::DownloadFailed,
+                format!("unexpected archive layout in {}", archive.display()),
             ));
         }
         progress(&format!("pgvector {PGVECTOR_VERSION} installed"));
@@ -610,67 +572,6 @@ fn random_secret() -> Result<String> {
     Ok(hex::encode(bytes))
 }
 
-fn command_stdout(cmd: &str, args: &[&str]) -> Option<String> {
-    let out = Command::new(cmd).args(args).output().ok()?;
-    out.status
-        .success()
-        .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
-        .filter(|s| !s.is_empty())
-}
-
-/// Verifies that `make` and a C compiler are available.
-pub fn check_toolchain() -> Result<()> {
-    let ok = |cmd: &str| {
-        Command::new(cmd)
-            .arg("--version")
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
-    };
-    if !ok("make") || !(ok("cc") || ok("gcc") || ok("clang")) {
-        return Err(err(
-            ErrorKind::ToolchainMissing,
-            "`make` and a C compiler (cc/gcc/clang) are needed to build pgvector",
-        ));
-    }
-    Ok(())
-}
-
-/// A space-free scratch directory under /tmp whose `pg/` mirrors the PostgreSQL
-/// install at `home`, so PGXS can build there.
-///
-/// GNU make cannot handle spaces in paths, and the default macOS state directory
-/// is `~/Library/Application Support`. `pg_config` derives every path from its
-/// own resolved location, so it is copied; everything else is symlinked, and
-/// `make install` writes through the links into the real install.
-fn build_prefix(home: &Path) -> Result<tempfile::TempDir> {
-    use std::os::unix::fs::symlink;
-    let scratch = tempfile::Builder::new()
-        .prefix("wb-pgvector-")
-        .tempdir_in("/tmp")
-        .io_ctx(|| "create a build directory in /tmp".to_string())?;
-    let prefix = scratch.path().join("pg");
-    std::fs::create_dir_all(prefix.join("bin"))?;
-    for entry in std::fs::read_dir(home)? {
-        let entry = entry?;
-        if entry.file_name() != "bin" {
-            symlink(entry.path(), prefix.join(entry.file_name()))?;
-        }
-    }
-    for entry in std::fs::read_dir(home.join("bin"))? {
-        let entry = entry?;
-        let to = prefix.join("bin").join(entry.file_name());
-        if entry.file_name() == "pg_config" {
-            std::fs::copy(entry.path(), &to)?;
-        } else {
-            symlink(entry.path(), &to)?;
-        }
-    }
-    Ok(scratch)
-}
-
 fn unpack_tar_gz(archive: &Path, into: &Path) -> Result<()> {
     std::fs::create_dir_all(into)?;
     let f = std::fs::File::open(archive)?;
@@ -696,27 +597,10 @@ mod tests {
     }
 
     #[test]
-    fn build_prefix_mirrors_install_without_spaces() {
-        let d = tempfile::tempdir().unwrap();
-        let home = d.path().join("Application Support/pg");
-        std::fs::create_dir_all(home.join("bin")).unwrap();
-        std::fs::create_dir_all(home.join("lib")).unwrap();
-        std::fs::write(home.join("bin/pg_config"), "x").unwrap();
-        std::fs::write(home.join("bin/postgres"), "x").unwrap();
-        let scratch = build_prefix(&home).unwrap();
-        let pg = scratch.path().join("pg");
-        assert!(!pg.to_string_lossy().contains(' '));
-        let meta = |p: &str| std::fs::symlink_metadata(pg.join(p)).unwrap().file_type();
-        assert!(meta("bin/pg_config").is_file());
-        assert!(meta("bin/postgres").is_symlink());
-        assert!(meta("lib").is_symlink());
-        assert!(meta("bin").is_dir());
-    }
-
-    #[test]
     fn current_platform_is_pinned() {
         if let Ok(t) = target() {
-            assert_eq!(archive_sha256(t).unwrap().len(), 64);
+            assert_eq!(pinned_sha256(PG_ARCHIVES, t).unwrap().len(), 64);
+            assert_eq!(pinned_sha256(PGVECTOR_ARCHIVES, t).unwrap().len(), 64);
         }
     }
 }

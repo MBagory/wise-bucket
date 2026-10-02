@@ -15,8 +15,6 @@ Every error reported by Wise Bucket, in the terminal or in an MCP tool result, c
 | [`unsupported_platform`](#unsupported_platform) | Managed PostgreSQL is not available for this platform |
 | [`download_failed`](#download_failed) | A download failed |
 | [`checksum_mismatch`](#checksum_mismatch) | A downloaded file does not match its pinned checksum |
-| [`toolchain_missing`](#toolchain_missing) | A C toolchain is required to build pgvector |
-| [`pgvector_build_failed`](#pgvector_build_failed) | Building the pgvector extension failed |
 | [`db_not_initialized`](#db_not_initialized) | The managed database has not been set up yet |
 | [`db_start_failed`](#db_start_failed) | The managed PostgreSQL server could not be started |
 | [`db_connect_failed`](#db_connect_failed) | Cannot connect to the database |
@@ -81,18 +79,6 @@ Check your network connection or proxy, then re-run the command (`setup` or `dem
 
 The file was corrupted, tampered with, or changed upstream. Re-run the command (`setup` or `demo`): files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).
 
-## toolchain_missing
-
-**A C toolchain is required to build pgvector**
-
-macOS: run `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`. Fedora: `sudo dnf install gcc make`. Then re-run `wisebucket setup`.
-
-## pgvector_build_failed
-
-**Building the pgvector extension failed**
-
-See the build log path in the message. Make sure the C toolchain works, then re-run `wisebucket setup`.
-
 ## db_not_initialized
 
 **The managed database has not been set up yet**
@@ -115,7 +101,7 @@ Run `wisebucket db status`, then `wisebucket doctor`.
 
 **The pgvector extension (0.8 or newer) is not available**
 
-Re-run `wisebucket setup`: it rebuilds pgvector and recreates the extensions.
+Re-run `wisebucket setup`: it reinstalls pgvector and recreates the extensions.
 
 ## migration_failed
 

@@ -69,12 +69,6 @@ error_kinds! {
     ChecksumMismatch => "checksum_mismatch",
         "A downloaded file does not match its pinned checksum",
         "The file was corrupted, tampered with, or changed upstream. Re-run the command (`setup` or `demo`): files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).";
-    ToolchainMissing => "toolchain_missing",
-        "A C toolchain is required to build pgvector",
-        "macOS: run `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`. Fedora: `sudo dnf install gcc make`. Then re-run `wisebucket setup`.";
-    PgvectorBuildFailed => "pgvector_build_failed",
-        "Building the pgvector extension failed",
-        "See the build log path in the message. Make sure the C toolchain works, then re-run `wisebucket setup`.";
     DbNotInitialized => "db_not_initialized",
         "The managed database has not been set up yet",
         "Run `wisebucket setup` once on this machine.";
@@ -86,7 +80,7 @@ error_kinds! {
         "Run `wisebucket db status`, then `wisebucket doctor`.";
     VectorExtensionMissing => "vector_extension_missing",
         "The pgvector extension (0.8 or newer) is not available",
-        "Re-run `wisebucket setup`: it rebuilds pgvector and recreates the extensions.";
+        "Re-run `wisebucket setup`: it reinstalls pgvector and recreates the extensions.";
     MigrationFailed => "migration_failed",
         "Applying database migrations failed",
         "Make a backup, then report the error with `wisebucket doctor` output attached. Do not edit the `wb` schema by hand.";

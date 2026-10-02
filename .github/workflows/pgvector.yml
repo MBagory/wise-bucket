@@ -1,0 +1,65 @@
+name: pgvector
+
+# Builds pgvector against the pinned PostgreSQL binaries and publishes it as a
+# release, once per pgvector/PostgreSQL pair. Run it by hand after bumping
+# PG_VERSION or PGVECTOR_VERSION in crates/wb-core/src/db/managed.rs, then paste
+# the printed checksums into PGVECTOR_ARCHIVES there.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm }
+          - { target: x86_64-apple-darwin, os: macos-15-intel }
+          - { target: aarch64-apple-darwin, os: macos-15 }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build (Linux, glibc 2.34 container)
+        if: runner.os == 'Linux'
+        run: >
+          docker run --rm -v "$PWD:/src" -w /src rockylinux:9
+          sh -ec 'dnf install -qy gcc make tar gzip && sh .github/build-pgvector.sh ${{ matrix.target }} dist'
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: sh .github/build-pgvector.sh ${{ matrix.target }} dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pgvector-${{ matrix.target }}
+          path: dist/*.tar.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          sha256sum *.tar.gz | tee SHA256SUMS
+          tag=$(ls *.tar.gz | head -1 | sed -E 's/-(x86_64|aarch64)-.*//')
+          # Never --latest (the installer resolves releases/latest) and never
+          # overwrite: shipped binaries pin these checksums. Rebuild = new tag.
+          gh release create "$tag" --repo "${{ github.repository }}" --latest=false \
+            --title "$tag" \
+            --notes "Prebuilt pgvector for Wise Bucket's managed PostgreSQL, downloaded by \`wisebucket setup\`. Not an application release." \
+            *.tar.gz SHA256SUMS
+          echo "Paste into PGVECTOR_ARCHIVES:"
+          sed -E 's/^([0-9a-f]+)  .*-(x86_64|aarch64)(-.*)\.tar\.gz$/    ("\2\3", "\1"),/' SHA256SUMS

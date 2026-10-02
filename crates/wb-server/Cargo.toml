@@ -1,5 +1,5 @@
 [package]
-name = "wb-server"
+name = "wisebucket"
 description = "Wise Bucket: MCP server and CLI for evidence-backed, iterative robot investigations"
 version.workspace = true
 edition.workspace = true
@@ -8,9 +8,14 @@ license.workspace = true
 repository.workspace = true
 publish = false
 readme = "../../README.md"
+default-run = "wisebucket"
 
 [lints]
 workspace = true
+
+# Released as prebuilt binaries by `dist` (dist-workspace.toml), not on crates.io
+[package.metadata.dist]
+dist = true
 
 [[bin]]
 name = "wisebucket"
