@@ -146,11 +146,11 @@ fn summary(v: &Value) -> String {
                 .and_then(|n| n.as_str())
                 .unwrap_or("none")
         ),
-        None => "project: none (run `wise-bucket-server init` in the repository)".into(),
+        None => "project: none (run `wisebucket init` in the repository)".into(),
     };
     let roots = v["roots"].as_array().cloned().unwrap_or_default();
     let roots_line = if roots.is_empty() {
-        "data roots: none declared (the engineer adds them with `wise-bucket-server roots add <name> <path>`)".to_string()
+        "data roots: none declared (the engineer adds them with `wisebucket roots add <name> <path>`)".to_string()
     } else {
         format!(
             "data roots: {}",

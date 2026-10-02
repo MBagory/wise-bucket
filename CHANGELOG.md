@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The binary is renamed from `wise-bucket-server` to `wisebucket`, with a short alias `wbk` (not `wb`, which Weights & Biases installs). Existing `.mcp.json` files still launch the old path: re-run `wisebucket init --merge`; `doctor` reports the stale path.
+
 ### Fixed
 
 - Managed `setup` no longer fails with `pgvector_build_failed` when the state or runtime directory contains a space (the default on macOS: `~/Library/Application Support`). pgvector is now built from a space-free scratch directory under `/tmp`.
@@ -16,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added: milestone M0 (foundation)
 
-- `wise-bucket-server` binary: MCP server over stdio (`serve`) and command-line tool.
+- `wisebucket` binary: MCP server over stdio (`serve`) and command-line tool.
 - `setup`: provisions a managed PostgreSQL 17.11 + pgvector 0.8.6 (pinned, SHA-256 verified, pgvector built locally against the downloaded PostgreSQL), then asks for recording folders (or `--yes`). The managed database is the only database mode.
 - Data roots: `roots add|list|remove|check`, user and project (`--in-project`) roots, overlap/symlink/containment validation, candidate-recording counts.
 - `init`: writes `.wisebucket/config.toml` and the harness MCP configuration (Claude Code `.mcp.json`, Kilo Code `.kilocode/mcp.json`, Cline snippet); never overwrites, `--merge` to add to an existing file.

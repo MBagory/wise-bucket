@@ -8,7 +8,7 @@ Wise Bucket is alpha software. Security fixes are made on the latest release and
 
 **Please do not open a public issue.** Report privately through GitHub: *Security › Report a vulnerability* on the repository (GitHub Security Advisories). We aim to acknowledge reports within 5 working days and to agree on a disclosure timeline with you.
 
-Useful details: affected version (`wise-bucket-server --version`), platform, steps to reproduce, and impact.
+Useful details: affected version (`wisebucket --version`), platform, steps to reproduce, and impact.
 
 ## Privacy
 

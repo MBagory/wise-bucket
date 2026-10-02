@@ -44,25 +44,25 @@ macro_rules! error_kinds {
 error_kinds! {
     ConfigInvalid => "config_invalid",
         "A configuration file could not be read or is invalid",
-        "Run `wise-bucket-server config show --origin` to see which file is involved, then fix the reported key. See the configuration reference for valid keys.";
+        "Run `wisebucket config show --origin` to see which file is involved, then fix the reported key. See the configuration reference for valid keys.";
     StateDirUnavailable => "state_dir_unavailable",
         "The state directory cannot be created or written",
         "Check permissions and free space, or choose another location with `--state-dir` or `WB_STATE_DIR`.";
     RootInvalid => "root_invalid",
         "A data root is invalid",
-        "Root names use lowercase letters, digits, `-` and `_` (max 32 characters), and paths must point to an existing, readable directory. Fix it with `wise-bucket-server roots add|remove`.";
+        "Root names use lowercase letters, digits, `-` and `_` (max 32 characters), and paths must point to an existing, readable directory. Fix it with `wisebucket roots add|remove`.";
     RootOverlap => "root_overlap",
         "Two data roots overlap",
         "A root cannot contain another root. Keep only the outer folder, or split them into sibling folders.";
     RootOutsideProject => "root_outside_project",
         "A project root points outside the project",
-        "Roots declared in `.wisebucket/config.toml` must be relative paths inside the repository. Declare machine-specific folders in your user config with `wise-bucket-server roots add`.";
+        "Roots declared in `.wisebucket/config.toml` must be relative paths inside the repository. Declare machine-specific folders in your user config with `wisebucket roots add`.";
     RootDuplicateName => "root_duplicate_name",
         "Two data roots share the same name",
         "Root names must be unique across the user and project configuration. Rename one of them.";
     OutsideRoots => "outside_roots",
         "A path is outside every configured data root",
-        "Wise Bucket only reads files inside declared roots. Add the folder with `wise-bucket-server roots add <name> <path>` (there is deliberately no MCP tool for this).";
+        "Wise Bucket only reads files inside declared roots. Add the folder with `wisebucket roots add <name> <path>` (there is deliberately no MCP tool for this).";
     UnsupportedPlatform => "unsupported_platform",
         "Managed PostgreSQL is not available for this platform",
         "Wise Bucket supports Linux (x86_64, aarch64) and macOS (x86_64, arm64). On Windows, use WSL2.";
@@ -74,25 +74,25 @@ error_kinds! {
         "The file was corrupted, tampered with, or changed upstream. Re-run the command (`setup` or `demo`): files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).";
     ToolchainMissing => "toolchain_missing",
         "A C toolchain is required to build pgvector",
-        "macOS: run `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`. Fedora: `sudo dnf install gcc make`. Then re-run `wise-bucket-server setup`.";
+        "macOS: run `xcode-select --install`. Debian/Ubuntu: `sudo apt install build-essential`. Fedora: `sudo dnf install gcc make`. Then re-run `wisebucket setup`.";
     PgvectorBuildFailed => "pgvector_build_failed",
         "Building the pgvector extension failed",
-        "See the build log path in the message. Make sure the C toolchain works, then re-run `wise-bucket-server setup`.";
+        "See the build log path in the message. Make sure the C toolchain works, then re-run `wisebucket setup`.";
     DbNotInitialized => "db_not_initialized",
         "The managed database has not been set up yet",
-        "Run `wise-bucket-server setup` once on this machine.";
+        "Run `wisebucket setup` once on this machine.";
     DbStartFailed => "db_start_failed",
         "The managed PostgreSQL server could not be started",
-        "Look at `<state-dir>/logs/postgres.log`. Common causes: a full disk, a stale `postmaster.pid` after a crash, or a socket directory that is not writable. `wise-bucket-server doctor` checks all of them.";
+        "Look at `<state-dir>/logs/postgres.log`. Common causes: a full disk, a stale `postmaster.pid` after a crash, or a socket directory that is not writable. `wisebucket doctor` checks all of them.";
     DbConnectFailed => "db_connect_failed",
         "Cannot connect to the database",
-        "Run `wise-bucket-server db status`, then `wise-bucket-server doctor`.";
+        "Run `wisebucket db status`, then `wisebucket doctor`.";
     VectorExtensionMissing => "vector_extension_missing",
         "The pgvector extension (0.8 or newer) is not available",
-        "Re-run `wise-bucket-server setup`: it rebuilds pgvector and recreates the extensions.";
+        "Re-run `wisebucket setup`: it rebuilds pgvector and recreates the extensions.";
     MigrationFailed => "migration_failed",
         "Applying database migrations failed",
-        "Make a backup, then report the error with `wise-bucket-server doctor` output attached. Do not edit the `wb` schema by hand.";
+        "Make a backup, then report the error with `wisebucket doctor` output attached. Do not edit the `wb` schema by hand.";
     SocketPathTooLong => "socket_path_too_long",
         "The PostgreSQL socket path is too long",
         "Unix sockets are limited to about 100 characters. Use a shorter `--state-dir`, or set `TMPDIR` to a short directory.";
@@ -107,7 +107,7 @@ error_kinds! {
         "Check the path, permissions and free disk space mentioned in the message.";
     Internal => "internal_error",
         "Unexpected internal error",
-        "This is a bug. Please open an issue with the message and the output of `wise-bucket-server doctor`.";
+        "This is a bug. Please open an issue with the message and the output of `wisebucket doctor`.";
 }
 
 /// A Wise Bucket error: a stable kind plus a contextual message.
@@ -191,7 +191,7 @@ impl<T> IoContext<T> for std::io::Result<T> {
 /// Renders the errors reference page (Markdown) from the catalog.
 pub fn render_errors_reference() -> String {
     let mut out = String::from(
-        "<!-- GENERATED by `wise-bucket-server docs gen`. Do not edit by hand. -->\n\n# Error reference\n\n\
+        "<!-- GENERATED by `wisebucket docs gen`. Do not edit by hand. -->\n\n# Error reference\n\n\
          Every error reported by Wise Bucket, in the terminal or in an MCP tool result, carries a stable \
          `code` and a link to its entry below.\n\n| Code | Meaning |\n| --- | --- |\n",
     );

@@ -31,7 +31,7 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
             };
             if *in_project {
                 let info = cfg.project.as_ref().ok_or_else(|| {
-                    err(ErrorKind::RootOutsideProject, "no project found: run `wise-bucket-server init` in the repository first, or pass --project")
+                    err(ErrorKind::RootOutsideProject, "no project found: run `wisebucket init` in the repository first, or pass --project")
                 })?;
                 let decl = RootDecl {
                     spec: spec.clone(),
@@ -86,9 +86,7 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
                 return Ok(());
             }
             if cfg.roots.is_empty() {
-                ui::warn(
-                    "no roots declared. Add one with `wise-bucket-server roots add <name> <path>`.",
-                );
+                ui::warn("no roots declared. Add one with `wisebucket roots add <name> <path>`.");
             }
             for r in &set.roots {
                 println!(

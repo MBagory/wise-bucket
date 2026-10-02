@@ -1,4 +1,4 @@
-//! `wise-bucket-server`: Wise Bucket's MCP server and command-line tool.
+//! Wise Bucket's MCP server and command-line tool, shared by the `wisebucket` and `wbk` binaries.
 
 mod cli;
 mod commands;
@@ -13,7 +13,7 @@ use cli::{Cli, Command};
 use wb_core::Result;
 
 #[tokio::main]
-async fn main() -> ExitCode {
+pub async fn main() -> ExitCode {
     let cli = Cli::parse();
     let serving = matches!(cli.command, None | Some(Command::Serve));
     if !serving {

@@ -13,7 +13,7 @@ use rmcp::service::RunningService;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
 
-pub const BIN: &str = env!("CARGO_BIN_EXE_wise-bucket-server");
+pub const BIN: &str = env!("CARGO_BIN_EXE_wisebucket");
 
 /// Shared runtime (PostgreSQL + pgvector) so each test does not rebuild it.
 pub fn runtime_dir() -> PathBuf {

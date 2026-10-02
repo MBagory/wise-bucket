@@ -260,7 +260,7 @@ fn generated_docs_are_up_to_date() {
         .unwrap();
     assert!(
         out.status.success(),
-        "run `wise-bucket-server docs gen`: {}",
+        "run `wisebucket docs gen`: {}",
         String::from_utf8_lossy(&out.stderr)
     );
 }

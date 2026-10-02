@@ -15,10 +15,18 @@ use crate::ui;
 /// Name of the server entry in MCP configuration files.
 pub const SERVER_KEY: &str = "wise-bucket";
 
-/// Builds the MCP server entry launching this binary for `project_dir`.
-pub fn server_entry(global: &GlobalArgs, project_dir: &Path) -> Result<Value> {
+/// Path of this binary as harnesses should launch it: the `wisebucket` next to
+/// it when run as the `wbk` alias, so both names write the same configuration.
+pub fn server_exe() -> std::io::Result<PathBuf> {
     let exe = std::env::current_exe()?;
     let exe = dunce::canonicalize(&exe).unwrap_or(exe);
+    let main = exe.with_file_name(format!("wisebucket{}", std::env::consts::EXE_SUFFIX));
+    Ok(if main.is_file() { main } else { exe })
+}
+
+/// Builds the MCP server entry launching this binary for `project_dir`.
+pub fn server_entry(global: &GlobalArgs, project_dir: &Path) -> Result<Value> {
+    let exe = server_exe()?;
     let mut args = vec![
         "serve".to_string(),
         "--project".to_string(),

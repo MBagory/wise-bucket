@@ -419,7 +419,7 @@ impl Managed {
         if !self.is_initialized() {
             return Err(err(
                 ErrorKind::DbNotInitialized,
-                "run `wise-bucket-server setup` first",
+                "run `wisebucket setup` first",
             ));
         }
         if self.is_running()? {

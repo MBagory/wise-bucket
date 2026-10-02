@@ -148,7 +148,7 @@ pub async fn run(global: &GlobalArgs, args: &SetupArgs) -> Result<()> {
     eprintln!();
     ui::ok(format!("configuration written to {}", user_cfg.display()));
     eprintln!(
-        "Next: in your robot repository, run `wise-bucket-server init`, then open your harness (e.g. Claude Code)."
+        "Next: in your robot repository, run `wisebucket init`, then open your harness (e.g. Claude Code)."
     );
     Ok(())
 }

@@ -55,7 +55,7 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
             ));
         }
         Some(r) => ui::warn(format!(
-            "a root named {ROOT_NAME:?} already points to {}; left unchanged. Declare the samples under another name with `wise-bucket-server roots add <name> {}`",
+            "a root named {ROOT_NAME:?} already points to {}; left unchanged. Declare the samples under another name with `wisebucket roots add <name> {}`",
             r.spec.path.display(),
             dir.display()
         )),
@@ -75,7 +75,7 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
             "Restart your harness session, then ask your agent: \"Which recordings does Wise Bucket see in the demo root?\"",
         );
         ui::info(format!(
-            "Remove later with `wise-bucket-server roots remove {ROOT_NAME}` and by deleting {}",
+            "Remove later with `wisebucket roots remove {ROOT_NAME}` and by deleting {}",
             dir.display()
         ));
     }

@@ -26,10 +26,10 @@ You also need [Rust](https://rustup.rs) (until pre-built binaries are published)
 git clone https://github.com/MBagory/wise-bucket
 cd wise-bucket
 cargo install --path crates/wb-server --locked
-wise-bucket-server --version
+wisebucket --version
 ```
 
-`cargo install` puts `wise-bucket-server` in `~/.cargo/bin`. Make sure that directory is on your `PATH`.
+`cargo install` puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. Make sure that directory is on your `PATH`.
 
 ### Windows: WSL2
 
@@ -45,7 +45,7 @@ Native Windows support is planned. Today, run Wise Bucket inside WSL2, where it 
 Run this once per machine:
 
 ```text
-$ wise-bucket-server setup
+$ wisebucket setup
 Wise Bucket setup
 ✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
@@ -72,7 +72,7 @@ Wise Bucket setup
 **Non-interactive** (scripts, CI):
 
 ```sh
-wise-bucket-server setup --yes --root bags=~/robot-logs/bags --root flights=/mnt/nas/px4
+wisebucket setup --yes --root bags=~/robot-logs/bags --root flights=/mnt/nas/px4
 ```
 
 ## Recording folders
@@ -80,11 +80,11 @@ wise-bucket-server setup --yes --root bags=~/robot-logs/bags --root flights=/mnt
 A recording folder (a *data root*) is a named folder that Wise Bucket may read. It can hold recordings at any depth: rosbag2 folders (`metadata.yaml` plus `.mcap`/`.db3` files), loose `.mcap` files, flight logs… Nothing outside your folders is reachable.
 
 ```sh
-wise-bucket-server roots add bags ~/robot-logs/bags --robot rover-b
-wise-bucket-server roots add flights /Volumes/lab-nas/px4      # network mounts work
-wise-bucket-server roots list
-wise-bucket-server roots check      # readable? overlapping? how many recordings?
-wise-bucket-server roots remove flights                          # the folder itself is never touched
+wisebucket roots add bags ~/robot-logs/bags --robot rover-b
+wisebucket roots add flights /Volumes/lab-nas/px4      # network mounts work
+wisebucket roots list
+wisebucket roots check      # readable? overlapping? how many recordings?
+wisebucket roots remove flights                          # the folder itself is never touched
 ```
 
 **Rules:**
@@ -95,13 +95,13 @@ wise-bucket-server roots remove flights                          # the folder it
 - **Your decision only:** Wise Bucket gives your agent no tool to add a folder. You add folders from the command line or a configuration file.
 - **Restart the agent session** after changing folders: the server reads its configuration when it starts.
 
-**No recordings yet?** `wise-bucket-server demo` downloads public sample files (MCAP, ROS bags, ULog, DataFlash, MAVLink, CAN, MDF4, Parquet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data) for the formats and the investigations they support.
+**No recordings yet?** `wisebucket demo` downloads public sample files (MCAP, ROS bags, ULog, DataFlash, MAVLink, CAN, MDF4, Parquet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data) for the formats and the investigations they support.
 
 **Folders inside a repository** can be shared with your team through the project configuration. Their paths must be relative and stay inside the repository:
 
 ```sh
 cd ~/code/rover
-wise-bucket-server roots add repo-bags ./bags --in-project
+wisebucket roots add repo-bags ./bags --in-project
 ```
 
 ## Connect your agent
@@ -110,7 +110,7 @@ Run this once per repository:
 
 ```sh
 cd ~/code/rover
-wise-bucket-server init --robot rover-b
+wisebucket init --robot rover-b
 ```
 
 ```text
@@ -125,16 +125,16 @@ wise-bucket-server init --robot rover-b
 
 | Agent | How to connect |
 | --- | --- |
-| **Claude Code** | `wise-bucket-server init` writes `.mcp.json` in the repository |
-| **Kilo Code** | `wise-bucket-server init --harness kilo` writes `.kilocode/mcp.json` |
-| **Cursor** | Copy the entry printed by `wise-bucket-server init --print` into `.cursor/mcp.json` (same format) |
+| **Claude Code** | `wisebucket init` writes `.mcp.json` in the repository |
+| **Kilo Code** | `wisebucket init --harness kilo` writes `.kilocode/mcp.json` |
+| **Cursor** | Copy the entry printed by `wisebucket init --print` into `.cursor/mcp.json` (same format) |
 | **OpenAI Codex** | Add the entry to `~/.codex/config.toml` (below) |
-| **Cline** | `wise-bucket-server init --harness cline` prints the entry for Cline's MCP settings |
+| **Cline** | `wisebucket init --harness cline` prints the entry for Cline's MCP settings |
 
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.wise-bucket]
-command = "/home/me/.cargo/bin/wise-bucket-server"
+command = "/home/me/.cargo/bin/wisebucket"
 args = ["serve", "--project", "/home/me/code/rover"]
 ```
 
@@ -156,12 +156,12 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 
 | You want to… | Run |
 | --- | --- |
-| See which agent windows are connected | `wise-bucket-server db status` |
-| Check that everything works | `wise-bucket-server doctor` |
-| See your settings and where each one comes from | `wise-bucket-server config show --origin` |
-| Back up your data | `wise-bucket-server backup wb.dump` |
-| Restore a backup (replaces current data) | `wise-bucket-server restore wb.dump --yes` |
-| Start or stop the managed database by hand | `wise-bucket-server db start` · `db stop` |
+| See which agent windows are connected | `wisebucket db status` |
+| Check that everything works | `wisebucket doctor` |
+| See your settings and where each one comes from | `wisebucket config show --origin` |
+| Back up your data | `wisebucket backup wb.dump` |
+| Restore a backup (replaces current data) | `wisebucket restore wb.dump --yes` |
+| Start or stop the managed database by hand | `wisebucket db start` · `db stop` |
 
 - **Several windows at once:** each agent window starts its own Wise Bucket process, and they share one database. The managed PostgreSQL starts with the first session (about 2 s) and stops when the last one ends. To keep it running, set `keep_running = true` under `[database]` in your user configuration, or `WB_KEEP_RUNNING=true`.
 - **Backups** contain Wise Bucket's own data only. Your recordings stay where they are and are never part of a backup.
@@ -190,8 +190,8 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 ## Uninstall
 
 ```sh
-wise-bucket-server db stop      # if it is running
+wisebucket db stop      # if it is running
 cargo uninstall wb-server
 ```
 
-Your data stays in the state directory (`wise-bucket-server config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it.
+Your data stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it.

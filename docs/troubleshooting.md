@@ -1,6 +1,6 @@
 # Troubleshooting and FAQ
 
-**Start with `wise-bucket-server doctor`.** It checks your configuration, the database, your recording folders and your agent's configuration. Each problem comes with an error code and a link to its fix in the [error reference](reference/errors.md). Add `-v` to any command for diagnostic logs. The MCP server logs to `<state directory>/logs/server.log`.
+**Start with `wisebucket doctor`.** It checks your configuration, the database, your recording folders and your agent's configuration. Each problem comes with an error code and a link to its fix in the [error reference](reference/errors.md). Add `-v` to any command for diagnostic logs. The MCP server logs to `<state directory>/logs/server.log`.
 
 - [Troubleshooting](#troubleshooting)
 - [FAQ](#faq)
@@ -10,12 +10,12 @@
 ### `wise-bucket` doesn't appear in my agent
 
 - Start the agent **in the repository** that contains `.mcp.json` (or your agent's equivalent), and approve the project server when asked. In Claude Code, `/mcp` lists it.
-- Check that the `command` path in `.mcp.json` exists; `doctor` reports a moved or deleted binary. After reinstalling, run `wise-bucket-server init --merge`.
+- Check that the `command` path in `.mcp.json` exists; `doctor` reports a moved or deleted binary. After reinstalling, run `wisebucket init --merge`.
 - Run the command from `.mcp.json` by hand. It should wait silently for input (press Ctrl-C to quit). If it prints an error instead, that error tells you what is wrong.
 
 ### The agent says the database is not set up (`db_not_initialized`)
 
-Run `wise-bucket-server setup` once on this machine. If you use `--state-dir` or `WB_STATE_DIR`, use the same value for `setup` and in `.mcp.json`; `init` records it automatically.
+Run `wisebucket setup` once on this machine. If you use `--state-dir` or `WB_STATE_DIR`, use the same value for `setup` and in `.mcp.json`; `init` records it automatically.
 
 ### Setup fails with `toolchain_missing` or `pgvector_build_failed`
 
@@ -35,7 +35,7 @@ Look at `<state directory>/logs/postgres.log`. The usual causes:
 
 ### A recording folder is reported invalid, overlapping or outside the project
 
-- `root_invalid`: the folder doesn't exist, isn't readable, or its name isn't valid. `wise-bucket-server roots check` shows the details.
+- `root_invalid`: the folder doesn't exist, isn't readable, or its name isn't valid. `wisebucket roots check` shows the details.
 - `root_overlap`: one folder contains another. Keep the outer one, or split them.
 - `root_outside_project`: folders in `.wisebucket/config.toml` must be relative paths inside the repository. Declare other folders in your user configuration with `roots add` (without `--in-project`).
 
@@ -46,11 +46,11 @@ Restart the agent session after changing folders.
 
 - Run the agent **inside WSL** so it can start the Linux binary.
 - Folders under `/mnt/c/...` work but are slow to scan; for large recordings, prefer the WSL file system.
-- If PostgreSQL doesn't start after a Windows reboot, run `wise-bucket-server db status` and check `postgres.log`. A stale lock file is the usual cause.
+- If PostgreSQL doesn't start after a Windows reboot, run `wisebucket db status` and check `postgres.log`. A stale lock file is the usual cause.
 
 ### Still stuck?
 
-Open an issue with the output of `wise-bucket-server doctor --json`; it contains no secrets.
+Open an issue with the output of `wisebucket doctor --json`; it contains no secrets.
 
 ## FAQ
 
@@ -80,7 +80,7 @@ No. Wise Bucket only reads inside the folders you declared, refuses symlinks tha
 
 ### Can I have several recording folders, or folders on a NAS?
 
-Yes. Declare as many as you like with `wise-bucket-server roots add <name> <path>`, network mounts included. Folders can't overlap.
+Yes. Declare as many as you like with `wisebucket roots add <name> <path>`, network mounts included. Folders can't overlap.
 
 ### Can I use several agent windows at the same time?
 
@@ -88,4 +88,4 @@ Yes. Each window starts its own Wise Bucket process, and they share the same dat
 
 ### Where is my data, and how do I back it up?
 
-`wise-bucket-server config path` shows the locations. To back up, run `wise-bucket-server backup wb.dump`; to restore, run `restore wb.dump --yes`. Your recordings are never part of a backup: they stay where they are.
+`wisebucket config path` shows the locations. To back up, run `wisebucket backup wb.dump`; to restore, run `restore wb.dump --yes`. Your recordings are never part of a backup: they stay where they are.

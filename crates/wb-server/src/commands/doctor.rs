@@ -8,7 +8,7 @@ use wb_core::error::{ErrorKind, Result, WbError, docs_ref, err};
 use wb_core::{fsutil, roots};
 
 use crate::cli::GlobalArgs;
-use crate::commands::init::{SERVER_KEY, harness_file};
+use crate::commands::init::{SERVER_KEY, harness_file, server_exe};
 use crate::ui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -109,7 +109,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
     if !cfg.user_config_exists {
         checks.push(Check::warn(
             "user config",
-            "not created yet: run `wise-bucket-server setup`",
+            "not created yet: run `wisebucket setup`",
             Some(ErrorKind::DbNotInitialized),
         ));
     }
@@ -154,7 +154,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
     if cfg.roots.is_empty() {
         checks.push(Check::warn(
             "data roots",
-            "none declared: `wise-bucket-server roots add <name> <path>`",
+            "none declared: `wisebucket roots add <name> <path>`",
             Some(ErrorKind::OutsideRoots),
         ));
     }
@@ -172,7 +172,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
     match &cfg.project {
         None => checks.push(Check::warn(
             "project",
-            "no `.wisebucket/config.toml` found from here: run `wise-bucket-server init` in your robot repository",
+            "no `.wisebucket/config.toml` found from here: run `wisebucket init` in your robot repository",
             None,
         )),
         Some(p) => {
@@ -184,7 +184,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
                     p.dir.display()
                 ),
             ));
-            let exe = std::env::current_exe().ok().and_then(|e| dunce::canonicalize(e).ok());
+            let exe = server_exe().ok();
             let mut found_any = false;
             for h in [crate::cli::Harness::Claude, crate::cli::Harness::Kilo] {
                 let Some(file) = harness_file(h, &p.dir) else { continue };
@@ -196,7 +196,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
                 match entry {
                     None => checks.push(Check::warn(
                         "harness config",
-                        format!("{} has no `{SERVER_KEY}` server: run `wise-bucket-server init --merge`", file.display()),
+                        format!("{} has no `{SERVER_KEY}` server: run `wisebucket init --merge`", file.display()),
                         Some(ErrorKind::McpConfigExists),
                     )),
                     Some(e) => {
@@ -218,7 +218,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
                 }
             }
             if !found_any {
-                checks.push(Check::warn("harness config", "no .mcp.json found in the project: run `wise-bucket-server init`", None));
+                checks.push(Check::warn("harness config", "no .mcp.json found in the project: run `wisebucket init`", None));
             }
         }
     }

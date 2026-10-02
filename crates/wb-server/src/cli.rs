@@ -8,7 +8,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 ///
 /// Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 #[derive(Debug, Parser)]
-#[command(name = "wise-bucket-server", version, propagate_version = true)]
+#[command(name = "wisebucket", version, propagate_version = true)]
 pub struct Cli {
     #[command(flatten)]
     pub global: GlobalArgs,

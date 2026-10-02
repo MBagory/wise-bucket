@@ -12,7 +12,7 @@ body:
   - type: textarea
     id: doctor
     attributes:
-      label: Output of `wise-bucket-server doctor --json`
+      label: Output of `wisebucket doctor --json`
       description: It contains no secrets. Paste it here.
       render: json
     validations:
@@ -21,7 +21,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: Output of `wise-bucket-server --version`
+      description: Output of `wisebucket --version`
     validations:
       required: true
   - type: dropdown

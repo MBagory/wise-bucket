@@ -13,8 +13,12 @@ readme = "../../README.md"
 workspace = true
 
 [[bin]]
-name = "wise-bucket-server"
-path = "src/main.rs"
+name = "wisebucket"
+path = "src/bin/wisebucket.rs"
+
+[[bin]]
+name = "wbk"
+path = "src/bin/wbk.rs"
 
 [dependencies]
 wb-core = { path = "../wb-core" }

@@ -41,10 +41,12 @@ git clone https://github.com/MBagory/wise-bucket && cd wise-bucket
 cargo install --path crates/wb-server --locked
 ```
 
+This installs `wisebucket` and its short alias `wbk`.
+
 ### 2. Set up your machine (once, about a minute)
 
 ```sh
-wise-bucket-server setup
+wisebucket setup
 ```
 
 `setup` only asks which folders hold your recordings. Re-run it any time: **it only does what's missing**.
@@ -53,7 +55,7 @@ wise-bucket-server setup
 <summary>Example session</summary>
 
 ```text
-$ wise-bucket-server setup
+$ wisebucket setup
 Wise Bucket setup
 ✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
@@ -72,27 +74,27 @@ Wise Bucket setup
 </details>
 
 > [!TIP]
-> **For scripts and CI:** `wise-bucket-server setup --yes --root bags=~/robot-logs/bags`
+> **For scripts and CI:** `wisebucket setup --yes --root bags=~/robot-logs/bags`
 
 ### 3. Connect your agent (once per repository)
 
 ```sh
 cd ~/code/rover
-wise-bucket-server init --robot rover-b
+wisebucket init --robot rover-b
 ```
 
 | Agent | How to connect |
 | --- | --- |
-| **Claude Code** | `wise-bucket-server init`: writes `.mcp.json` in the repository |
-| **Kilo Code** | `wise-bucket-server init --harness kilo`: writes `.kilocode/mcp.json` |
-| **Cursor** | Copy the `wise-bucket-server init --print` entry into `.cursor/mcp.json` (same format) |
+| **Claude Code** | `wisebucket init`: writes `.mcp.json` in the repository |
+| **Kilo Code** | `wisebucket init --harness kilo`: writes `.kilocode/mcp.json` |
+| **Cursor** | Copy the `wisebucket init --print` entry into `.cursor/mcp.json` (same format) |
 | **OpenAI Codex** | Add the entry to `~/.codex/config.toml` (below) |
-| **Cline** | `wise-bucket-server init --harness cline`: prints the entry for Cline's MCP settings |
+| **Cline** | `wisebucket init --harness cline`: prints the entry for Cline's MCP settings |
 
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.wise-bucket]
-command = "/home/me/.cargo/bin/wise-bucket-server"
+command = "/home/me/.cargo/bin/wisebucket"
 args = ["serve", "--project", "/home/me/code/rover"]
 ```
 
@@ -121,7 +123,7 @@ you   › Is Wise Bucket ready?
 
 agent › ⏺ wise-bucket · server_info
         Not yet: the database hasn't been set up on this machine
-        (db_not_initialized). Run `wise-bucket-server setup` once,
+        (db_not_initialized). Run `wisebucket setup` once,
         then start a new session.
         Docs: https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#db_not_initialized
 ```
@@ -133,13 +135,13 @@ agent › ⏺ wise-bucket · server_info
 No recordings at hand? `demo` downloads small **public sample files**, one set per format, and declares them as a data root named `demo`:
 
 ```sh
-wise-bucket-server demo                 # pick formats from a list
-wise-bucket-server demo ros2-mcap ulog  # or name them
-wise-bucket-server demo --all           # everything (about 4 MB)
-wise-bucket-server demo --list          # formats, sizes and licenses
+wisebucket demo                 # pick formats from a list
+wisebucket demo ros2-mcap ulog  # or name them
+wisebucket demo --all           # everything (about 4 MB)
+wisebucket demo --list          # formats, sizes and licenses
 ```
 
-The files go to `<state dir>/demo/<format>/`. They are fetched from their upstream projects at a pinned commit and checked against a SHA-256, and they **stay under their own licenses** (Apache-2.0, MIT, BSD-3-Clause, LGPL-3.0): this repository does not include them. Re-running `demo` only downloads what is missing. Start a new agent session to see the `demo` root; remove it with `wise-bucket-server roots remove demo` and by deleting the folder.
+The files go to `<state dir>/demo/<format>/`. They are fetched from their upstream projects at a pinned commit and checked against a SHA-256, and they **stay under their own licenses** (Apache-2.0, MIT, BSD-3-Clause, LGPL-3.0): this repository does not include them. Re-running `demo` only downloads what is missing. Start a new agent session to see the `demo` root; remove it with `wisebucket roots remove demo` and by deleting the folder.
 
 ### Investigations to try
 
@@ -164,12 +166,12 @@ Wise Bucket currently **lists and counts** recordings; it does not read them yet
 
 | You want to… | Run |
 | --- | --- |
-| Add a recording folder (a NAS mount works too) | `wise-bucket-server roots add flights /Volumes/lab-nas/px4` |
-| See what your folders contain | `wise-bucket-server roots check` |
-| See which agent windows are connected | `wise-bucket-server db status` |
-| Check that everything works | `wise-bucket-server doctor` |
-| Back up (and restore) your data | `wise-bucket-server backup wb.dump` · `restore wb.dump --yes` |
-| See your settings and where each comes from | `wise-bucket-server config show --origin` |
+| Add a recording folder (a NAS mount works too) | `wisebucket roots add flights /Volumes/lab-nas/px4` |
+| See what your folders contain | `wisebucket roots check` |
+| See which agent windows are connected | `wisebucket db status` |
+| Check that everything works | `wisebucket doctor` |
+| Back up (and restore) your data | `wisebucket backup wb.dump` · `restore wb.dump --yes` |
+| See your settings and where each comes from | `wisebucket config show --origin` |
 
 
 > [!IMPORTANT]
@@ -183,7 +185,7 @@ Wise Bucket currently **lists and counts** recordings; it does not read them yet
 <summary>Example output</summary>
 
 ```text
-$ wise-bucket-server doctor
+$ wisebucket doctor
 ✔ configuration      loaded (~/.config/wisebucket/config.toml)
 ✔ state directory    ~/.local/share/wisebucket · 84.6 GB free
 ✔ postgresql         17.11.0 installed
