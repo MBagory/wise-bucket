@@ -28,10 +28,22 @@ const PGVECTOR_RELEASES: &str = "https://github.com/MBagory/wise-bucket/releases
 
 /// SHA-256 of each prebuilt pgvector archive (printed by the `pgvector` workflow).
 const PGVECTOR_ARCHIVES: &[(&str, &str)] = &[
-    ("x86_64-apple-darwin", "TODO"),
-    ("aarch64-apple-darwin", "TODO"),
-    ("x86_64-unknown-linux-gnu", "TODO"),
-    ("aarch64-unknown-linux-gnu", "TODO"),
+    (
+        "x86_64-apple-darwin",
+        "bd754055c42828156ede2b755d55afac58a6eaf4c8f2449e516f9c9f92f035dd",
+    ),
+    (
+        "aarch64-apple-darwin",
+        "47b2dd88b915e36447ac9817a1f3c6441c69f395b4d2cee9344ea1626c8cd08a",
+    ),
+    (
+        "x86_64-unknown-linux-gnu",
+        "c3eb832124c5dcb75bb759bd12adbab7dde036c59da1dd43426b39825e18c9d5",
+    ),
+    (
+        "aarch64-unknown-linux-gnu",
+        "d664e6e22afa93afcae92acea59c6b179ae1a1a14891764b7fff8f3003b39bca",
+    ),
 ];
 
 /// SHA-256 of each supported PostgreSQL archive.
