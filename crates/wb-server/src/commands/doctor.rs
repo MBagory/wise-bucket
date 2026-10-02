@@ -8,7 +8,6 @@ use wb_core::error::{ErrorKind, Result, WbError, docs_ref, err};
 use wb_core::{fsutil, roots};
 
 use crate::cli::GlobalArgs;
-use crate::commands::init::{SERVER_KEY, harness_file, server_exe};
 use crate::ui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -168,60 +167,6 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
         checks.push(Check::fail("data root", e));
     }
 
-    // Project and harness configuration.
-    match &cfg.project {
-        None => checks.push(Check::warn(
-            "project",
-            "no `.wisebucket/config.toml` found from here: run `wisebucket init` in your robot repository",
-            None,
-        )),
-        Some(p) => {
-            checks.push(Check::ok(
-                "project",
-                format!(
-                    "{} ({})",
-                    p.name.as_ref().map(|n| n.value.as_str()).unwrap_or("unnamed"),
-                    p.dir.display()
-                ),
-            ));
-            let exe = server_exe().ok();
-            let mut found_any = false;
-            for h in [crate::cli::Harness::Claude, crate::cli::Harness::Kilo] {
-                let Some(file) = harness_file(h, &p.dir) else { continue };
-                let Ok(text) = std::fs::read_to_string(&file) else { continue };
-                found_any = true;
-                let entry = serde_json::from_str::<serde_json::Value>(&text)
-                    .ok()
-                    .and_then(|v| v.get("mcpServers").and_then(|s| s.get(SERVER_KEY)).cloned());
-                match entry {
-                    None => checks.push(Check::warn(
-                        "harness config",
-                        format!("{} has no `{SERVER_KEY}` server: run `wisebucket init --merge`", file.display()),
-                        Some(ErrorKind::McpConfigExists),
-                    )),
-                    Some(e) => {
-                        let cmd = e.get("command").and_then(|c| c.as_str()).map(std::path::PathBuf::from);
-                        match cmd {
-                            Some(c) if !c.is_file() => checks.push(Check::warn(
-                                "harness config",
-                                format!("{}: command {} does not exist; re-run `init --merge`", file.display(), c.display()),
-                                None,
-                            )),
-                            Some(c) if exe.as_ref().is_some_and(|x| *x != c) => checks.push(Check::warn(
-                                "harness config",
-                                format!("{} launches {} (this binary is {})", file.display(), c.display(), exe.as_ref().map(|x| x.display().to_string()).unwrap_or_default()),
-                                None,
-                            )),
-                            _ => checks.push(Check::ok("harness config", format!("{} → `{SERVER_KEY}`", file.display()))),
-                        }
-                    }
-                }
-            }
-            if !found_any {
-                checks.push(Check::warn("harness config", "no .mcp.json found in the project: run `wisebucket init`", None));
-            }
-        }
-    }
     checks
 }
 

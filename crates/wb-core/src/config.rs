@@ -1,7 +1,7 @@
 //! Layered configuration.
 //!
 //! Precedence (highest first): CLI flags > `WB_*` environment variables >
-//! project config (`<repo>/.wisebucket/config.toml`) > user config > defaults.
+//! user config > defaults.
 //! Every effective value remembers where it came from ([`Origin`]) so that
 //! `config show --origin` can explain it.
 
@@ -19,7 +19,6 @@ use crate::paths::{self, env};
 pub enum Origin {
     Default,
     UserConfig(PathBuf),
-    ProjectConfig(PathBuf),
     Env(String),
     Cli(String),
 }
@@ -29,7 +28,6 @@ impl fmt::Display for Origin {
         match self {
             Origin::Default => write!(f, "default"),
             Origin::UserConfig(p) => write!(f, "user config ({})", p.display()),
-            Origin::ProjectConfig(p) => write!(f, "project config ({})", p.display()),
             Origin::Env(v) => write!(f, "environment ({v})"),
             Origin::Cli(flag) => write!(f, "command line ({flag})"),
         }
@@ -82,36 +80,13 @@ pub struct UserConfigFile {
     pub roots: Vec<RootSpec>,
 }
 
-/// Project configuration file (committed with the robot code).
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct ProjectConfigFile {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub project: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default_robot: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub roots: Vec<RootSpec>,
-}
-
 /// A root declaration before validation, with the directory relative paths resolve against.
 #[derive(Debug, Clone, Serialize)]
 pub struct RootDecl {
     pub spec: RootSpec,
     pub origin: Origin,
-    /// `true` when declared in a project config (must stay inside the project).
-    pub from_project: bool,
     /// Directory used to resolve relative paths.
     pub base_dir: PathBuf,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ProjectInfo {
-    pub dir: PathBuf,
-    pub config_path: PathBuf,
-    pub config_exists: bool,
-    pub name: Option<Sourced<String>>,
-    pub default_robot: Option<Sourced<String>>,
 }
 
 /// Fully resolved configuration.
@@ -119,7 +94,6 @@ pub struct ProjectInfo {
 pub struct EffectiveConfig {
     pub user_config_path: Sourced<PathBuf>,
     pub user_config_exists: bool,
-    pub project: Option<ProjectInfo>,
     pub state_dir: Sourced<PathBuf>,
     pub runtime_dir: Sourced<PathBuf>,
     pub keep_running: Sourced<bool>,
@@ -131,7 +105,6 @@ pub struct EffectiveConfig {
 pub struct Overrides {
     pub config_path: Option<PathBuf>,
     pub state_dir: Option<PathBuf>,
-    pub project_dir: Option<PathBuf>,
     pub keep_running: Option<bool>,
 }
 
@@ -180,14 +153,6 @@ fn parse_bool(key: &str, v: &str) -> Result<bool> {
     }
 }
 
-/// Searches `start` and its ancestors for a `.wisebucket/config.toml`.
-pub fn find_project_dir(start: &Path) -> Option<PathBuf> {
-    start
-        .ancestors()
-        .find(|d| d.join(paths::PROJECT_CONFIG_REL).is_file())
-        .map(Path::to_path_buf)
-}
-
 /// Loads the effective configuration from files, environment and overrides.
 pub fn load(overrides: &Overrides) -> Result<EffectiveConfig> {
     load_with(overrides, &ProcessEnv)
@@ -215,37 +180,6 @@ pub fn load_with(overrides: &Overrides, envs: &dyn EnvSource) -> Result<Effectiv
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| cwd.clone());
-
-    // --- project
-    let project_dir = if let Some(p) = &overrides.project_dir {
-        Some(paths::absolutize(p, &cwd))
-    } else if let Some(p) = envs.get(env::PROJECT_DIR) {
-        Some(paths::absolutize(Path::new(&p), &cwd))
-    } else {
-        find_project_dir(&cwd)
-    };
-    let mut project_info = None;
-    let mut project_file = ProjectConfigFile::default();
-    if let Some(dir) = project_dir {
-        let dir = dunce::canonicalize(&dir).unwrap_or(dir);
-        let config_path = dir.join(paths::PROJECT_CONFIG_REL);
-        let (file, exists): (ProjectConfigFile, bool) = read_toml(&config_path)?;
-        let origin = Origin::ProjectConfig(config_path.clone());
-        project_info = Some(ProjectInfo {
-            name: file
-                .project
-                .clone()
-                .map(|v| Sourced::new(v, origin.clone())),
-            default_robot: file
-                .default_robot
-                .clone()
-                .map(|v| Sourced::new(v, origin.clone())),
-            dir,
-            config_path,
-            config_exists: exists,
-        });
-        project_file = file;
-    }
 
     // --- state dir
     let state_dir = if let Some(p) = &overrides.state_dir {
@@ -290,29 +224,19 @@ pub fn load_with(overrides: &Overrides, envs: &dyn EnvSource) -> Result<Effectiv
     };
 
     // --- roots (validated separately, see `roots::resolve`)
-    let mut roots: Vec<RootDecl> = user
+    let roots: Vec<RootDecl> = user
         .roots
         .iter()
         .map(|spec| RootDecl {
             spec: spec.clone(),
             origin: user_origin.clone(),
-            from_project: false,
             base_dir: user_base.clone(),
         })
         .collect();
-    if let Some(info) = &project_info {
-        roots.extend(project_file.roots.iter().map(|spec| RootDecl {
-            spec: spec.clone(),
-            origin: Origin::ProjectConfig(info.config_path.clone()),
-            from_project: true,
-            base_dir: info.dir.clone(),
-        }));
-    }
 
     Ok(EffectiveConfig {
         user_config_path,
         user_config_exists: user_exists,
-        project: project_info,
         state_dir,
         runtime_dir,
         keep_running,
@@ -346,7 +270,6 @@ fn save_document(path: &Path, doc: &toml_edit::DocumentMut, header: &str) -> Res
 }
 
 const USER_HEADER: &str = "# Wise Bucket user configuration (machine specific).\n# Docs: https://github.com/MBagory/wise-bucket/blob/main/docs/reference/configuration.md";
-const PROJECT_HEADER: &str = "# Wise Bucket project configuration (commit this file).\n# Docs: https://github.com/MBagory/wise-bucket/blob/main/docs/reference/configuration.md";
 
 fn root_table(spec: &RootSpec) -> toml_edit::Table {
     let mut t = toml_edit::Table::new();
@@ -386,8 +309,8 @@ fn roots_array(doc: &mut toml_edit::DocumentMut) -> Result<&mut toml_edit::Array
     })
 }
 
-/// Appends a root to a config file (user or project).
-pub fn add_root_to_file(path: &Path, spec: &RootSpec, project: bool) -> Result<()> {
+/// Appends a root to the user config file.
+pub fn add_root_to_file(path: &Path, spec: &RootSpec) -> Result<()> {
     let mut doc = load_document(path)?;
     let roots = roots_array(&mut doc)?;
     if roots
@@ -404,11 +327,7 @@ pub fn add_root_to_file(path: &Path, spec: &RootSpec, project: bool) -> Result<(
         ));
     }
     roots.push(root_table(spec));
-    save_document(
-        path,
-        &doc,
-        if project { PROJECT_HEADER } else { USER_HEADER },
-    )
+    save_document(path, &doc, USER_HEADER)
 }
 
 /// Removes a root by name. Returns `false` if it was not present.
@@ -428,12 +347,7 @@ pub fn remove_root_from_file(path: &Path, name: &str) -> Result<bool> {
 }
 
 /// Sets a top-level or dotted scalar key (e.g. `database.keep_running`).
-pub fn set_key_in_file(
-    path: &Path,
-    key: &str,
-    value: toml_edit::Value,
-    project: bool,
-) -> Result<()> {
+pub fn set_key_in_file(path: &Path, key: &str, value: toml_edit::Value) -> Result<()> {
     let mut doc = load_document(path)?;
     let mut parts = key.split('.').peekable();
     let mut table = doc.as_table_mut();
@@ -452,11 +366,7 @@ pub fn set_key_in_file(
             )
         })?;
     }
-    save_document(
-        path,
-        &doc,
-        if project { PROJECT_HEADER } else { USER_HEADER },
-    )
+    save_document(path, &doc, USER_HEADER)
 }
 
 // ---------------------------------------------------------------------------
@@ -493,7 +403,7 @@ pub const KEYS: &[KeyDoc] = &[
     },
     KeyDoc {
         key: "[[roots]] name",
-        layer: "user, project",
+        layer: "user",
         env: "",
         cli: "`roots add <name>`",
         default: "",
@@ -501,15 +411,15 @@ pub const KEYS: &[KeyDoc] = &[
     },
     KeyDoc {
         key: "[[roots]] path",
-        layer: "user, project",
+        layer: "user",
         env: "",
         cli: "`roots add <name> <path>`",
         default: "",
-        description: "Folder Wise Bucket may read. User roots: absolute or `~/…`. Project roots: relative to the repository and inside it.",
+        description: "Folder Wise Bucket may read: absolute or `~/…`.",
     },
     KeyDoc {
         key: "[[roots]] robot",
-        layer: "user, project",
+        layer: "user",
         env: "",
         cli: "`--robot`",
         default: "",
@@ -517,27 +427,11 @@ pub const KEYS: &[KeyDoc] = &[
     },
     KeyDoc {
         key: "[[roots]] include / exclude",
-        layer: "user, project",
+        layer: "user",
         env: "",
         cli: "`--include` / `--exclude`",
         default: "all supported formats",
         description: "Glob patterns restricting which files are considered recordings.",
-    },
-    KeyDoc {
-        key: "project",
-        layer: "project",
-        env: "",
-        cli: "`init --name`",
-        default: "directory name",
-        description: "Project name shown in `server_info` and used to scope investigations.",
-    },
-    KeyDoc {
-        key: "default_robot",
-        layer: "project",
-        env: "",
-        cli: "`init --robot`",
-        default: "",
-        description: "Robot assumed when a conversation does not name one.",
     },
     KeyDoc {
         key: "(file) user config",
@@ -546,14 +440,6 @@ pub const KEYS: &[KeyDoc] = &[
         cli: "--config",
         default: "Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml`",
         description: "Location of the user configuration file.",
-    },
-    KeyDoc {
-        key: "(dir) project",
-        layer: "-",
-        env: env::PROJECT_DIR,
-        cli: "--project",
-        default: "nearest parent containing `.wisebucket/config.toml`",
-        description: "Robot repository whose project configuration is used. `init` writes it into `.mcp.json`.",
     },
     KeyDoc {
         key: "(dir) runtime",
@@ -569,8 +455,7 @@ pub const KEYS: &[KeyDoc] = &[
 pub fn render_configuration_reference() -> String {
     let mut out = String::from(
         "<!-- GENERATED by `wisebucket docs gen`. Do not edit by hand. -->\n\n# Configuration reference\n\n\
-         Precedence, highest first: **command line** > **`WB_*` environment variables** > **project config** \
-         (`<repo>/.wisebucket/config.toml`) > **user config** > **defaults**. \
+         Precedence, highest first: **command line** > **`WB_*` environment variables** > **user config** > **defaults**. \
          Run `wisebucket config show --origin` to see the effective value of each key and where it comes from.\n\n\
          | Key | Layer | Environment | Command line | Default | Description |\n| --- | --- | --- | --- | --- | --- |\n",
     );
@@ -594,8 +479,6 @@ pub fn render_configuration_reference() -> String {
     }
     out.push_str("\n## Examples\n\n### User configuration\n\n```toml\n");
     out.push_str(include_str!("../../../docs/examples/user-config.toml"));
-    out.push_str("```\n\n### Project configuration\n\n```toml\n");
-    out.push_str(include_str!("../../../docs/examples/project-config.toml"));
     out.push_str("```\n");
     out
 }
@@ -676,30 +559,6 @@ mod tests {
     }
 
     #[test]
-    fn project_is_found_from_a_subdirectory() {
-        let d = tempfile::tempdir().unwrap();
-        let repo = d.path().join("repo");
-        std::fs::create_dir_all(repo.join(".wisebucket")).unwrap();
-        std::fs::create_dir_all(repo.join("src/deep")).unwrap();
-        std::fs::write(
-            repo.join(paths::PROJECT_CONFIG_REL),
-            "project = \"rover\"\ndefault_robot = \"rover-b\"\n[[roots]]\nname = \"repo-bags\"\npath = \"./bags\"\n",
-        )
-        .unwrap();
-        let user = d.path().join("user.toml").to_string_lossy().to_string();
-        let c = load_with(
-            &Overrides::default(),
-            &fake(&repo.join("src/deep"), &[(env::CONFIG, &user)]),
-        )
-        .unwrap();
-        let p = c.project.unwrap();
-        assert_eq!(p.name.unwrap().value, "rover");
-        assert_eq!(p.default_robot.unwrap().value, "rover-b");
-        assert_eq!(c.roots.len(), 1);
-        assert!(c.roots[0].from_project);
-    }
-
-    #[test]
     fn add_and_remove_root_preserves_comments() {
         let d = tempfile::tempdir().unwrap();
         let p = d.path().join("c.toml");
@@ -711,8 +570,8 @@ mod tests {
             include: vec![],
             exclude: vec![],
         };
-        add_root_to_file(&p, &spec, false).unwrap();
-        let e = add_root_to_file(&p, &spec, false).unwrap_err();
+        add_root_to_file(&p, &spec).unwrap();
+        let e = add_root_to_file(&p, &spec).unwrap_err();
         assert_eq!(e.kind(), ErrorKind::RootDuplicateName);
         let text = std::fs::read_to_string(&p).unwrap();
         assert!(text.contains("# my comment"));

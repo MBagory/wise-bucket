@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use serde_json::json;
-use wb_core::config::{self, Origin, RootDecl, RootSpec};
+use wb_core::config::{self, RootSpec};
 use wb_core::error::{ErrorKind, Result, err};
 use wb_core::roots;
 
@@ -20,50 +20,25 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
             robot,
             include,
             exclude,
-            in_project,
         } => {
-            let spec = RootSpec {
-                name: name.clone(),
-                path: path.clone(),
-                robot: robot.clone(),
-                include: include.clone(),
-                exclude: exclude.clone(),
-            };
-            if *in_project {
-                let info = cfg.project.as_ref().ok_or_else(|| {
-                    err(ErrorKind::RootOutsideProject, "no project found: run `wisebucket init` in the repository first, or pass --project")
-                })?;
-                let decl = RootDecl {
-                    spec: spec.clone(),
-                    origin: Origin::ProjectConfig(info.config_path.clone()),
-                    from_project: true,
-                    base_dir: info.dir.clone(),
-                };
-                let root = roots::check_new_root(&cfg.roots, decl)?;
-                config::add_root_to_file(&info.config_path, &spec, true)?;
-                ui::ok(format!(
-                    "project root {:?} → {}",
-                    root.name,
-                    root.path.display()
-                ));
-            } else {
-                add_user_root(&cfg, spec)?;
-            }
+            add_user_root(
+                &cfg,
+                RootSpec {
+                    name: name.clone(),
+                    path: path.clone(),
+                    robot: robot.clone(),
+                    include: include.clone(),
+                    exclude: exclude.clone(),
+                },
+            )?;
             ui::info(
                 "Restart your harness session (or reconnect the MCP server) to use the new root.",
             );
             Ok(())
         }
-        RootsCommand::Remove { name, in_project } => {
-            let file = if *in_project {
-                cfg.project
-                    .as_ref()
-                    .map(|p| p.config_path.clone())
-                    .ok_or_else(|| err(ErrorKind::RootInvalid, "no project found"))?
-            } else {
-                cfg.user_config_path.value.clone()
-            };
-            if config::remove_root_from_file(&file, name)? {
+        RootsCommand::Remove { name } => {
+            let file = &cfg.user_config_path.value;
+            if config::remove_root_from_file(file, name)? {
                 ui::ok(format!(
                     "root {name:?} removed from {} (the folder itself was not touched)",
                     file.display()

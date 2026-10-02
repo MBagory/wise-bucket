@@ -5,6 +5,5 @@ pub mod db_cmd;
 pub mod demo;
 pub mod docs;
 pub mod doctor;
-pub mod init;
 pub mod roots;
 pub mod setup;

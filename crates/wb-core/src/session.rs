@@ -41,19 +41,17 @@ pub struct SessionStart {
     pub pid: u32,
     pub hostname: Option<String>,
     pub cwd: Option<String>,
-    pub project: Option<String>,
 }
 
 pub async fn start(pool: &PgPool, s: &SessionStart) -> Result<SessionId> {
     let id = SessionId::new();
     sqlx::query(
-        "INSERT INTO wb.session (id, pid, hostname, cwd, project, wb_version) VALUES ($1, $2, $3, $4, $5, $6)",
+        "INSERT INTO wb.session (id, pid, hostname, cwd, wb_version) VALUES ($1, $2, $3, $4, $5)",
     )
     .bind(id.0)
     .bind(s.pid as i32)
     .bind(&s.hostname)
     .bind(&s.cwd)
-    .bind(&s.project)
     .bind(crate::VERSION)
     .execute(pool)
     .await
@@ -100,7 +98,6 @@ pub struct SessionRow {
     pub client_name: Option<String>,
     pub client_version: Option<String>,
     pub pid: i32,
-    pub project: Option<String>,
     pub started_at: chrono::DateTime<chrono::Utc>,
     pub last_seen_at: chrono::DateTime<chrono::Utc>,
 }
@@ -108,7 +105,7 @@ pub struct SessionRow {
 /// Sessions that have not ended and were seen recently.
 pub async fn active(pool: &PgPool) -> Result<Vec<SessionRow>> {
     sqlx::query_as(
-        "SELECT id, client_name, client_version, pid, project, started_at, last_seen_at
+        "SELECT id, client_name, client_version, pid, started_at, last_seen_at
          FROM wb.session
          WHERE ended_at IS NULL AND last_seen_at > now() - make_interval(secs => $1)
          ORDER BY started_at",

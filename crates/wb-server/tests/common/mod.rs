@@ -28,7 +28,7 @@ pub struct TestEnv {
     pub root: PathBuf,
     pub config: PathBuf,
     pub state: PathBuf,
-    pub repo: PathBuf,
+    pub cwd: PathBuf,
     pub extra_env: Vec<(String, String)>,
 }
 
@@ -40,12 +40,12 @@ impl TestEnv {
             .tempdir_in("/tmp")
             .unwrap();
         let root = dunce::canonicalize(dir.path()).unwrap();
-        let repo = root.join("repo");
-        std::fs::create_dir_all(&repo).unwrap();
+        let cwd = root.join("cwd");
+        std::fs::create_dir_all(&cwd).unwrap();
         Self {
             config: root.join("config.toml"),
             state: root.join("state"),
-            repo,
+            cwd,
             root,
             _dir: dir,
             extra_env: Vec::new(),
@@ -58,12 +58,11 @@ impl TestEnv {
     }
 
     fn apply(&self, cmd: &mut std::process::Command) {
-        cmd.env_remove("WB_PROJECT_DIR")
-            .env_remove("WB_KEEP_RUNNING")
+        cmd.env_remove("WB_KEEP_RUNNING")
             .env("WB_CONFIG", &self.config)
             .env("WB_STATE_DIR", &self.state)
             .env("WB_RUNTIME_DIR", runtime_dir())
-            .current_dir(&self.repo);
+            .current_dir(&self.cwd);
         for (k, v) in &self.extra_env {
             cmd.env(k, v);
         }
@@ -138,7 +137,7 @@ impl TestEnv {
                 None => cmd.env_remove(k),
             };
         }
-        cmd.current_dir(&self.repo)
+        cmd.current_dir(&self.cwd)
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

@@ -7,7 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- The binary is renamed from `wise-bucket-server` to `wisebucket`, with a short alias `wbk` (not `wb`, which Weights & Biases installs). Existing `.mcp.json` files still launch the old path: re-run `wisebucket init --merge`; `doctor` reports the stale path.
+- Wise Bucket is now **user-wide only**: data is organized by recording folder, not by repository. `init`, the project configuration (`.wisebucket/config.toml`), the global `--project` flag, `WB_PROJECT_DIR` and `roots add|remove --in-project` are removed, as are the `root_outside_project` and `mcp_config_exists` error codes. `setup` now ends by printing how to register the server once for your user (`claude mcp add --scope user …`, or the JSON entry for other agents). Existing databases must be recreated (the `session.project` column is gone from the initial schema).
+- The binary is renamed from `wise-bucket-server` to `wisebucket`, with a short alias `wbk` (not `wb`, which Weights & Biases installs).
 
 ### Fixed
 
@@ -22,8 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `wisebucket` binary: MCP server over stdio (`serve`) and command-line tool.
 - `setup`: provisions a managed PostgreSQL 17.11 + pgvector 0.8.6 (pinned, SHA-256 verified, pgvector built locally against the downloaded PostgreSQL), then asks for recording folders (or `--yes`). The managed database is the only database mode.
-- Data roots: `roots add|list|remove|check`, user and project (`--in-project`) roots, overlap/symlink/containment validation, candidate-recording counts.
-- `init`: writes `.wisebucket/config.toml` and the harness MCP configuration (Claude Code `.mcp.json`, Kilo Code `.kilocode/mcp.json`, Cline snippet); never overwrites, `--merge` to add to an existing file.
+- Data roots: `roots add|list|remove|check`, overlap/symlink validation, candidate-recording counts.
 - Layered configuration (flags > `WB_*` env > project > user > defaults) with `config show --origin` and `config path`.
 - Managed database lifecycle: starts with the first MCP session, stops after the last one (`keep_running` to disable); `db status|start|stop`.
 - MCP tool `server_info`: versions, database status, session, project, default robot, data roots and root problems.

@@ -100,13 +100,6 @@ async fn roots_add_check_remove_and_visible_in_server_info() {
         "{check:#}"
     );
 
-    // Project root declared by init must stay inside the repository.
-    env.ok(&["init", "--yes", "--robot", "rover-b"]);
-    std::fs::create_dir_all(env.repo.join("bags")).unwrap();
-    env.ok(&["roots", "add", "repo-bags", "./bags", "--in-project"]);
-    let outside = env.run(&["roots", "add", "escape", "../bags", "--in-project"]);
-    assert!(String::from_utf8_lossy(&outside.stderr).contains("root_outside_project"));
-
     let s = env.session("c").await;
     let info = s.server_info().await;
     let names: Vec<_> = info["roots"]
@@ -115,15 +108,8 @@ async fn roots_add_check_remove_and_visible_in_server_info() {
         .iter()
         .map(|r| r["name"].as_str().unwrap().to_string())
         .collect();
-    assert_eq!(names, vec!["bags", "repo-bags"]);
+    assert_eq!(names, vec!["bags"]);
     assert_eq!(info["roots"][0]["robot"], "rover-b");
-    assert!(
-        info["roots"][1]["declared_in"]
-            .as_str()
-            .unwrap()
-            .contains("project config")
-    );
-    assert_eq!(info["project"]["default_robot"], "rover-b");
     s.close().await;
 
     env.ok(&["roots", "remove", "bags"]);
@@ -132,7 +118,7 @@ async fn roots_add_check_remove_and_visible_in_server_info() {
         "removing a root never touches the folder"
     );
     let list = env.json(&["roots", "list"]);
-    assert_eq!(list["roots"].as_array().unwrap().len(), 1);
+    assert!(list["roots"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -161,12 +147,6 @@ async fn doctor_reports_problems_with_codes() {
         checks
             .iter()
             .any(|c| c["code"] == "root_invalid" && c["status"] == "fail"),
-        "{d:#}"
-    );
-    assert!(
-        checks
-            .iter()
-            .any(|c| c["name"] == "project" && c["status"] == "warn"),
         "{d:#}"
     );
     assert!(
@@ -211,18 +191,14 @@ async fn backup_and_restore_round_trip() {
 async fn docs_connect_your_harness() {
     // Executable twin of docs/guide.md, sections "Set up" and "Connect your agent".
     let env = TestEnv::new();
-    env.setup();
-    env.ok(&[
-        "init",
-        "--yes",
-        "--name",
-        "rover-docking",
-        "--robot",
-        "rover-b",
-    ]);
-    let mcp: serde_json::Value =
-        serde_json::from_str(&std::fs::read_to_string(env.repo.join(".mcp.json")).unwrap())
-            .unwrap();
+    let out = env.ok(&["setup", "--yes"]);
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    let (claude, snippet) = stdout.split_once('\n').unwrap();
+    assert!(
+        claude.starts_with("claude mcp add --scope user wise-bucket -- "),
+        "{claude}"
+    );
+    let mcp: serde_json::Value = serde_json::from_str(snippet).unwrap();
     let entry = &mcp["mcpServers"]["wise-bucket"];
     let program = entry["command"].as_str().unwrap().to_string();
     let args: Vec<String> = entry["args"]
@@ -231,19 +207,12 @@ async fn docs_connect_your_harness() {
         .iter()
         .map(|a| a.as_str().unwrap().to_string())
         .collect();
-    assert_eq!(args[0], "serve");
-    assert!(args.contains(&"--project".to_string()));
-
-    // Re-running init never overwrites and reports the file as configured.
-    env.ok(&["init", "--yes"]);
-    let project_cfg = std::fs::read_to_string(env.repo.join(".wisebucket/config.toml")).unwrap();
-    assert!(project_cfg.contains("rover-docking"));
+    assert_eq!(args, vec!["serve"]);
 
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let s = env.session_with(&program, &arg_refs, "claude-code").await;
     let info = s.server_info().await;
     assert_eq!(info["database"]["status"], "ok");
-    assert_eq!(info["project"]["name"], "rover-docking");
     s.close().await;
 
     let d = env.json(&["doctor"]);

@@ -11,13 +11,8 @@ pub mod env {
     pub const CONFIG: &str = "WB_CONFIG";
     pub const STATE_DIR: &str = "WB_STATE_DIR";
     pub const RUNTIME_DIR: &str = "WB_RUNTIME_DIR";
-
-    pub const PROJECT_DIR: &str = "WB_PROJECT_DIR";
     pub const KEEP_RUNNING: &str = "WB_KEEP_RUNNING";
 }
-
-/// File name of the project configuration, relative to the project directory.
-pub const PROJECT_CONFIG_REL: &str = ".wisebucket/config.toml";
 
 fn project_dirs() -> Option<ProjectDirs> {
     ProjectDirs::from("", "", "wisebucket")

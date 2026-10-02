@@ -15,7 +15,6 @@ pub async fn run(global: &GlobalArgs, cmd: &ConfigCommand) -> Result<()> {
             if global.json {
                 ui::json(&json!({
                     "user_config": cfg.user_config_path.value,
-                    "project_config": cfg.project.as_ref().map(|p| &p.config_path),
                     "state_dir": cfg.state_dir.value,
                 }));
             } else {
@@ -28,20 +27,6 @@ pub async fn run(global: &GlobalArgs, cmd: &ConfigCommand) -> Result<()> {
                         "  (not created yet)"
                     }
                 );
-                match &cfg.project {
-                    Some(p) => println!(
-                        "project config: {}{}",
-                        p.config_path.display(),
-                        if p.config_exists {
-                            ""
-                        } else {
-                            "  (not created yet)"
-                        }
-                    ),
-                    None => {
-                        println!("project config: (no project found from the current directory)")
-                    }
-                }
                 println!("state dir:      {}", cfg.state_dir.value.display());
             }
             Ok(())
@@ -78,24 +63,11 @@ pub async fn run(global: &GlobalArgs, cmd: &ConfigCommand) -> Result<()> {
                 cfg.runtime_dir.value.display(),
                 o(&cfg.runtime_dir.origin)
             );
-
             println!(
                 "keep_running      {}{}",
                 cfg.keep_running.value,
                 o(&cfg.keep_running.origin)
             );
-            match &cfg.project {
-                Some(p) => {
-                    println!("project dir       {}", p.dir.display());
-                    if let Some(n) = &p.name {
-                        println!("project           {}{}", n.value, o(&n.origin));
-                    }
-                    if let Some(r) = &p.default_robot {
-                        println!("default_robot     {}{}", r.value, o(&r.origin));
-                    }
-                }
-                None => println!("project           (none)"),
-            }
             if set.roots.is_empty() {
                 println!("roots             (none)");
             }

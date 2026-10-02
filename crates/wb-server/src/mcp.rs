@@ -70,14 +70,6 @@ impl WbServer {
                 json!({ "status": "error", "error": j })
             }
         };
-        let project = s.cfg.project.as_ref().map(|p| {
-            json!({
-                "dir": p.dir,
-                "name": p.name.as_ref().map(|n| &n.value),
-                "default_robot": p.default_robot.as_ref().map(|r| &r.value),
-                "config_exists": p.config_exists,
-            })
-        });
         let roots: Vec<Value> = s
             .roots
             .roots
@@ -112,7 +104,6 @@ impl WbServer {
             },
             "database": database,
             "state_dir": s.cfg.state_dir.value,
-            "project": project,
             "roots": roots,
             "root_problems": root_problems,
             "docs": ui::DOCS_BASE,
@@ -138,16 +129,6 @@ fn summary(v: &Value) -> String {
             db["error"]["docs_url"].as_str().unwrap_or("")
         )
     };
-    let project = match v["project"].as_object() {
-        Some(p) => format!(
-            "project: {} (default robot: {})",
-            p.get("name").and_then(|n| n.as_str()).unwrap_or("unnamed"),
-            p.get("default_robot")
-                .and_then(|n| n.as_str())
-                .unwrap_or("none")
-        ),
-        None => "project: none (run `wisebucket init` in the repository)".into(),
-    };
     let roots = v["roots"].as_array().cloned().unwrap_or_default();
     let roots_line = if roots.is_empty() {
         "data roots: none declared (the engineer adds them with `wisebucket roots add <name> <path>`)".to_string()
@@ -167,7 +148,7 @@ fn summary(v: &Value) -> String {
     };
     let problems = v["root_problems"].as_array().map(|a| a.len()).unwrap_or(0);
     format!(
-        "Wise Bucket {} (milestone M0)\n{db_line}\n{project}\n{roots_line}{}",
+        "Wise Bucket {} (milestone M0)\n{db_line}\n{roots_line}{}",
         v["wise_bucket_version"].as_str().unwrap_or("?"),
         if problems > 0 {
             format!("\nroot problems: {problems} (see root_problems)")
@@ -179,10 +160,10 @@ fn summary(v: &Value) -> String {
 
 #[tool_router]
 impl WbServer {
-    /// Reports installation state: versions, database, project, default robot and data roots.
+    /// Reports installation state: versions, database and data roots.
     #[tool(
         name = "server_info",
-        description = "Report Wise Bucket's installation state: version, database (PostgreSQL + pgvector) status, this session, the project and default robot, and the data roots (the only folders Wise Bucket may read). Errors include a code, a fix and a documentation link."
+        description = "Report Wise Bucket's installation state: version, database (PostgreSQL + pgvector) status, this session, and the data roots (the only folders Wise Bucket may read). Errors include a code, a fix and a documentation link."
     )]
     async fn server_info(&self) -> std::result::Result<CallToolResult, McpError> {
         let v = self.server_info_value().await;
@@ -245,10 +226,6 @@ pub async fn serve(overrides: &config::Overrides) -> Result<()> {
                 cwd: std::env::current_dir()
                     .ok()
                     .map(|p| p.display().to_string()),
-                project: cfg
-                    .project
-                    .as_ref()
-                    .and_then(|p| p.name.as_ref().map(|n| n.value.clone())),
             };
             match session::start(&db.pool, &start).await {
                 Ok(id) => Some(id),

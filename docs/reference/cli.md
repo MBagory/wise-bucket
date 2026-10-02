@@ -9,7 +9,6 @@ This document contains the help content for the `wisebucket` command-line progra
 * [`wisebucket`↴](#wisebucket)
 * [`wisebucket serve`↴](#wisebucket-serve)
 * [`wisebucket setup`↴](#wisebucket-setup)
-* [`wisebucket init`↴](#wisebucket-init)
 * [`wisebucket roots`↴](#wisebucket-roots)
 * [`wisebucket roots add`↴](#wisebucket-roots-add)
 * [`wisebucket roots list`↴](#wisebucket-roots-list)
@@ -40,8 +39,7 @@ Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 ###### **Subcommands:**
 
 * `serve` — Run the MCP server on stdin/stdout (what your harness launches)
-* `setup` — One-time machine setup: database (managed or your own) and recording folders
-* `init` — Configure a robot repository: `.wisebucket/config.toml` and the harness MCP config
+* `setup` — One-time machine setup: database, recording folders, and how to connect your agent
 * `roots` — Manage data roots (folders Wise Bucket may read)
 * `config` — Inspect the effective configuration
 * `db` — Control the managed PostgreSQL server
@@ -55,7 +53,6 @@ Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 
 * `--config <FILE>` — User configuration file [env: WB_CONFIG]
 * `--state-dir <DIR>` — State directory (database, caches, logs) [env: WB_STATE_DIR]
-* `--project <DIR>` — Robot repository whose `.wisebucket/config.toml` applies [env: WB_PROJECT_DIR]
 * `--keep-running` — Keep the managed PostgreSQL running after the last session [env: WB_KEEP_RUNNING]
 * `--json` — Machine-readable JSON output (where supported)
 * `-v`, `--verbose` — More diagnostic logging on stderr (-v, -vv)
@@ -72,7 +69,7 @@ Run the MCP server on stdin/stdout (what your harness launches)
 
 ## `wisebucket setup`
 
-One-time machine setup: database (managed or your own) and recording folders
+One-time machine setup: database, recording folders, and how to connect your agent
 
 **Usage:** `wisebucket setup [OPTIONS]`
 
@@ -81,39 +78,6 @@ One-time machine setup: database (managed or your own) and recording folders
 * `-y`, `--yes` — Never prompt; use flags and defaults
 * `--root <NAME=PATH>` — Add a data root: `name=path` (repeatable)
 * `--no-roots` — Do not ask about data roots
-
-
-
-## `wisebucket init`
-
-Configure a robot repository: `.wisebucket/config.toml` and the harness MCP config
-
-**Usage:** `wisebucket init [OPTIONS] [DIR]`
-
-###### **Arguments:**
-
-* `<DIR>` — Repository directory (default: current directory)
-
-###### **Options:**
-
-* `--name <NAME>` — Project name (default: directory name)
-* `--robot <ROBOT>` — Default robot for this project
-* `--root <NAME=PATH>` — Add a repository-relative root: `name=./path` (repeatable)
-* `--harness <HARNESS>` — Which harness to configure
-
-  Default value: `claude`
-
-  Possible values:
-  - `claude`:
-    Claude Code: writes `.mcp.json`
-  - `kilo`:
-    Kilo Code: writes `.kilocode/mcp.json`
-  - `cline`:
-    Cline: prints the snippet for its global MCP settings
-
-* `--print` — Only print what would be written
-* `--merge` — Add the `wise-bucket` entry to an existing MCP config file, keeping its other servers
-* `-y`, `--yes` — Never prompt
 
 
 
@@ -141,14 +105,13 @@ Declare a folder Wise Bucket may read
 ###### **Arguments:**
 
 * `<NAME>` — Short name, used in references like `name:relative/path`
-* `<PATH>` — Folder path (user roots: absolute or ~/...; project roots: relative to the repository)
+* `<PATH>` — Folder path (absolute or ~/...)
 
 ###### **Options:**
 
 * `--robot <ROBOT>` — Default robot for recordings in this folder
 * `--include <INCLUDE>` — Glob pattern of files to consider (repeatable)
 * `--exclude <EXCLUDE>` — Glob pattern of files to ignore (repeatable)
-* `--in-project` — Store in the project config (`.wisebucket/config.toml`) instead of the user config
 
 
 
@@ -164,15 +127,11 @@ List declared roots
 
 Remove a root (the folder itself is never touched)
 
-**Usage:** `wisebucket roots remove [OPTIONS] <NAME>`
+**Usage:** `wisebucket roots remove <NAME>`
 
 ###### **Arguments:**
 
 * `<NAME>`
-
-###### **Options:**
-
-* `--in-project` — Remove from the project config instead of the user config
 
 
 

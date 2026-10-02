@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand};
 
 /// Wise Bucket: evidence-backed, iterative robot investigations for your AI coding agent.
 ///
@@ -27,10 +27,6 @@ pub struct GlobalArgs {
     #[arg(long, global = true, value_name = "DIR")]
     pub state_dir: Option<PathBuf>,
 
-    /// Robot repository whose `.wisebucket/config.toml` applies [env: WB_PROJECT_DIR]
-    #[arg(long, global = true, value_name = "DIR")]
-    pub project: Option<PathBuf>,
-
     /// Keep the managed PostgreSQL running after the last session [env: WB_KEEP_RUNNING]
     #[arg(long, global = true)]
     pub keep_running: bool,
@@ -48,10 +44,8 @@ pub struct GlobalArgs {
 pub enum Command {
     /// Run the MCP server on stdin/stdout (what your harness launches)
     Serve,
-    /// One-time machine setup: database (managed or your own) and recording folders
+    /// One-time machine setup: database, recording folders, and how to connect your agent
     Setup(SetupArgs),
-    /// Configure a robot repository: `.wisebucket/config.toml` and the harness MCP config
-    Init(InitArgs),
     /// Manage data roots (folders Wise Bucket may read)
     #[command(subcommand)]
     Roots(RootsCommand),
@@ -98,51 +92,6 @@ pub struct SetupArgs {
     pub no_roots: bool,
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
-pub enum Harness {
-    /// Claude Code: writes `.mcp.json`
-    Claude,
-    /// Kilo Code: writes `.kilocode/mcp.json`
-    Kilo,
-    /// Cline: prints the snippet for its global MCP settings
-    Cline,
-}
-
-#[derive(Debug, Args)]
-pub struct InitArgs {
-    /// Repository directory (default: current directory)
-    #[arg(value_name = "DIR")]
-    pub dir: Option<PathBuf>,
-
-    /// Project name (default: directory name)
-    #[arg(long)]
-    pub name: Option<String>,
-
-    /// Default robot for this project
-    #[arg(long)]
-    pub robot: Option<String>,
-
-    /// Add a repository-relative root: `name=./path` (repeatable)
-    #[arg(long = "root", value_name = "NAME=PATH")]
-    pub roots: Vec<String>,
-
-    /// Which harness to configure
-    #[arg(long, value_enum, default_value = "claude")]
-    pub harness: Harness,
-
-    /// Only print what would be written
-    #[arg(long)]
-    pub print: bool,
-
-    /// Add the `wise-bucket` entry to an existing MCP config file, keeping its other servers
-    #[arg(long)]
-    pub merge: bool,
-
-    /// Never prompt
-    #[arg(long, short = 'y')]
-    pub yes: bool,
-}
-
 #[derive(Debug, Args)]
 pub struct DemoArgs {
     /// Formats to download (default: choose interactively, or all without a terminal)
@@ -168,7 +117,7 @@ pub enum RootsCommand {
     Add {
         /// Short name, used in references like `name:relative/path`
         name: String,
-        /// Folder path (user roots: absolute or ~/...; project roots: relative to the repository)
+        /// Folder path (absolute or ~/...)
         path: PathBuf,
         /// Default robot for recordings in this folder
         #[arg(long)]
@@ -179,19 +128,11 @@ pub enum RootsCommand {
         /// Glob pattern of files to ignore (repeatable)
         #[arg(long)]
         exclude: Vec<String>,
-        /// Store in the project config (`.wisebucket/config.toml`) instead of the user config
-        #[arg(long)]
-        in_project: bool,
     },
     /// List declared roots
     List,
     /// Remove a root (the folder itself is never touched)
-    Remove {
-        name: String,
-        /// Remove from the project config instead of the user config
-        #[arg(long)]
-        in_project: bool,
-    },
+    Remove { name: String },
     /// Validate roots and count candidate recordings
     Check,
 }
@@ -240,8 +181,6 @@ impl GlobalArgs {
         wb_core::config::Overrides {
             config_path: self.config.clone(),
             state_dir: self.state_dir.clone(),
-
-            project_dir: self.project.clone(),
             keep_running: self.keep_running.then_some(true),
         }
     }

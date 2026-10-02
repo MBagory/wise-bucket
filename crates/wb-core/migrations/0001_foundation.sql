@@ -22,7 +22,6 @@ CREATE TABLE wb.session (
     pid            integer     NOT NULL,
     hostname       text,
     cwd            text,
-    project        text,
     wb_version     text        NOT NULL,
     started_at     timestamptz NOT NULL DEFAULT now(),
     last_seen_at   timestamptz NOT NULL DEFAULT now(),

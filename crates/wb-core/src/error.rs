@@ -54,12 +54,9 @@ error_kinds! {
     RootOverlap => "root_overlap",
         "Two data roots overlap",
         "A root cannot contain another root. Keep only the outer folder, or split them into sibling folders.";
-    RootOutsideProject => "root_outside_project",
-        "A project root points outside the project",
-        "Roots declared in `.wisebucket/config.toml` must be relative paths inside the repository. Declare machine-specific folders in your user config with `wisebucket roots add`.";
     RootDuplicateName => "root_duplicate_name",
         "Two data roots share the same name",
-        "Root names must be unique across the user and project configuration. Rename one of them.";
+        "Root names must be unique. Rename one of them with `wisebucket roots remove` then `roots add`.";
     OutsideRoots => "outside_roots",
         "A path is outside every configured data root",
         "Wise Bucket only reads files inside declared roots. Add the folder with `wisebucket roots add <name> <path>` (there is deliberately no MCP tool for this).";
@@ -96,9 +93,6 @@ error_kinds! {
     SocketPathTooLong => "socket_path_too_long",
         "The PostgreSQL socket path is too long",
         "Unix sockets are limited to about 100 characters. Use a shorter `--state-dir`, or set `TMPDIR` to a short directory.";
-    McpConfigExists => "mcp_config_exists",
-        "A configuration file already exists and was not overwritten",
-        "Wise Bucket never overwrites your files. Merge the printed snippet by hand, or re-run with `--print` to only display it.";
     BackupFailed => "backup_failed",
         "Backup or restore failed",
         "Check the message for the `pg_dump`/`pg_restore` output.";

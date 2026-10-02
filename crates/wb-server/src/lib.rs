@@ -33,7 +33,6 @@ async fn run(cli: Cli) -> Result<()> {
     match &cli.command {
         None | Some(Command::Serve) => mcp::serve(&g.overrides()).await,
         Some(Command::Setup(a)) => commands::setup::run(g, a).await,
-        Some(Command::Init(a)) => commands::init::run(g, a).await,
         Some(Command::Roots(c)) => commands::roots::run(g, c).await,
         Some(Command::Config(c)) => commands::config_cmd::run(g, c).await,
         Some(Command::Db(c)) => commands::db_cmd::run(g, c).await,

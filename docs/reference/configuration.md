@@ -2,20 +2,17 @@
 
 # Configuration reference
 
-Precedence, highest first: **command line** > **`WB_*` environment variables** > **project config** (`<repo>/.wisebucket/config.toml`) > **user config** > **defaults**. Run `wisebucket config show --origin` to see the effective value of each key and where it comes from.
+Precedence, highest first: **command line** > **`WB_*` environment variables** > **user config** > **defaults**. Run `wisebucket config show --origin` to see the effective value of each key and where it comes from.
 
 | Key | Layer | Environment | Command line | Default | Description |
 | --- | --- | --- | --- | --- | --- |
 | `state_dir` | user | `WB_STATE_DIR` | `--state-dir` | Linux `~/.local/share/wisebucket`, macOS `~/Library/Application Support/wisebucket` | Where Wise Bucket keeps its database, caches and logs. |
 | `database.keep_running` | user | `WB_KEEP_RUNNING` | `--keep-running` | `false` | Keep PostgreSQL running after the last session ends. |
-| `[[roots]] name` | user, project |  | `roots add <name>` |  | Short unique name used in log references (`name:relative/path`). Lowercase letters, digits, `-`, `_`; max 32. |
-| `[[roots]] path` | user, project |  | `roots add <name> <path>` |  | Folder Wise Bucket may read. User roots: absolute or `~/…`. Project roots: relative to the repository and inside it. |
-| `[[roots]] robot` | user, project |  | `--robot` |  | Default robot for recordings found in this root (used from milestone M3). |
-| `[[roots]] include / exclude` | user, project |  | `--include` / `--exclude` | all supported formats | Glob patterns restricting which files are considered recordings. |
-| `project` | project |  | `init --name` | directory name | Project name shown in `server_info` and used to scope investigations. |
-| `default_robot` | project |  | `init --robot` |  | Robot assumed when a conversation does not name one. |
+| `[[roots]] name` | user |  | `roots add <name>` |  | Short unique name used in log references (`name:relative/path`). Lowercase letters, digits, `-`, `_`; max 32. |
+| `[[roots]] path` | user |  | `roots add <name> <path>` |  | Folder Wise Bucket may read: absolute or `~/…`. |
+| `[[roots]] robot` | user |  | `--robot` |  | Default robot for recordings found in this root (used from milestone M3). |
+| `[[roots]] include / exclude` | user |  | `--include` / `--exclude` | all supported formats | Glob patterns restricting which files are considered recordings. |
 | `(file) user config` | - | `WB_CONFIG` | `--config` | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` | Location of the user configuration file. |
-| `(dir) project` | - | `WB_PROJECT_DIR` | `--project` | nearest parent containing `.wisebucket/config.toml` | Robot repository whose project configuration is used. `init` writes it into `.mcp.json`. |
 | `(dir) runtime` | - | `WB_RUNTIME_DIR` |  | `<state_dir>/runtime` | Where managed PostgreSQL binaries are installed. Can be shared between state directories. |
 
 ## Examples
@@ -42,17 +39,4 @@ exclude = ["**/tmp/**"]                        # optional
 [[roots]]
 name = "nas-flights"
 path = "/Volumes/lab-nas/px4"
-```
-
-### Project configuration
-
-```toml
-# <robot-repo>/.wisebucket/config.toml (commit this file)
-project = "rover-docking"
-default_robot = "rover-b"
-
-# Project roots must be relative paths inside the repository.
-[[roots]]
-name = "repo-bags"
-path = "./bags"
 ```

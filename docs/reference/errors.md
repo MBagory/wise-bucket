@@ -10,7 +10,6 @@ Every error reported by Wise Bucket, in the terminal or in an MCP tool result, c
 | [`state_dir_unavailable`](#state_dir_unavailable) | The state directory cannot be created or written |
 | [`root_invalid`](#root_invalid) | A data root is invalid |
 | [`root_overlap`](#root_overlap) | Two data roots overlap |
-| [`root_outside_project`](#root_outside_project) | A project root points outside the project |
 | [`root_duplicate_name`](#root_duplicate_name) | Two data roots share the same name |
 | [`outside_roots`](#outside_roots) | A path is outside every configured data root |
 | [`unsupported_platform`](#unsupported_platform) | Managed PostgreSQL is not available for this platform |
@@ -24,7 +23,6 @@ Every error reported by Wise Bucket, in the terminal or in an MCP tool result, c
 | [`vector_extension_missing`](#vector_extension_missing) | The pgvector extension (0.8 or newer) is not available |
 | [`migration_failed`](#migration_failed) | Applying database migrations failed |
 | [`socket_path_too_long`](#socket_path_too_long) | The PostgreSQL socket path is too long |
-| [`mcp_config_exists`](#mcp_config_exists) | A configuration file already exists and was not overwritten |
 | [`backup_failed`](#backup_failed) | Backup or restore failed |
 | [`io_error`](#io_error) | A file-system operation failed |
 | [`internal_error`](#internal_error) | Unexpected internal error |
@@ -53,17 +51,11 @@ Root names use lowercase letters, digits, `-` and `_` (max 32 characters), and p
 
 A root cannot contain another root. Keep only the outer folder, or split them into sibling folders.
 
-## root_outside_project
-
-**A project root points outside the project**
-
-Roots declared in `.wisebucket/config.toml` must be relative paths inside the repository. Declare machine-specific folders in your user config with `wisebucket roots add`.
-
 ## root_duplicate_name
 
 **Two data roots share the same name**
 
-Root names must be unique across the user and project configuration. Rename one of them.
+Root names must be unique. Rename one of them with `wisebucket roots remove` then `roots add`.
 
 ## outside_roots
 
@@ -136,12 +128,6 @@ Make a backup, then report the error with `wisebucket doctor` output attached. D
 **The PostgreSQL socket path is too long**
 
 Unix sockets are limited to about 100 characters. Use a shorter `--state-dir`, or set `TMPDIR` to a short directory.
-
-## mcp_config_exists
-
-**A configuration file already exists and was not overwritten**
-
-Wise Bucket never overwrites your files. Merge the printed snippet by hand, or re-run with `--print` to only display it.
 
 ## backup_failed
 

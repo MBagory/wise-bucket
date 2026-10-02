@@ -55,30 +55,7 @@ pub fn validate_name(name: &str) -> Result<()> {
 pub fn resolve_decl(decl: &RootDecl) -> Result<Root> {
     let spec = &decl.spec;
     validate_name(&spec.name)?;
-    let raw = &spec.path;
-    if decl.from_project {
-        if raw.is_absolute() || raw.to_string_lossy().starts_with('~') {
-            return Err(err(
-                ErrorKind::RootOutsideProject,
-                format!(
-                    "project root {:?} must be a path relative to the repository, got {}",
-                    spec.name,
-                    raw.display()
-                ),
-            ));
-        }
-        if raw.components().any(|c| matches!(c, Component::ParentDir)) {
-            return Err(err(
-                ErrorKind::RootOutsideProject,
-                format!(
-                    "project root {:?} must not use '..' ({})",
-                    spec.name,
-                    raw.display()
-                ),
-            ));
-        }
-    }
-    let joined = paths::absolutize(raw, &decl.base_dir);
+    let joined = paths::absolutize(&spec.path, &decl.base_dir);
     let canonical = dunce::canonicalize(&joined).map_err(|e| {
         err(
             ErrorKind::RootInvalid,
@@ -98,20 +75,6 @@ pub fn resolve_decl(decl: &RootDecl) -> Result<Root> {
                 canonical.display()
             ),
         ));
-    }
-    if decl.from_project {
-        let base = dunce::canonicalize(&decl.base_dir).unwrap_or_else(|_| decl.base_dir.clone());
-        if !paths::is_within(&canonical, &base) {
-            return Err(err(
-                ErrorKind::RootOutsideProject,
-                format!(
-                    "project root {:?} resolves to {}, outside the project {} (symlink?)",
-                    spec.name,
-                    canonical.display(),
-                    base.display()
-                ),
-            ));
-        }
     }
     std::fs::read_dir(&canonical).map_err(|e| {
         err(
@@ -386,7 +349,6 @@ pub fn user_decl(spec: RootSpec, cfg: &EffectiveConfig) -> RootDecl {
     RootDecl {
         spec,
         origin: Origin::UserConfig(cfg.user_config_path.value.clone()),
-        from_project: false,
         base_dir: std::env::current_dir().unwrap_or_default(),
     }
 }
@@ -395,7 +357,7 @@ pub fn user_decl(spec: RootSpec, cfg: &EffectiveConfig) -> RootDecl {
 mod tests {
     use super::*;
 
-    fn decl(name: &str, path: &Path, from_project: bool, base: &Path) -> RootDecl {
+    fn decl(name: &str, path: &Path, base: &Path) -> RootDecl {
         RootDecl {
             spec: RootSpec {
                 name: name.into(),
@@ -405,7 +367,6 @@ mod tests {
                 exclude: vec![],
             },
             origin: Origin::Default,
-            from_project,
             base_dir: base.to_path_buf(),
         }
     }
@@ -430,9 +391,9 @@ mod tests {
         std::fs::create_dir_all(d.path().join("a/b")).unwrap();
         std::fs::create_dir_all(d.path().join("c")).unwrap();
         let set = resolve_decls(&[
-            decl("outer", &d.path().join("a"), false, d.path()),
-            decl("inner", &d.path().join("a/b"), false, d.path()),
-            decl("other", &d.path().join("c"), false, d.path()),
+            decl("outer", &d.path().join("a"), d.path()),
+            decl("inner", &d.path().join("a/b"), d.path()),
+            decl("other", &d.path().join("c"), d.path()),
         ]);
         assert_eq!(
             set.roots
@@ -452,9 +413,9 @@ mod tests {
     fn duplicates_and_missing_paths() {
         let d = tempfile::tempdir().unwrap();
         let set = resolve_decls(&[
-            decl("x", d.path(), false, d.path()),
-            decl("x", d.path(), false, d.path()),
-            decl("gone", &d.path().join("nope"), false, d.path()),
+            decl("x", d.path(), d.path()),
+            decl("x", d.path(), d.path()),
+            decl("gone", &d.path().join("nope"), d.path()),
         ]);
         assert!(set.roots.is_empty());
         assert_eq!(
@@ -472,42 +433,11 @@ mod tests {
     }
 
     #[test]
-    fn project_roots_must_stay_inside() {
-        let d = tempfile::tempdir().unwrap();
-        let repo = d.path().join("repo");
-        std::fs::create_dir_all(repo.join("bags")).unwrap();
-        std::fs::create_dir_all(d.path().join("elsewhere")).unwrap();
-        resolve_decl(&decl("ok", Path::new("./bags"), true, &repo)).unwrap();
-        for bad in [
-            d.path().join("elsewhere"),
-            PathBuf::from("../elsewhere"),
-            PathBuf::from("~/x"),
-        ] {
-            assert_eq!(
-                resolve_decl(&decl("b", &bad, true, &repo))
-                    .unwrap_err()
-                    .kind(),
-                ErrorKind::RootOutsideProject
-            );
-        }
-        #[cfg(unix)]
-        {
-            std::os::unix::fs::symlink(d.path().join("elsewhere"), repo.join("link")).unwrap();
-            assert_eq!(
-                resolve_decl(&decl("l", Path::new("link"), true, &repo))
-                    .unwrap_err()
-                    .kind(),
-                ErrorKind::RootOutsideProject
-            );
-        }
-    }
-
-    #[test]
     fn root_refs_cannot_escape() {
         let d = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(d.path().join("bags/run1")).unwrap();
         std::fs::create_dir_all(d.path().join("secret")).unwrap();
-        let set = resolve_decls(&[decl("bags", &d.path().join("bags"), false, d.path())]);
+        let set = resolve_decls(&[decl("bags", &d.path().join("bags"), d.path())]);
         let p = RootRef::parse("bags:run1").unwrap().resolve(&set).unwrap();
         assert!(p.ends_with("run1"));
         assert!(RootRef::parse("bags:../secret").is_err());

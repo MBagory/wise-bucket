@@ -59,6 +59,11 @@ Wise Bucket setup
 ✔ root "bags" → /home/me/robot-logs/bags · 37 candidate recordings (31 MCAP, 6 rosbag2 folders, 0 ROS 1, 0 ULog)
 ? Add another folder? › no
 ✔ configuration written to ~/.config/wisebucket/config.toml
+
+Connect your agent (once, for all your folders). Claude Code:
+claude mcp add --scope user wise-bucket -- /home/me/.cargo/bin/wisebucket serve
+Other agents (Kilo Code, Cline, Cursor, …): add this to their global MCP settings:
+{ "mcpServers": { "wise-bucket": { "command": "/home/me/.cargo/bin/wisebucket", "args": ["serve"] } } }
 ```
 
 **What happens:**
@@ -97,53 +102,30 @@ wisebucket roots remove flights                          # the folder itself is 
 
 **No recordings yet?** `wisebucket demo` downloads public sample files (MCAP, ROS bags, ULog, DataFlash, MAVLink, CAN, MDF4, Parquet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data) for the formats and the investigations they support.
 
-**Folders inside a repository** can be shared with your team through the project configuration. Their paths must be relative and stay inside the repository:
-
-```sh
-cd ~/code/rover
-wisebucket roots add repo-bags ./bags --in-project
-```
-
 ## Connect your agent
 
-Run this once per repository:
+Run this once, after `setup`: Wise Bucket is registered for your user and works in every folder. There is nothing to do per repository; your recordings are organized by recording folder, not by code repository.
 
-```sh
-cd ~/code/rover
-wisebucket init --robot rover-b
-```
-
-```text
-✔ wrote ~/code/rover/.wisebucket/config.toml
-✔ wrote ~/code/rover/.mcp.json
-```
-
-- **`.wisebucket/config.toml`** holds the project name and default robot. Commit it.
-- **`.mcp.json`** tells the agent how to start Wise Bucket: the absolute binary path and `serve --project <repo>`. It contains no data paths and no secrets. Whether to commit it is your call, since the binary path is specific to your machine.
-
-**Per agent:**
+`setup` ends by printing the exact entry for this machine (binary path, plus `--config`/`--state-dir` if you passed them):
 
 | Agent | How to connect |
 | --- | --- |
-| **Claude Code** | `wisebucket init` writes `.mcp.json` in the repository |
-| **Kilo Code** | `wisebucket init --harness kilo` writes `.kilocode/mcp.json` |
-| **Cursor** | Copy the entry printed by `wisebucket init --print` into `.cursor/mcp.json` (same format) |
+| **Claude Code** | Run the printed `claude mcp add --scope user wise-bucket -- … serve` |
+| **Kilo Code, Cline, Cursor** | Add the printed JSON entry to the agent's global MCP settings |
 | **OpenAI Codex** | Add the entry to `~/.codex/config.toml` (below) |
-| **Cline** | `wisebucket init --harness cline` prints the entry for Cline's MCP settings |
 
 ```toml
 # ~/.codex/config.toml
 [mcp_servers.wise-bucket]
 command = "/home/me/.cargo/bin/wisebucket"
-args = ["serve", "--project", "/home/me/code/rover"]
+args = ["serve"]
 ```
 
-`init` never overwrites your files. If a configuration already lists other servers, `init` prints the entry to add, and `--merge` adds it for you while keeping the others. `--print` only shows what would be written.
+`setup` only prints these entries; it never edits your agent's settings. Re-run `setup` to see them again (it skips everything already done).
 
-**Check the connection.** Open your agent in the repository and approve the `wise-bucket` server (in Claude Code, `/mcp` lists it). Then ask *"Is Wise Bucket ready?"*. The agent calls `server_info` and reports:
+**Check the connection.** Start a new agent session in any folder (in Claude Code, `/mcp` lists `wise-bucket`). Then ask *"Is Wise Bucket ready?"*. The agent calls `server_info` and reports:
 - the version
 - the database status
-- the project and default robot
 - the recording folders it may use
 
 Optional, for Claude Code: to be asked before each Wise Bucket tool call, add this to `.claude/settings.json`:
@@ -172,8 +154,7 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 | What | Where |
 | --- | --- |
 | Your settings and recording folders | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` |
-| The project's name and default robot | `<repo>/.wisebucket/config.toml` |
-| How your agent starts Wise Bucket | `<repo>/.mcp.json` (or your agent's equivalent) |
+| How your agent starts Wise Bucket | Your agent's user-level MCP settings (e.g. `claude mcp get wise-bucket`) |
 | State directory | Linux `~/.local/share/wisebucket/`, macOS `~/Library/Application Support/wisebucket/`. To use another disk, set `state_dir = "…"` in your settings **before** running `setup` |
 
 ```text
@@ -185,7 +166,7 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 └── logs/             server.log, postgres.log
 ```
 
-**Settings precedence**, highest first: command-line flags > `WB_*` environment variables > project configuration > user configuration > defaults. Annotated examples: [user configuration](examples/user-config.toml), [project configuration](examples/project-config.toml).
+**Settings precedence**, highest first: command-line flags > `WB_*` environment variables > user configuration > defaults. Annotated example: [user configuration](examples/user-config.toml).
 
 ## Uninstall
 
