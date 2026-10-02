@@ -1,5 +1,7 @@
 //! `doctor`: one command that checks the whole installation.
 
+use std::process::ExitCode;
+
 use serde::Serialize;
 use serde_json::json;
 use wb_core::config::{self, EffectiveConfig};
@@ -8,15 +10,7 @@ use wb_core::error::{ErrorKind, Result, WbError, docs_ref, err};
 use wb_core::{fsutil, roots};
 
 use crate::cli::GlobalArgs;
-use crate::ui;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Status {
-    Ok,
-    Warn,
-    Fail,
-}
+use crate::ui::{self, Status};
 
 #[derive(Debug, Serialize)]
 pub struct Check {
@@ -59,7 +53,8 @@ impl Check {
     }
 }
 
-pub async fn run(global: &GlobalArgs) -> Result<()> {
+/// Fails through the exit code only: the failures and their fixes are already listed.
+pub async fn run(global: &GlobalArgs) -> Result<ExitCode> {
     let checks = collect(global).await;
     let failed = checks.iter().filter(|c| c.status == Status::Fail).count();
     let warned = checks.iter().filter(|c| c.status == Status::Warn).count();
@@ -67,12 +62,7 @@ pub async fn run(global: &GlobalArgs) -> Result<()> {
         ui::json(&json!({ "checks": checks, "failed": failed, "warnings": warned }));
     } else {
         for c in &checks {
-            let sym = match c.status {
-                Status::Ok => "✔",
-                Status::Warn => "⚠",
-                Status::Fail => "✖",
-            };
-            println!("{sym} {:<18} {}", c.name, c.message);
+            anstream::println!("{} {:<18} {}", ui::glyph(c.status), c.name, c.message);
             if let (Some(code), Some(r)) = (c.code, &c.docs_ref) {
                 println!("  {:<18} ↳ {code} · {}", "", ui::docs_url(r));
             }
@@ -83,11 +73,11 @@ pub async fn run(global: &GlobalArgs) -> Result<()> {
             checks.len()
         );
     }
-    if failed > 0 {
-        // The failures and their fixes are already listed; only the exit status is left to report.
-        std::process::exit(1);
-    }
-    Ok(())
+    Ok(if failed > 0 {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    })
 }
 
 async fn collect(global: &GlobalArgs) -> Vec<Check> {

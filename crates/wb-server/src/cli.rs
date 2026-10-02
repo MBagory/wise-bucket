@@ -2,13 +2,32 @@
 
 use std::path::PathBuf;
 
+use clap::builder::styling::{AnsiColor, Styles};
 use clap::{Args, Parser, Subcommand};
+
+/// Help colors (cargo-like). clap drops them when stdout is not a terminal or `NO_COLOR` is set.
+const STYLES: Styles = Styles::styled()
+    .header(AnsiColor::Green.on_default().bold())
+    .usage(AnsiColor::Green.on_default().bold())
+    .literal(AnsiColor::Cyan.on_default().bold())
+    .placeholder(AnsiColor::Cyan.on_default());
 
 /// Wise Bucket: evidence-backed, iterative robot investigations for your AI coding agent.
 ///
 /// Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 #[derive(Debug, Parser)]
-#[command(name = "wisebucket", version, propagate_version = true)]
+#[command(
+    name = "wisebucket",
+    version,
+    propagate_version = true,
+    styles = STYLES,
+    after_help = "\
+Examples:
+  wisebucket setup                         Set up the database and recording folders
+  wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
+  wisebucket demo --all                    Try it on public sample recordings
+  wisebucket doctor                        Check the installation"
+)]
 pub struct Cli {
     #[command(flatten)]
     pub global: GlobalArgs,
@@ -45,6 +64,10 @@ pub enum Command {
     /// Run the MCP server on stdin/stdout (what your harness launches)
     Serve,
     /// One-time machine setup: database, recording folders, and how to connect your agent
+    #[command(after_help = "\
+Examples:
+  wisebucket setup                               Interactive
+  wisebucket setup -y --root bags=~/robot-logs   Unattended, with one data root")]
     Setup(SetupArgs),
     /// Manage data roots (folders Wise Bucket may read)
     #[command(subcommand)]
@@ -71,9 +94,23 @@ pub enum Command {
     /// Check the whole installation and explain how to fix problems
     Doctor,
     /// Download public sample recordings and declare them as the `demo` data root
+    #[command(after_help = "\
+Examples:
+  wisebucket demo --list     Show the formats and their licenses
+  wisebucket demo mcap ulog  Download two formats")]
     Demo(DemoArgs),
-    /// Documentation helpers
-    #[command(subcommand)]
+    /// Print a shell completion script to stdout
+    #[command(after_help = "\
+Examples:
+  wisebucket completions zsh > ~/.zfunc/_wisebucket
+  wisebucket completions bash > ~/.local/share/bash-completion/completions/wisebucket
+  wisebucket completions fish > ~/.config/fish/completions/wisebucket.fish")]
+    Completions {
+        /// Target shell
+        shell: clap_complete::Shell,
+    },
+    /// Documentation helpers (for contributors)
+    #[command(subcommand, hide = true)]
     Docs(DocsCommand),
 }
 
@@ -114,6 +151,10 @@ pub struct DemoArgs {
 #[derive(Debug, Subcommand)]
 pub enum RootsCommand {
     /// Declare a folder Wise Bucket may read
+    #[command(after_help = "\
+Examples:
+  wisebucket roots add bags ~/robot-logs
+  wisebucket roots add field /data/field --robot rover-b --exclude '**/tmp/**'")]
     Add {
         /// Short name, used in references like `name:relative/path`
         name: String,

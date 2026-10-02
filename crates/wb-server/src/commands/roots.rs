@@ -84,8 +84,9 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
             for r in &set.roots {
                 let c = roots::count_candidates(&r.path, 500_000, Duration::from_secs(30));
                 if !global.json {
-                    ui::ok(format!(
-                        "{:<16} {} · {} candidate recordings ({} MCAP, {} rosbag2 folders, {} ROS 1, {} ULog){}",
+                    anstream::println!(
+                        "{} {:<16} {} · {} candidate recordings ({} MCAP, {} rosbag2 folders, {} ROS 1, {} ULog){}",
+                        ui::glyph(ui::Status::Ok),
                         r.name,
                         r.path.display(),
                         c.total(),
@@ -94,7 +95,7 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
                         c.ros1_bag,
                         c.ulog,
                         if c.truncated { ", scan truncated" } else { "" }
-                    ));
+                    );
                 }
                 out.push(json!({ "root": r, "candidates": c }));
             }

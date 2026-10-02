@@ -35,6 +35,8 @@ tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 dunce = "1.0.5"
 toml = "1.1.6"
+anstream = "1"
+clap_complete = "4"
 
 [dev-dependencies]
 rmcp = { version = "3.4.1", features = ["client", "transport-child-process"] }

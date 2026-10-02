@@ -2,6 +2,7 @@
 
 use std::path::Path;
 
+use dialoguer::Confirm;
 use serde_json::json;
 use wb_core::config::{self, EffectiveConfig};
 use wb_core::db::{self, Purpose};
@@ -149,10 +150,24 @@ pub async fn backup(global: &GlobalArgs, file: &Path) -> Result<()> {
 
 pub async fn restore(global: &GlobalArgs, file: &Path, yes: bool) -> Result<()> {
     if !yes {
-        return Err(err(
-            ErrorKind::BackupFailed,
-            "restoring replaces all current Wise Bucket data; re-run with --yes to confirm",
-        ));
+        if !ui::interactive(false) {
+            return Err(err(
+                ErrorKind::BackupFailed,
+                "restoring replaces all current Wise Bucket data; re-run with --yes to confirm",
+            ));
+        }
+        let confirmed = Confirm::new()
+            .with_prompt(format!(
+                "Replace all current Wise Bucket data with {}?",
+                file.display()
+            ))
+            .default(false)
+            .interact()
+            .map_err(ui::prompt_err)?;
+        if !confirmed {
+            ui::warn("restore cancelled; nothing changed");
+            return Ok(());
+        }
     }
     let cfg = config::load(&global.overrides())?;
     let handle = db::open(&cfg, Purpose::Cli).await?;

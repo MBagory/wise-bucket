@@ -171,6 +171,7 @@ Wise Bucket currently **lists and counts** recordings; it does not read them yet
 | Check that everything works | `wisebucket doctor` |
 | Back up (and restore) your data | `wisebucket backup wb.dump` · `restore wb.dump --yes` |
 | See your settings and where each comes from | `wisebucket config show --origin` |
+| Tab-complete commands in your shell | `wisebucket completions zsh > ~/.zfunc/_wisebucket` (also `bash`, `fish`) |
 
 
 > [!IMPORTANT]

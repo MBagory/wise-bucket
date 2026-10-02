@@ -25,8 +25,7 @@ This document contains the help content for the `wisebucket` command-line progra
 * [`wisebucket restore`↴](#wisebucket-restore)
 * [`wisebucket doctor`↴](#wisebucket-doctor)
 * [`wisebucket demo`↴](#wisebucket-demo)
-* [`wisebucket docs`↴](#wisebucket-docs)
-* [`wisebucket docs gen`↴](#wisebucket-docs-gen)
+* [`wisebucket completions`↴](#wisebucket-completions)
 
 ## `wisebucket`
 
@@ -35,6 +34,12 @@ Wise Bucket: evidence-backed, iterative robot investigations for your AI coding 
 Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 
 **Usage:** `wisebucket [OPTIONS] [COMMAND]`
+
+Examples:
+  wisebucket setup                         Set up the database and recording folders
+  wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
+  wisebucket demo --all                    Try it on public sample recordings
+  wisebucket doctor                        Check the installation
 
 ###### **Subcommands:**
 
@@ -47,7 +52,7 @@ Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 * `restore` — Restore a backup made with `backup` (replaces current data)
 * `doctor` — Check the whole installation and explain how to fix problems
 * `demo` — Download public sample recordings and declare them as the `demo` data root
-* `docs` — Documentation helpers
+* `completions` — Print a shell completion script to stdout
 
 ###### **Options:**
 
@@ -72,6 +77,10 @@ Run the MCP server on stdin/stdout (what your harness launches)
 One-time machine setup: database, recording folders, and how to connect your agent
 
 **Usage:** `wisebucket setup [OPTIONS]`
+
+Examples:
+  wisebucket setup                               Interactive
+  wisebucket setup -y --root bags=~/robot-logs   Unattended, with one data root
 
 ###### **Options:**
 
@@ -101,6 +110,10 @@ Manage data roots (folders Wise Bucket may read)
 Declare a folder Wise Bucket may read
 
 **Usage:** `wisebucket roots add [OPTIONS] <NAME> <PATH>`
+
+Examples:
+  wisebucket roots add bags ~/robot-logs
+  wisebucket roots add field /data/field --robot rover-b --exclude '**/tmp/**'
 
 ###### **Arguments:**
 
@@ -260,6 +273,10 @@ Download public sample recordings and declare them as the `demo` data root
 
 **Usage:** `wisebucket demo [OPTIONS] [FORMAT]...`
 
+Examples:
+  wisebucket demo --list     Show the formats and their licenses
+  wisebucket demo mcap ulog  Download two formats
+
 ###### **Arguments:**
 
 * `<FORMAT>` — Formats to download (default: choose interactively, or all without a terminal)
@@ -275,30 +292,23 @@ Download public sample recordings and declare them as the `demo` data root
 
 
 
-## `wisebucket docs`
+## `wisebucket completions`
 
-Documentation helpers
+Print a shell completion script to stdout
 
-**Usage:** `wisebucket docs <COMMAND>`
+**Usage:** `wisebucket completions <SHELL>`
 
-###### **Subcommands:**
+Examples:
+  wisebucket completions zsh > ~/.zfunc/_wisebucket
+  wisebucket completions bash > ~/.local/share/bash-completion/completions/wisebucket
+  wisebucket completions fish > ~/.config/fish/completions/wisebucket.fish
 
-* `gen` — Generate reference pages (errors, CLI, configuration) into docs/reference
+###### **Arguments:**
 
+* `<SHELL>` — Target shell
 
+  Possible values: `bash`, `elvish`, `fish`, `powershell`, `zsh`
 
-## `wisebucket docs gen`
-
-Generate reference pages (errors, CLI, configuration) into docs/reference
-
-**Usage:** `wisebucket docs gen [OPTIONS]`
-
-###### **Options:**
-
-* `--check` — Fail if the committed pages are out of date instead of writing them
-* `--out <OUT>` — Output directory
-
-  Default value: `docs/reference`
 
 
 

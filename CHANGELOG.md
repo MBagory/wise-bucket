@@ -10,6 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Wise Bucket is now **user-wide only**: data is organized by recording folder, not by repository. `init`, the project configuration (`.wisebucket/config.toml`), the global `--project` flag, `WB_PROJECT_DIR` and `roots add|remove --in-project` are removed, as are the `root_outside_project` and `mcp_config_exists` error codes. `setup` now ends by printing how to register the server once for your user (`claude mcp add --scope user …`, or the JSON entry for other agents). Existing databases must be recreated (the `session.project` column is gone from the initial schema).
 - The binary is renamed from `wise-bucket-server` to `wisebucket`, with a short alias `wbk` (not `wb`, which Weights & Biases installs).
 
+- CLI polish: colored status glyphs and `--help` (off when piped or with `NO_COLOR`), examples in `--help`, `--json` errors printed as `{"error": {…}}` on stderr, `roots check` results on stdout, `restore` asks for confirmation on a terminal (still requires `--yes` otherwise), and `docs gen` is hidden from help (contributor tool).
+
+### Added: shell completions
+
+- `completions <bash|zsh|fish|elvish|powershell>` prints a completion script for the name it is invoked as (`wisebucket` or `wbk`).
+
 ### Fixed
 
 - Managed `setup` no longer fails with `pgvector_build_failed` when the state or runtime directory contains a space (the default on macOS: `~/Library/Application Support`). pgvector is now built from a space-free scratch directory under `/tmp`.
