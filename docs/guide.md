@@ -8,6 +8,7 @@ Everything you need to install Wise Bucket, point it at your recordings, and con
 - [Connect your agent](#connect-your-agent)
 - [Everyday use](#everyday-use)
 - [Where things live](#where-things-live)
+- [Reset](#reset)
 - [Uninstall](#uninstall)
 
 When something goes wrong, see [Troubleshooting and FAQ](troubleshooting.md). Every command and setting is listed in the [CLI](reference/cli.md) and [configuration](reference/configuration.md) references.
@@ -173,11 +174,25 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 
 **Settings precedence**, highest first: command-line flags > `WB_*` environment variables > user configuration > defaults. Annotated example: [user configuration](examples/user-config.toml).
 
+## Reset
+
+To start over with an empty database while keeping the binaries and your recording folders:
+
+```sh
+wisebucket config path        # shows the state directory
+wisebucket db stop --force
+rm -rf "<state directory>/pg" "<state directory>/secrets"
+wisebucket setup
+```
+
+Delete `pg/` and `secrets/` together: the passwords in `secrets/` belong to that database. Keeping `runtime/` saves re-downloading PostgreSQL and pgvector.
+
 ## Uninstall
 
 ```sh
-wisebucket db stop      # if it is running
-rm ~/.cargo/bin/wisebucket ~/.cargo/bin/wbk
+wisebucket db stop --force
+claude mcp remove --scope user wise-bucket    # or remove the entry from your agent's MCP settings
+rm ~/.cargo/bin/wisebucket ~/.cargo/bin/wbk   # built from source: cargo uninstall wisebucket
 ```
 
-Your data stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it.
+Your data stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it. On macOS your settings live in the same folder, so deleting it removes them too. Your recordings are never touched.
