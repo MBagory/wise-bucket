@@ -77,12 +77,7 @@ impl WbServer {
                     "active_sessions": active,
                 })
             }
-            Err(e) => {
-                let mut j = e.to_json();
-                j["status"] = json!("error");
-                j["docs_url"] = json!(ui::docs_url(&e.docs_ref()));
-                json!({ "status": "error", "error": j })
-            }
+            Err(e) => json!({ "status": "error", "error": e.to_json() }),
         };
         let roots: Vec<Value> = root_set
             .roots
@@ -96,16 +91,7 @@ impl WbServer {
                 })
             })
             .collect();
-        let root_problems: Vec<Value> = root_set
-            .problems
-            .iter()
-            .map(|(name, e)| {
-                let mut j = e.to_json();
-                j["root"] = json!(name);
-                j["docs_url"] = json!(ui::docs_url(&e.docs_ref()));
-                j
-            })
-            .collect();
+        let root_problems = crate::commands::roots::problems_json(&root_set);
         let client = s.client.lock().await.clone();
         json!({
             "wise_bucket_version": wb_core::VERSION,
@@ -175,7 +161,8 @@ impl WbServer {
     /// Reports installation state: versions, database and data roots.
     #[tool(
         name = "server_info",
-        description = "Report Wise Bucket's installation state: version, database (PostgreSQL + pgvector) status, this session, and the data roots (the only folders Wise Bucket may read). Errors include a code, a fix and a documentation link."
+        description = "Report Wise Bucket's installation state: version, database (PostgreSQL + pgvector) status, this session, and the data roots (the only folders Wise Bucket may read). Errors include a code, a fix and a documentation link.",
+        annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn server_info(&self) -> std::result::Result<CallToolResult, McpError> {
         let v = self.server_info_value().await;

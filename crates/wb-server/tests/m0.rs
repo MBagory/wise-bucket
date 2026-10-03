@@ -16,7 +16,11 @@ async fn server_info_two_sessions_and_stop_after_last() {
     assert!(!env.pg_running(), "setup should leave PostgreSQL stopped");
 
     let a = env.session("client-a").await;
-    assert_eq!(a.tool_names().await, vec!["server_info".to_string()]);
+    let tools = a.tools().await;
+    assert_eq!(tools.len(), 1);
+    assert_eq!(tools[0].name, "server_info");
+    let hints = tools[0].annotations.as_ref().expect("annotations");
+    assert_eq!(hints.read_only_hint, Some(true));
     let info = a.server_info().await;
     assert_eq!(info["database"]["status"], "ok", "{info:#}");
     let pgvector = info["database"]["pgvector"].as_str().unwrap();
@@ -66,6 +70,12 @@ async fn server_starts_without_setup_and_explains_how_to_fix() {
             .as_str()
             .unwrap()
             .ends_with("#db_not_initialized")
+    );
+    assert!(
+        info["database"]["error"]["docs_url"]
+            .as_str()
+            .unwrap()
+            .starts_with("https://")
     );
     s.close().await;
 }

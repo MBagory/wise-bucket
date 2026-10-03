@@ -10,6 +10,9 @@ use std::fmt;
 /// Result alias used across Wise Bucket.
 pub type Result<T, E = WbError> = std::result::Result<T, E>;
 
+/// Base URL of the documentation (Markdown files in `docs/` on GitHub). Docs references are relative to it.
+pub const DOCS_BASE: &str = "https://github.com/MBagory/wise-bucket/blob/main/docs/";
+
 /// Documentation page that lists every error code.
 pub const ERRORS_DOC: &str = "reference/errors.md";
 
@@ -136,6 +139,7 @@ impl WbError {
             "code": self.code(),
             "message": self.message,
             "docs_ref": self.docs_ref(),
+            "docs_url": format!("{DOCS_BASE}{}", self.docs_ref()),
             "fix": self.kind.fix(),
         })
     }
@@ -230,5 +234,9 @@ mod tests {
         let j = e.to_json();
         assert_eq!(j["code"], "root_overlap");
         assert_eq!(j["docs_ref"], "reference/errors.md#root_overlap");
+        assert_eq!(
+            j["docs_url"],
+            "https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#root_overlap"
+        );
     }
 }

@@ -180,16 +180,13 @@ impl Session {
         res.structured_content.expect("structured content")
     }
 
-    pub async fn tool_names(&self) -> Vec<String> {
+    pub async fn tools(&self) -> Vec<rmcp::model::Tool> {
         self.client
             .as_ref()
             .unwrap()
             .list_all_tools()
             .await
             .unwrap()
-            .into_iter()
-            .map(|t| t.name.to_string())
-            .collect()
     }
 
     /// Closes stdin like a harness does and waits for a graceful exit.

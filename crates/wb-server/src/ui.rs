@@ -10,8 +10,7 @@ use serde::Serialize;
 use wb_core::WbError;
 use wb_core::error::ErrorKind;
 
-/// Base URL of the documentation (Markdown files in `docs/` on GitHub). Error links are relative to it.
-pub const DOCS_BASE: &str = "https://github.com/MBagory/wise-bucket/blob/main/docs/";
+pub use wb_core::error::DOCS_BASE;
 
 /// Converts a docs reference (`reference/errors.md#code`) to a URL.
 pub fn docs_url(docs_ref: &str) -> String {
