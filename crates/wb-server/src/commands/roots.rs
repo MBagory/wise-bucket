@@ -31,9 +31,6 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
                     exclude: exclude.clone(),
                 },
             )?;
-            ui::info(
-                "Restart your harness session (or reconnect the MCP server) to use the new root.",
-            );
             Ok(())
         }
         RootsCommand::Remove { name } => {

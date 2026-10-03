@@ -104,7 +104,7 @@ wisebucket roots remove flights                          # the folder itself is 
 - **No escapes:** symlinks must stay inside their folder.
 - **Read-only:** Wise Bucket never modifies, moves or deletes recordings.
 - **Your decision only:** Wise Bucket gives your agent no tool to add a folder. You add folders from the command line or a configuration file.
-- **Restart the agent session** after changing folders: the server reads its configuration when it starts.
+- **Live:** folder changes reach a running agent session on its next call, no restart needed.
 
 **No recordings yet?** `wisebucket demo` downloads public sample files (MCAP, ROS bags, ULog, DataFlash, MAVLink, CAN, MDF4, Parquet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data) for the formats and the investigations they support.
 

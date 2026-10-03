@@ -110,9 +110,17 @@ async fn roots_add_check_remove_and_visible_in_server_info() {
         .collect();
     assert_eq!(names, vec!["bags"]);
     assert_eq!(info["roots"][0]["robot"], "rover-b");
+
+    // A running session sees root changes without a restart.
+    env.ok(&["roots", "remove", "bags"]);
+    assert!(
+        s.server_info().await["roots"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     s.close().await;
 
-    env.ok(&["roots", "remove", "bags"]);
     assert!(
         bags.join("loose.mcap").exists(),
         "removing a root never touches the folder"

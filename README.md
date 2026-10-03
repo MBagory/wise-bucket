@@ -137,7 +137,7 @@ wisebucket demo --all           # everything (about 4 MB)
 wisebucket demo --list          # formats, sizes and licenses
 ```
 
-The files go to `<state dir>/demo/<format>/`. They are fetched from their upstream projects at a pinned commit and checked against a SHA-256, and they **stay under their own licenses** (Apache-2.0, MIT, BSD-3-Clause, LGPL-3.0): this repository does not include them. Re-running `demo` only downloads what is missing. Start a new agent session to see the `demo` root; remove it with `wisebucket roots remove demo` and by deleting the folder.
+The files go to `<state dir>/demo/<format>/`. They are fetched from their upstream projects at a pinned commit and checked against a SHA-256, and they **stay under their own licenses** (Apache-2.0, MIT, BSD-3-Clause, LGPL-3.0): this repository does not include them. Re-running `demo` only downloads what is missing. Your agent sees the `demo` root straight away; remove it with `wisebucket roots remove demo` and by deleting the folder.
 
 ### Investigations to try
 
@@ -172,7 +172,7 @@ Wise Bucket currently **lists and counts** recordings; it does not read them yet
 
 
 > [!IMPORTANT]
-> After changing folders, **start a new agent session** to pick them up. Your recordings are **never modified, moved or included in backups**; `roots remove` only *forgets* a folder.
+> Folder changes reach running agent sessions straight away. Your recordings are **never modified, moved or included in backups**; `roots remove` only *forgets* a folder.
 
 ### Check your installation
 

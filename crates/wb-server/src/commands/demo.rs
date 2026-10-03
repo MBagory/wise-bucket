@@ -71,9 +71,7 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
         ui::info(
             "MCAP, rosbag2, ROS 1 and ULog files count as recordings today; the other formats get readers in later milestones.",
         );
-        ui::info(
-            "Restart your harness session, then ask your agent: \"Which recordings does Wise Bucket see in the demo root?\"",
-        );
+        ui::info("Ask your agent: \"Which recordings does Wise Bucket see in the demo root?\"");
         ui::info(format!(
             "Remove later with `wisebucket roots remove {ROOT_NAME}` and by deleting {}",
             dir.display()

@@ -28,7 +28,9 @@ pub const INSTRUCTIONS: &str = include_str!("instructions.md");
 /// Shared server state.
 pub struct AppState {
     pub cfg: EffectiveConfig,
-    pub roots: RootSet,
+    /// Kept so data roots can be re-read on each call: `roots add` and `demo`
+    /// take effect without restarting the harness.
+    pub overrides: config::Overrides,
     /// The database, or why it is unavailable (the server still starts so the
     /// user can be told how to fix it from inside the harness).
     pub db: std::result::Result<Db, WbError>,
@@ -50,8 +52,20 @@ impl WbServer {
         }
     }
 
+    /// The data roots as declared now (the config file may have changed since startup).
+    fn current_roots(&self) -> RootSet {
+        match config::load(&self.state.overrides) {
+            Ok(cfg) => roots::resolve(&cfg),
+            Err(e) => RootSet {
+                roots: Vec::new(),
+                problems: vec![(None, e)],
+            },
+        }
+    }
+
     async fn server_info_value(&self) -> Value {
         let s = &self.state;
+        let root_set = self.current_roots();
         let database = match &s.db {
             Ok(db) => {
                 let active = session::active(&db.pool).await.map(|v| v.len()).ok();
@@ -70,8 +84,7 @@ impl WbServer {
                 json!({ "status": "error", "error": j })
             }
         };
-        let roots: Vec<Value> = s
-            .roots
+        let roots: Vec<Value> = root_set
             .roots
             .iter()
             .map(|r| {
@@ -83,8 +96,7 @@ impl WbServer {
                 })
             })
             .collect();
-        let root_problems: Vec<Value> = s
-            .roots
+        let root_problems: Vec<Value> = root_set
             .problems
             .iter()
             .map(|(name, e)| {
@@ -209,8 +221,7 @@ pub async fn serve(overrides: &config::Overrides) -> Result<()> {
     let _log_guard = crate::logging::init_file(&cfg.state_dir.value.join("logs"));
     tracing::info!(version = wb_core::VERSION, state_dir = %cfg.state_dir.value.display(), "starting MCP server");
 
-    let root_set = roots::resolve(&cfg);
-    for (name, e) in &root_set.problems {
+    for (name, e) in &roots::resolve(&cfg).problems {
         tracing::warn!(root = ?name, error = %e, "invalid data root");
     }
 
@@ -240,7 +251,7 @@ pub async fn serve(overrides: &config::Overrides) -> Result<()> {
 
     let state = Arc::new(AppState {
         cfg,
-        roots: root_set,
+        overrides: overrides.clone(),
         db,
         session_id,
         client: Mutex::new(None),

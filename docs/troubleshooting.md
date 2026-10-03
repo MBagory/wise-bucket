@@ -38,8 +38,6 @@ Look at `<state directory>/logs/postgres.log`. The usual causes:
 - `root_invalid`: the folder doesn't exist, isn't readable, or its name isn't valid. `wisebucket roots check` shows the details.
 - `root_overlap`: one folder contains another. Keep the outer one, or split them.
 
-Restart the agent session after changing folders.
-
 
 ### WSL2
 
