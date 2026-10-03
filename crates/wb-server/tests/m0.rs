@@ -1,7 +1,7 @@
 //! Milestone M0 acceptance tests: they drive the real binary and a real MCP client.
 //!
-//! The first run downloads PostgreSQL and builds pgvector into a shared runtime
-//! directory (`target/tmp/wb-runtime`, or `WB_TEST_RUNTIME_DIR`).
+//! The first run downloads PostgreSQL into a shared runtime
+//! directory (`target/tmp/wb runtime`, or `WB_TEST_RUNTIME_DIR`).
 
 mod common;
 
@@ -23,8 +23,6 @@ async fn server_info_two_sessions_and_stop_after_last() {
     assert_eq!(hints.read_only_hint, Some(true));
     let info = a.server_info().await;
     assert_eq!(info["database"]["status"], "ok", "{info:#}");
-    let pgvector = info["database"]["pgvector"].as_str().unwrap();
-    assert!(pgvector.starts_with("0.8"), "pgvector {pgvector}");
     assert!(info["session"]["id"].is_string());
     assert_eq!(info["session"]["client"]["name"], "client-a");
 

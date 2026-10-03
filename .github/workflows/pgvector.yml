@@ -4,6 +4,9 @@ name: pgvector
 # release, once per pgvector/PostgreSQL pair. Run it by hand after bumping
 # PG_VERSION or PGVECTOR_VERSION in crates/wb-core/src/db/managed.rs, then paste
 # the printed checksums into PGVECTOR_ARCHIVES there.
+#
+# Dormant until milestone M4 re-adds PGVECTOR_VERSION and PGVECTOR_ARCHIVES to
+# managed.rs (see git history): build-pgvector.sh reads the version from there.
 
 on:
   workflow_dispatch:

@@ -60,7 +60,6 @@ async fn status(global: &GlobalArgs, cfg: &EffectiveConfig) -> Result<()> {
     let running = m.is_running()?;
     let mut report = json!({
         "runtime_installed": m.is_runtime_installed(),
-        "pgvector_installed": m.installed_pgvector_version(),
         "initialized": m.is_initialized(),
         "running": running,
         "socket_dir": m.socket_dir().ok(),
@@ -86,12 +85,6 @@ async fn status(global: &GlobalArgs, cfg: &EffectiveConfig) -> Result<()> {
         yes_no(report["runtime_installed"].as_bool())
     );
     println!(
-        "pgvector          {}",
-        report["pgvector_installed"]
-            .as_str()
-            .unwrap_or("not installed")
-    );
-    println!(
         "initialized       {}",
         yes_no(report["initialized"].as_bool())
     );
@@ -105,8 +98,7 @@ async fn status(global: &GlobalArgs, cfg: &EffectiveConfig) -> Result<()> {
             s["server_version"].as_str().unwrap_or("?")
         );
         println!(
-            "vector / pg_trgm  {} / {}",
-            s["vector_version"].as_str().unwrap_or("-"),
+            "pg_trgm           {}",
             s["pg_trgm_version"].as_str().unwrap_or("-")
         );
         let sessions = report["active_sessions"]

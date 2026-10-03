@@ -72,7 +72,6 @@ impl WbServer {
                 json!({
                     "status": "ok",
                     "postgresql": db.info.server_version,
-                    "pgvector": db.info.vector_version,
                     "pg_trgm": db.info.pg_trgm_version,
                     "active_sessions": active,
                 })
@@ -113,9 +112,8 @@ fn summary(v: &Value) -> String {
     let db = &v["database"];
     let db_line = if db["status"] == "ok" {
         format!(
-            "database: PostgreSQL {} · pgvector {} · {} active session(s)",
+            "database: PostgreSQL {} · {} active session(s)",
             db["postgresql"].as_str().unwrap_or("?"),
-            db["pgvector"].as_str().unwrap_or("?"),
             db["active_sessions"]
         )
     } else {
@@ -161,7 +159,7 @@ impl WbServer {
     /// Reports installation state: versions, database and data roots.
     #[tool(
         name = "server_info",
-        description = "Report Wise Bucket's installation state: version, database (PostgreSQL + pgvector) status, this session, and the data roots (the only folders Wise Bucket may read). Errors include a code, a fix and a documentation link.",
+        description = "Report Wise Bucket's installation state: version, database (PostgreSQL) status, this session, and the data roots (the only folders Wise Bucket may read). Errors include a code, a fix and a documentation link.",
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn server_info(&self) -> std::result::Result<CallToolResult, McpError> {

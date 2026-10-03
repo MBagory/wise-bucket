@@ -1,7 +1,7 @@
 //! Wise Bucket core library.
 //!
 //! Configuration (layered, with origins), data roots, structured errors, the
-//! managed PostgreSQL + pgvector lifecycle, migrations, sessions and the public
+//! managed PostgreSQL lifecycle, migrations, sessions and the public
 //! sample recordings.
 
 pub mod config;

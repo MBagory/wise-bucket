@@ -81,9 +81,6 @@ error_kinds! {
     DbConnectFailed => "db_connect_failed",
         "Cannot connect to the database",
         "Run `wisebucket db status`, then `wisebucket doctor`.";
-    VectorExtensionMissing => "vector_extension_missing",
-        "The pgvector extension (0.8 or newer) is not available",
-        "Re-run `wisebucket setup`: it reinstalls pgvector and recreates the extensions.";
     MigrationFailed => "migration_failed",
         "Applying database migrations failed",
         "Make a backup, then report the error with `wisebucket doctor` output attached. Do not edit the `wb` schema by hand.";

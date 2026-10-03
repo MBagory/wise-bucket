@@ -5,6 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Removed: pgvector until M4, and the 0.1.0-rc.1 pre-release
+
+- The 0.1.0-rc.1 pre-release is withdrawn. Binaries will be published from the first usable version (milestone M4); until then, install from source (`cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked`).
+- `setup` no longer installs pgvector, and the database no longer creates the `vector` extension: nothing uses it before similarity search arrives in M4. `server_info`, `doctor` and `db status` no longer report it, and the `vector_extension_missing` error code is removed. Existing databases must be recreated (see [Reset](docs/guide.md#reset)).
+
 ### Added: prebuilt binaries and installer
 
 - Install with `curl -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh`. You no longer need Rust. Releases ship static binaries for macOS (Apple Silicon, Intel) and Linux (x86_64, arm64), built by [dist](https://github.com/axodotdev/cargo-dist) when a `v*` tag is pushed.

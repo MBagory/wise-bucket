@@ -15,7 +15,7 @@ use serde_json::Value;
 
 pub const BIN: &str = env!("CARGO_BIN_EXE_wisebucket");
 
-/// Shared runtime (PostgreSQL + pgvector) so each test does not rebuild it.
+/// Shared runtime (PostgreSQL) so each test does not download it again.
 pub fn runtime_dir() -> PathBuf {
     std::env::var_os("WB_TEST_RUNTIME_DIR")
         .map(PathBuf::from)

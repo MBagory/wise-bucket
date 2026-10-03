@@ -61,15 +61,11 @@ No. Wise Bucket reads them where they are. Only the tool results your agent send
 
 ### Why PostgreSQL? Do I have to install it?
 
-PostgreSQL with pgvector gives Wise Bucket reliable storage that several agent windows can share, plus vector and full-text search. You don't install it yourself: `setup` downloads a private copy, verifies it, and Wise Bucket starts and stops it as needed. It's private to Wise Bucket: it listens only on a Unix socket, so it never conflicts with another PostgreSQL on the machine.
+PostgreSQL gives Wise Bucket reliable storage that several agent windows can share, plus full-text and fuzzy (trigram) search. Similarity search (the pgvector extension) arrives with milestone M4. You don't install it yourself: `setup` downloads a private copy, verifies it, and Wise Bucket starts and stops it as needed. It's private to Wise Bucket: it listens only on a Unix socket, so it never conflicts with another PostgreSQL on the machine.
 
 ### Is PostgreSQL always running in the background?
 
 No. It starts with your first agent session, in about 2 seconds, and stops when the last one ends. To keep it running, set `keep_running = true` under `[database]` in your user configuration, or `WB_KEEP_RUNNING=true`.
-
-### Where does pgvector come from?
-
-pgvector is distributed as source code. The project's `pgvector` workflow builds the pinned, checksum-verified release once per platform against the exact PostgreSQL that `setup` downloads, and publishes it as a [release](https://github.com/MBagory/wise-bucket/releases) of this repository. `setup` downloads it and checks it against a SHA-256 checksum compiled into `wisebucket`. The build script is `.github/build-pgvector.sh`.
 
 ### Can my agent read files outside my recording folders through Wise Bucket?
 

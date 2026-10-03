@@ -18,7 +18,6 @@ Every error reported by Wise Bucket, in the terminal or in an MCP tool result, c
 | [`db_not_initialized`](#db_not_initialized) | The managed database has not been set up yet |
 | [`db_start_failed`](#db_start_failed) | The managed PostgreSQL server could not be started |
 | [`db_connect_failed`](#db_connect_failed) | Cannot connect to the database |
-| [`vector_extension_missing`](#vector_extension_missing) | The pgvector extension (0.8 or newer) is not available |
 | [`migration_failed`](#migration_failed) | Applying database migrations failed |
 | [`socket_path_too_long`](#socket_path_too_long) | The PostgreSQL socket path is too long |
 | [`backup_failed`](#backup_failed) | Backup or restore failed |
@@ -96,12 +95,6 @@ Look at `<state-dir>/logs/postgres.log`. Common causes: a full disk, a stale `po
 **Cannot connect to the database**
 
 Run `wisebucket db status`, then `wisebucket doctor`.
-
-## vector_extension_missing
-
-**The pgvector extension (0.8 or newer) is not available**
-
-Re-run `wisebucket setup`: it reinstalls pgvector and recreates the extensions.
 
 ## migration_failed
 

@@ -29,9 +29,9 @@ This puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin`, which rustup
 | macOS | 15 (Sequoia) or later, Apple Silicon or Intel |
 | Linux | x86_64 or arm64 with glibc 2.34 or later: Ubuntu 22.04+, Debian 12+, RHEL / Rocky / Alma 9+, Fedora, Amazon Linux 2023, Arch. Not Alpine. |
 | Windows | through [WSL2](#windows-wsl2) |
-| Disk | about 250 MB (PostgreSQL, pgvector, an empty database) |
+| Disk | about 250 MB (PostgreSQL, an empty database) |
 
-`setup` downloads PostgreSQL and the pgvector extension, both prebuilt and checksum-verified, so no compiler is needed. On Linux, PostgreSQL uses a few system libraries that desktops and servers already have. A minimal container image may lack them; install them with:
+`setup` downloads PostgreSQL, prebuilt and checksum-verified, so no compiler is needed. On Linux, PostgreSQL uses a few system libraries that desktops and servers already have. A minimal container image may lack them; install them with:
 
 ```sh
 sudo apt install libssl3 libxml2 libzstd1 liblz4-1 libgssapi-krb5-2 zlib1g tzdata   # Debian, Ubuntu
@@ -56,9 +56,8 @@ $ wisebucket setup
 Wise Bucket setup
 ✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
-… Downloading https://github.com/MBagory/wise-bucket/releases/…/pgvector-0.8.6-pg17.11.0-x86_64-unknown-linux-gnu.tar.gz
-✔ PostgreSQL 17.11.0 + pgvector 0.8.6 ready
-✔ database ready: PostgreSQL 17.11, vector 0.8.6, pg_trgm 1.6
+✔ PostgreSQL 17.11.0 ready
+✔ database ready: PostgreSQL 17.11, pg_trgm 1.6
 ? Add a folder containing recordings (rosbags, MCAP, …)? › yes
   Folder path › ~/robot-logs/bags
   Short name › bags
@@ -74,7 +73,7 @@ Other agents (Kilo Code, Cline, Cursor, …): add this to their global MCP setti
 ```
 
 **What happens:**
-1. **Download:** PostgreSQL 17.11 and pgvector 0.8.6 (prebuilt for that exact PostgreSQL) are downloaded and checked against pinned SHA-256 checksums.
+1. **Download:** PostgreSQL 17.11 is downloaded and checked against a pinned SHA-256 checksum.
 2. **Database:** the database is created, with generated passwords stored in a file only you can read.
 3. **Your answers** are written to your user configuration.
 
@@ -165,7 +164,7 @@ Optional, for Claude Code: to be asked before each Wise Bucket tool call, add th
 
 ```text
 <state directory>/
-├── runtime/          PostgreSQL + pgvector binaries
+├── runtime/          PostgreSQL binaries
 ├── pg/               the database
 ├── secrets/db.toml   generated passwords (readable only by you)
 ├── run/              Unix socket (private directory; nothing listens on the network)
@@ -185,7 +184,7 @@ rm -rf "<state directory>/pg" "<state directory>/secrets"
 wisebucket setup
 ```
 
-Delete `pg/` and `secrets/` together: the passwords in `secrets/` belong to that database. Keeping `runtime/` saves re-downloading PostgreSQL and pgvector.
+Delete `pg/` and `secrets/` together: the passwords in `secrets/` belong to that database. Keeping `runtime/` saves re-downloading PostgreSQL.
 
 ## Uninstall
 

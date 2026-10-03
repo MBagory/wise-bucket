@@ -5,7 +5,6 @@
 --     wall-clock times are timestamptz; flexible values are jsonb
 --   * every row carries `rev` from the global sequence `wb.rev_seq`
 
-CREATE EXTENSION IF NOT EXISTS vector;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE SCHEMA IF NOT EXISTS wb;

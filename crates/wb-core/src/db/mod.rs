@@ -19,9 +19,6 @@ pub const SESSION_APP_NAME: &str = "wisebucket";
 /// `application_name` of short-lived CLI connections (never counted as sessions).
 pub const CLI_APP_NAME: &str = "wisebucket-cli";
 
-/// Minimum supported pgvector version.
-pub const MIN_VECTOR_VERSION: (u64, u64) = (0, 8);
-
 /// Why a connection is opened.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Purpose {
@@ -45,7 +42,6 @@ impl Purpose {
 pub struct DbInfo {
     pub server_version: String,
     pub server_version_num: i32,
-    pub vector_version: Option<String>,
     pub pg_trgm_version: Option<String>,
     pub database: String,
     pub user: String,
@@ -74,7 +70,7 @@ fn connect_options(cfg: &EffectiveConfig, purpose: Purpose) -> Result<PgConnectO
         .log_slow_statements(tracing::log::LevelFilter::Info, Duration::from_secs(5)))
 }
 
-/// Opens the database: starts the managed server if needed, checks requirements and migrates.
+/// Opens the database: starts the managed server if needed and migrates.
 pub async fn open(cfg: &EffectiveConfig, purpose: Purpose) -> Result<Db> {
     let managed = managed_for(cfg);
     if !managed.is_initialized() {
@@ -94,7 +90,6 @@ pub async fn open(cfg: &EffectiveConfig, purpose: Purpose) -> Result<Db> {
         pool_for(cfg, purpose).await?
     };
     let info = inspect(&pool).await?;
-    check_requirements(&info)?;
     migrate(&pool).await?;
     Ok(Db {
         pool,
@@ -147,43 +142,10 @@ pub async fn inspect(pool: &PgPool) -> Result<DbInfo> {
     Ok(DbInfo {
         server_version,
         server_version_num: num.parse().unwrap_or(0),
-        vector_version: ext("vector").await?,
         pg_trgm_version: ext("pg_trgm").await?,
         database,
         user,
     })
-}
-
-fn version_at_least(v: &str, min: (u64, u64)) -> bool {
-    let mut it = v.split('.').map(|p| p.parse::<u64>().unwrap_or(0));
-    let (major, minor) = (it.next().unwrap_or(0), it.next().unwrap_or(0));
-    (major, minor) >= min
-}
-
-/// Verifies server version and extension availability.
-pub fn check_requirements(info: &DbInfo) -> Result<()> {
-    match &info.vector_version {
-        Some(v) if version_at_least(v, MIN_VECTOR_VERSION) => {}
-        Some(v) => {
-            return Err(err(
-                ErrorKind::VectorExtensionMissing,
-                format!("pgvector {v} found; 0.8 or newer is required"),
-            ));
-        }
-        None => {
-            return Err(err(
-                ErrorKind::VectorExtensionMissing,
-                "the `vector` extension is not available on this server",
-            ));
-        }
-    }
-    if info.pg_trgm_version.is_none() {
-        return Err(err(
-            ErrorKind::VectorExtensionMissing,
-            "the `pg_trgm` extension (PostgreSQL contrib) is not available on this server",
-        ));
-    }
-    Ok(())
 }
 
 /// Embedded schema migrations (`crates/wb-core/migrations`).
@@ -257,16 +219,4 @@ pub async fn count_session_backends(conn: &mut sqlx::PgConnection) -> Result<i64
     .fetch_one(conn)
     .await
     .map_err(db_err)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn versions() {
-        assert!(version_at_least("0.8.6", (0, 8)));
-        assert!(version_at_least("1.0", (0, 8)));
-        assert!(!version_at_least("0.7.4", (0, 8)));
-    }
 }

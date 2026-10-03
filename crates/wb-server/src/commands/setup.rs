@@ -256,30 +256,24 @@ async fn setup_managed(cfg: &EffectiveConfig) -> Result<()> {
     let m = Managed::new(&cfg.state_dir.value, &cfg.runtime_dir.value);
     let progress = |msg: &str| ui::step(msg);
     let m2 = m.clone();
-    // Downloads and the pgvector build are blocking; keep them off the async runtime.
+    // Downloads are blocking; keep them off the async runtime.
     tokio::task::spawn_blocking(move || -> Result<()> {
         let p = |msg: &str| ui::step(msg);
         m2.install_runtime(&p)?;
-        m2.install_pgvector(&p)?;
         m2.init_cluster(&p)?;
         Ok(())
     })
     .await
     .map_err(|e| err(ErrorKind::Internal, e.to_string()))??;
-    ui::ok(format!(
-        "PostgreSQL {} + pgvector {} ready",
-        db::managed::PG_VERSION,
-        db::managed::PGVECTOR_VERSION
-    ));
+    ui::ok(format!("PostgreSQL {} ready", db::managed::PG_VERSION));
 
     let was_running = m.is_running()?;
     m.start()?;
     m.bootstrap(&progress).await?;
     let handle = db::open(cfg, Purpose::Cli).await?;
     ui::ok(format!(
-        "database ready: PostgreSQL {}, vector {}, pg_trgm {}",
+        "database ready: PostgreSQL {}, pg_trgm {}",
         handle.info.server_version,
-        handle.info.vector_version.as_deref().unwrap_or("?"),
         handle.info.pg_trgm_version.as_deref().unwrap_or("?")
     ));
     handle.release(cfg).await?;

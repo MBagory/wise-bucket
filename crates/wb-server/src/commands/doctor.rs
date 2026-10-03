@@ -176,29 +176,6 @@ async fn database_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
         "postgresql",
         format!("{} installed", db::managed::PG_VERSION),
     ));
-    match m.installed_pgvector_version() {
-        Some(v) if v == db::managed::PGVECTOR_VERSION => {
-            checks.push(Check::ok("pgvector", format!("{v} installed")))
-        }
-        Some(v) => checks.push(Check::warn(
-            "pgvector",
-            format!(
-                "{v} installed, {} expected: re-run setup",
-                db::managed::PGVECTOR_VERSION
-            ),
-            Some(ErrorKind::VectorExtensionMissing),
-        )),
-        None => {
-            checks.push(Check::fail(
-                "pgvector",
-                &err(
-                    ErrorKind::VectorExtensionMissing,
-                    "pgvector is not installed: re-run setup",
-                ),
-            ));
-            return;
-        }
-    }
     if !m.is_initialized() {
         checks.push(Check::fail(
             "database",
@@ -223,9 +200,8 @@ async fn database_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
             checks.push(Check::ok(
                 "database",
                 format!(
-                    "PostgreSQL {} · vector {} · pg_trgm {} · {} active session(s){}",
+                    "PostgreSQL {} · pg_trgm {} · {} active session(s){}",
                     i.server_version,
-                    i.vector_version.as_deref().unwrap_or("?"),
                     i.pg_trgm_version.as_deref().unwrap_or("?"),
                     sessions,
                     if handle.started_here {

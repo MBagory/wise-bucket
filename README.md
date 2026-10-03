@@ -91,9 +91,8 @@ $ wisebucket setup
 Wise Bucket setup
 ✔ state directory: ~/.local/share/wisebucket
 … Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
-… Downloading https://github.com/MBagory/wise-bucket/releases/…/pgvector-0.8.6-pg17.11.0-x86_64-unknown-linux-gnu.tar.gz
-✔ PostgreSQL 17.11.0 + pgvector 0.8.6 ready
-✔ database ready: PostgreSQL 17.11, vector 0.8.6, pg_trgm 1.6
+✔ PostgreSQL 17.11.0 ready
+✔ database ready: PostgreSQL 17.11, pg_trgm 1.6
 ? Add a folder containing recordings (rosbags, MCAP, …)? › yes
   Folder path › ~/robot-logs/bags
   Short name › bags
@@ -142,7 +141,7 @@ you   › Is Wise Bucket ready? Which recording folders can you use?
 
 agent › ⏺ wise-bucket · server_info
         Wise Bucket 0.1.0 is connected and its database is running
-        (PostgreSQL 17.11, pgvector 0.8.6, 1 active session).
+        (PostgreSQL 17.11, 1 active session).
         I can use one recording folder: bags → /home/me/robot-logs/bags.
 ```
 
@@ -221,13 +220,12 @@ $ wisebucket doctor
 ✔ configuration      loaded (~/.config/wisebucket/config.toml)
 ✔ state directory    ~/.local/share/wisebucket · 84.6 GB free
 ✔ postgresql         17.11.0 installed
-✔ pgvector           0.8.6 installed
-✔ database           managed · PostgreSQL 17.11 · vector 0.8.6 · pg_trgm 1.6 · 0 active session(s)
+✔ database           managed · PostgreSQL 17.11 · pg_trgm 1.6 · 0 active session(s)
 ✔ data root          bags → /home/me/robot-logs/bags
 ✖ data root          root "old-bags": /home/me/old-bags is not accessible
                      ↳ root_invalid · https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#root_invalid
 
-7 check(s), 1 failed, 0 warning(s)
+6 check(s), 1 failed, 0 warning(s)
 ```
 
 </details>
@@ -264,7 +262,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT
 
 ```sh
 cargo build
-cargo test --workspace               # first run downloads PostgreSQL and pgvector (~1 min)
+cargo test --workspace               # first run downloads PostgreSQL (~1 min)
 cargo run -p wisebucket -- docs gen   # regenerate reference pages after changing the CLI, errors or config
 cargo test -p wisebucket --test samples -- --ignored  # per-format sample checks (downloads ~4 MB once)
 ```
@@ -277,4 +275,4 @@ The acceptance tests drive **the real binary** through **a real MCP client**. Th
 
 ## License
 
-[Apache License 2.0](LICENSE). Built on [PostgreSQL](https://www.postgresql.org), [pgvector](https://github.com/pgvector/pgvector), [theseus-rs PostgreSQL binaries](https://github.com/theseus-rs/postgresql-binaries), the [Rust MCP SDK](https://github.com/modelcontextprotocol/rust-sdk) and [SQLx](https://github.com/launchbadge/sqlx). To cite Wise Bucket, use [CITATION.cff](CITATION.cff).
+[Apache License 2.0](LICENSE). Built on [PostgreSQL](https://www.postgresql.org), [theseus-rs PostgreSQL binaries](https://github.com/theseus-rs/postgresql-binaries), the [Rust MCP SDK](https://github.com/modelcontextprotocol/rust-sdk) and [SQLx](https://github.com/launchbadge/sqlx). To cite Wise Bucket, use [CITATION.cff](CITATION.cff).

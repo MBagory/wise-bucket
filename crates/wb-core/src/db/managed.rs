@@ -1,11 +1,8 @@
-//! Managed PostgreSQL + pgvector: provisioning and process lifecycle.
+//! Managed PostgreSQL: provisioning and process lifecycle.
 //!
 //! * PostgreSQL binaries come from the `theseus-rs/postgresql-binaries` releases
 //!   (the same builds used by the `postgresql_embedded` crate), pinned by version
 //!   and SHA-256.
-//! * pgvector is prebuilt against those exact binaries by `.github/build-pgvector.sh`
-//!   (the `pgvector` workflow), published once as a release of this repository,
-//!   and pinned by SHA-256 here. Users need no C toolchain.
 //! * The server listens **only** on a Unix socket in a private directory; there
 //!   is no TCP listener.
 
@@ -21,31 +18,6 @@ use crate::fsutil;
 
 /// Pinned PostgreSQL version (theseus-rs release tag).
 pub const PG_VERSION: &str = "17.11.0";
-/// Pinned pgvector version.
-pub const PGVECTOR_VERSION: &str = "0.8.6";
-/// Where the prebuilt pgvector archives are published (one release per pgvector/PostgreSQL pair).
-const PGVECTOR_RELEASES: &str = "https://github.com/MBagory/wise-bucket/releases/download";
-
-/// SHA-256 of each prebuilt pgvector archive (printed by the `pgvector` workflow).
-const PGVECTOR_ARCHIVES: &[(&str, &str)] = &[
-    (
-        "x86_64-apple-darwin",
-        "bd754055c42828156ede2b755d55afac58a6eaf4c8f2449e516f9c9f92f035dd",
-    ),
-    (
-        "aarch64-apple-darwin",
-        "47b2dd88b915e36447ac9817a1f3c6441c69f395b4d2cee9344ea1626c8cd08a",
-    ),
-    (
-        "x86_64-unknown-linux-gnu",
-        "c3eb832124c5dcb75bb759bd12adbab7dde036c59da1dd43426b39825e18c9d5",
-    ),
-    (
-        "aarch64-unknown-linux-gnu",
-        "d664e6e22afa93afcae92acea59c6b179ae1a1a14891764b7fff8f3003b39bca",
-    ),
-];
-
 /// SHA-256 of each supported PostgreSQL archive.
 const PG_ARCHIVES: &[(&str, &str)] = &[
     (
@@ -187,30 +159,6 @@ impl Managed {
             .unwrap_or(false)
     }
 
-    pub fn installed_pgvector_version(&self) -> Option<String> {
-        let home = self.pg_home().ok()?;
-        let control = std::fs::read_to_string(home.join("share/extension/vector.control")).ok()?;
-        let lib_ok = ["lib/vector.so", "lib/vector.dylib"]
-            .iter()
-            .any(|l| home.join(l).is_file());
-        if !lib_ok {
-            return None;
-        }
-        control.lines().find_map(|l| {
-            let l = l.trim();
-            l.strip_prefix("default_version").map(|v| {
-                v.trim_start_matches([' ', '='])
-                    .trim()
-                    .trim_matches('\'')
-                    .to_string()
-            })
-        })
-    }
-
-    pub fn is_pgvector_installed(&self) -> bool {
-        self.installed_pgvector_version().as_deref() == Some(PGVECTOR_VERSION)
-    }
-
     pub fn is_initialized(&self) -> bool {
         self.data_dir().join("PG_VERSION").is_file() && self.secrets_path().is_file()
     }
@@ -259,32 +207,6 @@ impl Managed {
             "PostgreSQL {PG_VERSION} installed in {}",
             home.display()
         ));
-        Ok(())
-    }
-
-    /// Downloads the pinned prebuilt pgvector into the managed PostgreSQL (idempotent).
-    pub fn install_pgvector(&self, progress: Progress) -> Result<()> {
-        let _lock = fsutil::FileLock::acquire(&self.runtime_dir.join("install.lock"))?;
-        if self.is_pgvector_installed() {
-            progress(&format!("pgvector {PGVECTOR_VERSION} already installed"));
-            return Ok(());
-        }
-        let target = target()?;
-        let tag = format!("pgvector-{PGVECTOR_VERSION}-pg{PG_VERSION}");
-        let name = format!("{tag}-{target}.tar.gz");
-        let url = format!("{PGVECTOR_RELEASES}/{tag}/{name}");
-        let archive = self.runtime_dir.join("downloads").join(&name);
-        let sha = pinned_sha256(PGVECTOR_ARCHIVES, target)?;
-        fsutil::download_verified(&url, &archive, sha, progress)?;
-        // The archive holds `lib/vector.*` and `share/extension/vector*`, relative to the install.
-        unpack_tar_gz(&archive, &self.pg_home()?)?;
-        if !self.is_pgvector_installed() {
-            return Err(err(
-                ErrorKind::DownloadFailed,
-                format!("unexpected archive layout in {}", archive.display()),
-            ));
-        }
-        progress(&format!("pgvector {PGVECTOR_VERSION} installed"));
         Ok(())
     }
 
@@ -510,7 +432,7 @@ impl Managed {
             .application_name("wisebucket-setup"))
     }
 
-    /// Creates roles, the database and the extensions (idempotent). Requires a running server.
+    /// Creates roles, the database and the `pg_trgm` extension (idempotent). Requires a running server.
     pub async fn bootstrap(&self, progress: Progress<'_>) -> Result<()> {
         use sqlx::{Connection, PgConnection};
         let s = self.secrets()?;
@@ -557,14 +479,10 @@ impl Managed {
         let mut conn = PgConnection::connect_with(&self.superuser_options(DB_NAME)?)
             .await
             .map_err(connect_err)?;
-        sqlx::raw_sql(
-            "CREATE EXTENSION IF NOT EXISTS vector;
-             ALTER EXTENSION vector UPDATE;
-             CREATE EXTENSION IF NOT EXISTS pg_trgm;",
-        )
-        .execute(&mut conn)
-        .await
-        .map_err(|e| err(ErrorKind::VectorExtensionMissing, e.to_string()))?;
+        sqlx::raw_sql("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
+            .execute(&mut conn)
+            .await
+            .map_err(db_err)?;
         conn.close().await.ok();
         Ok(())
     }
@@ -612,7 +530,6 @@ mod tests {
     fn current_platform_is_pinned() {
         if let Ok(t) = target() {
             assert_eq!(pinned_sha256(PG_ARCHIVES, t).unwrap().len(), 64);
-            assert_eq!(pinned_sha256(PGVECTOR_ARCHIVES, t).unwrap().len(), 64);
         }
     }
 }
