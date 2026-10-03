@@ -71,7 +71,7 @@ Wise Bucket supports Linux (x86_64, aarch64) and macOS (x86_64, arm64). On Windo
 
 **A download failed**
 
-Check your network connection or proxy, then re-run the command (`setup` or `demo`): it resumes where it stopped.
+Check your network connection or proxy, then re-run the command (`setup` or `demo`): files already downloaded are kept. A download that stalls fails after a timeout instead of hanging.
 
 ## checksum_mismatch
 

@@ -4,6 +4,7 @@
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use sha2::{Digest, Sha256};
 
@@ -115,7 +116,17 @@ pub fn download_verified(
     }
     std::fs::create_dir_all(dest.parent().unwrap_or(Path::new(".")))?;
     progress(&format!("Downloading {url}"));
-    let resp = ureq::get(url)
+    // Fail instead of hanging forever on a dead or stalled connection.
+    // ponytail: ureq has no per-read idle timeout, so the body gets a total budget;
+    // a link too slow to fetch one file in 30 min fails. Add a stall watchdog if that bites.
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_connect(Some(Duration::from_secs(30)))
+        .timeout_recv_response(Some(Duration::from_secs(60)))
+        .timeout_recv_body(Some(Duration::from_secs(30 * 60)))
+        .build()
+        .into();
+    let resp = agent
+        .get(url)
         .call()
         .map_err(|e| err(ErrorKind::DownloadFailed, format!("{url}: {e}")))?;
     let mut reader = resp.into_body().into_reader();

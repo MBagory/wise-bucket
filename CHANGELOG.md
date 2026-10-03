@@ -25,6 +25,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Downloads (`setup`, `demo`) no longer hang forever on a dead or stalled connection: they fail with `download_failed` after a timeout (30 s to connect, 60 s for the server to answer, 30 min per file).
 - Managed `setup` no longer fails with `pgvector_build_failed` when the state or runtime directory contains a space (the default on macOS: `~/Library/Application Support`). pgvector is now built from a space-free scratch directory under `/tmp`.
 
 ### Added: sample data
