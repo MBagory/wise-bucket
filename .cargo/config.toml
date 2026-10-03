@@ -1,0 +1,2 @@
+[alias]
+reinstall = "install --path crates/wb-server --locked --force"

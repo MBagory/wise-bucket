@@ -19,7 +19,7 @@ cargo test --workspace
 
 The first test run downloads PostgreSQL into `target/tmp/wb runtime` (about 1 minute; the space in the name is deliberate); later runs reuse it. Set `WB_TEST_RUNTIME_DIR` to share it between checkouts.
 
-To install your local build: `cargo install --path crates/wb-server --locked --force` (`--force` replaces a release install), then reconnect the MCP server in your harness.
+To install your local build: `cargo reinstall` (alias in `.cargo/config.toml` for `cargo install --path crates/wb-server --locked --force`; `--force` replaces a release install), then reconnect the MCP server in your harness.
 
 ### Releases
 
