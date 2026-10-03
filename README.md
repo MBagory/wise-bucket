@@ -28,17 +28,52 @@ The goal is to give the agent **the full context it usually lacks**, by *standar
 *Next*, it will compute and store **signal-processing metrics** and **embeddings**, to surface *analogies* and *weak signals* across all your recordings. Whether you ask a new question or come back to an old one, your agent will answer with **long-term context**.
 
 > [!WARNING]
-> **Work in progress.** Wise Bucket is in early alpha and under active development. Commands, configuration and on-disk formats may change without notice, and it is not ready for production use. Feedback and [issues](https://github.com/MBagory/wise-bucket/issues) are welcome.
+> **Work in progress.** Wise Bucket is in early alpha and under active development. Commands, configuration and on-disk formats may change without notice, and it is not ready for production use. **There is no release yet: the first usable version (MVP) comes with milestone M4** (see [Roadmap](#roadmap)). Feedback and [issues](https://github.com/MBagory/wise-bucket/issues) are welcome.
+
+### How it works
+
+```mermaid
+flowchart LR
+    you(["You"])
+    llm["Model provider"]
+    subgraph machine["Your machine"]
+        agent["AI agent<br/>Claude Code, Codex, Cursor…"]
+        wb["Wise Bucket<br/>MCP server"]
+        db[("PostgreSQL (private)<br/>investigation memory")]
+        data[/"Recording folders<br/>MCAP, ULog, CAN, MDF4…"/]
+    end
+    you <-->|"questions, answers,<br/>missing context"| agent
+    agent <-->|"prompts"| llm
+    agent <-->|"MCP tool calls (stdio)"| wb
+    wb <-->|"Unix socket"| db
+    wb -->|"reads only"| data
+    you -.->|"declares with<br/>wisebucket roots add"| data
+```
+
+Your agent owns the model: **Wise Bucket never calls one**. It only reads the folders **you** declare, and the agent cannot add any.
+
+### Roadmap
+
+Wise Bucket is built one milestone at a time:
+
+- **M0, foundation** (now): install, private database, recording folders, `server_info`
+- **M1, knowledge of your robot**: unknown sensors, buses and software are asked about once, then remembered
+- **M2, investigations**: questions, hypotheses and predictions registered before the data
+- **M3, recordings**: ROS 2 MCAP bags indexed and tied to your robot
+- **M4, metrics and similarity search: the MVP and first release.** Ask a question, register predictions, attach a bag, compute metrics, and find similar past cases.
+- **M5, evaluation** on real investigations, then **E1–E12** expansions (more formats, Windows, background analysis…)
 
 ## Getting started
 
 ### 1. Install
 
+Prebuilt binaries come with the first release (M4). Until then, build from source with [Rust](https://rustup.rs) 1.94 or newer (no C compiler needed; it compiles in a few minutes):
+
 ```sh
-curl -LsSf https://github.com/MBagory/wise-bucket/releases/download/v0.1.0-rc.1/wisebucket-installer.sh | sh
+cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked
 ```
 
-This installs `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. You don't need Rust or a C compiler. Then restart your shell, or run `source ~/.cargo/env` (`source ~/.cargo/env.fish` in fish), so `wisebucket` is on your `PATH`. To update, run the same command again. Check [Platforms](#platforms) first; to build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
+This installs `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. To update, run the same command again. Check [Platforms](#platforms) first.
 
 ### 2. Set up your machine (once, about a minute)
 

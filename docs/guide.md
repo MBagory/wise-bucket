@@ -15,12 +15,14 @@ When something goes wrong, see [Troubleshooting and FAQ](troubleshooting.md). Ev
 
 ## Install
 
+There is no release yet: prebuilt binaries come with the first usable version (milestone M4). Until then, build from source with [Rust](https://rustup.rs) 1.94 or newer. No C compiler is needed, and it compiles in a few minutes:
+
 ```sh
-curl -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh
+cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked
 wisebucket --version
 ```
 
-The installer puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin` and adds that directory to your `PATH`. Then restart your shell, or run `source ~/.cargo/env` (`source ~/.cargo/env.fish` in fish). To update, run it again. You also need an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
+This puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin`, which rustup already added to your `PATH`. To update, run it again. You also need an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
 
 | | Requirement |
 | --- | --- |
@@ -35,8 +37,6 @@ The installer puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin` and 
 sudo apt install libssl3 libxml2 libzstd1 liblz4-1 libgssapi-krb5-2 zlib1g tzdata   # Debian, Ubuntu
 sudo dnf install openssl-libs libxml2 libzstd lz4-libs krb5-libs zlib tzdata         # RHEL family, Fedora
 ```
-
-**Build from source** instead (needs [Rust](https://rustup.rs)): `cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked`.
 
 ### Windows: WSL2
 
@@ -192,7 +192,7 @@ Delete `pg/` and `secrets/` together: the passwords in `secrets/` belong to that
 ```sh
 wisebucket db stop --force
 claude mcp remove --scope user wise-bucket    # or remove the entry from your agent's MCP settings
-rm ~/.cargo/bin/wisebucket ~/.cargo/bin/wbk   # built from source: cargo uninstall wisebucket
+cargo uninstall wisebucket                    # removes wisebucket and wbk
 ```
 
 Your data stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it. On macOS your settings live in the same folder, so deleting it removes them too. Your recordings are never touched.
