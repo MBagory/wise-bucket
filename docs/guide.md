@@ -19,7 +19,7 @@ curl -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wiseb
 wisebucket --version
 ```
 
-The installer puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin` and adds that directory to your `PATH` (open a new terminal afterwards). To update, run it again. You also need an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
+The installer puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin` and adds that directory to your `PATH`. Then restart your shell, or run `source ~/.cargo/env` (`source ~/.cargo/env.fish` in fish). To update, run it again. You also need an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
 
 | | Requirement |
 | --- | --- |

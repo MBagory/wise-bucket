@@ -35,10 +35,10 @@ The goal is to give the agent **the full context it usually lacks**, by *standar
 ### 1. Install
 
 ```sh
-curl -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh
+curl -LsSf https://github.com/MBagory/wise-bucket/releases/download/v0.1.0-rc.1/wisebucket-installer.sh | sh
 ```
 
-This installs `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. You don't need Rust or a C compiler. To update, run the same command again. Check [Platforms](#platforms) first; to build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
+This installs `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. You don't need Rust or a C compiler. Then restart your shell, or run `source ~/.cargo/env` (`source ~/.cargo/env.fish` in fish), so `wisebucket` is on your `PATH`. To update, run the same command again. Check [Platforms](#platforms) first; to build from source, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### 2. Set up your machine (once, about a minute)
 
