@@ -36,7 +36,7 @@ jobs:
       - name: Build (macOS)
         if: runner.os == 'macOS'
         run: sh .github/build-pgvector.sh ${{ matrix.target }} dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pgvector-${{ matrix.target }}
           path: dist/*.tar.gz
