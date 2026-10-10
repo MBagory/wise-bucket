@@ -57,9 +57,9 @@ Your agent owns the model: **Wise Bucket never calls one**. It only reads the fo
 Wise Bucket is built one milestone at a time:
 
 - **M0, foundation** (now): install, private database, recording folders, `server_info`
-- **M1, knowledge of your robot**: unknown sensors, buses and software are asked about once, then remembered
+- **M1, knowledge of your hardware**: unknown sensors, buses and software are asked about once, then remembered
 - **M2, investigations**: questions, hypotheses and predictions registered before the data
-- **M3, recordings**: ROS 2 MCAP bags indexed and tied to your robot
+- **M3, recordings**: ROS 2 MCAP bags indexed and tied to your hardware
 - **M4, metrics and similarity search: the MVP and first release.** Ask a question, register predictions, attach a bag, compute metrics, and find similar past cases.
 - **M5, evaluation** on real investigations, then **E1–E12** expansions (more formats, Windows, background analysis…)
 
@@ -142,7 +142,8 @@ you   › Is Wise Bucket ready? Which recording folders can you use?
 agent › ⏺ wise-bucket · server_info
         Wise Bucket 0.1.0 is connected and its database is running
         (PostgreSQL 17.11, 1 active session).
-        I can use one recording folder: bags → /home/me/robot-logs/bags.
+        I can use one recording folder: bags → /home/me/robot-logs/bags,
+        with 37 recordings (31 MCAP files, 6 rosbag2 folders).
 ```
 
 <details>

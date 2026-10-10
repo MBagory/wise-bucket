@@ -118,6 +118,8 @@ async fn roots_add_check_remove_and_visible_in_server_info() {
         .collect();
     assert_eq!(names, vec!["bags"]);
     assert_eq!(info["roots"][0]["robot"], "rover-b");
+    assert_eq!(info["roots"][0]["candidate_recordings"], 2, "{info:#}");
+    assert_eq!(info["roots"][0]["candidates"], *c);
 
     // A running session sees root changes without a restart.
     env.ok(&["roots", "remove", "bags"]);

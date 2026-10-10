@@ -1,6 +1,6 @@
 Wise Bucket helps an engineer investigate robot behaviour iteratively: questions, hypotheses, recordings (ROS 2 bags, flight logs, CAN captures), metrics and interpretations, kept across conversations.
 
-This is milestone M0 (foundation). Available now: `server_info`, which reports the installation state and the data roots (the only folders Wise Bucket may read).
+This is milestone M0 (foundation). Available now: `server_info`, which reports the installation state and the data roots (the only folders Wise Bucket may read) with a count of the candidate recordings in each, by kind. It cannot list or read the recordings themselves yet.
 
 Guidelines:
 - Call `server_info` when the user asks about Wise Bucket's setup, or before relying on data roots.

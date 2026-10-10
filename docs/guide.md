@@ -131,7 +131,7 @@ args = ["serve"]
 **Check the connection.** Start a new agent session in any folder (in Claude Code, `/mcp` lists `wise-bucket`). Then ask *"Is Wise Bucket ready?"*. The agent calls `server_info` and reports:
 - the version
 - the database status
-- the recording folders it may use
+- the recording folders it may use, with how many recordings each holds
 
 Optional, for Claude Code: to be asked before each Wise Bucket tool call, add this to `.claude/settings.json`:
 

@@ -78,15 +78,28 @@ impl WbServer {
             }
             Err(e) => json!({ "status": "error", "error": e.to_json() }),
         };
+        // ponytail: rescans every root on each call (capped per root); cache the counts if large roots make it slow.
+        let paths: Vec<_> = root_set.roots.iter().map(|r| r.path.clone()).collect();
+        let counts = tokio::task::spawn_blocking(move || {
+            paths
+                .iter()
+                .map(|p| roots::count_candidates(p, 200_000, Duration::from_secs(5)))
+                .collect::<Vec<_>>()
+        })
+        .await
+        .unwrap_or_default();
         let roots: Vec<Value> = root_set
             .roots
             .iter()
-            .map(|r| {
+            .enumerate()
+            .map(|(i, r)| {
                 json!({
                     "name": r.name,
                     "path": r.path,
                     "robot": r.robot,
                     "declared_in": r.origin.to_string(),
+                    "candidate_recordings": counts.get(i).map(|c| c.total()),
+                    "candidates": counts.get(i),
                 })
             })
             .collect();
@@ -133,11 +146,19 @@ fn summary(v: &Value) -> String {
             "data roots: {}",
             roots
                 .iter()
-                .map(|r| format!(
-                    "{} → {}",
-                    r["name"].as_str().unwrap_or("?"),
-                    r["path"].as_str().unwrap_or("?")
-                ))
+                .map(|r| {
+                    format!(
+                        "{} → {} ({} candidate recordings{})",
+                        r["name"].as_str().unwrap_or("?"),
+                        r["path"].as_str().unwrap_or("?"),
+                        r["candidate_recordings"],
+                        if r["candidates"]["truncated"] == true {
+                            ", scan stopped early"
+                        } else {
+                            ""
+                        }
+                    )
+                })
                 .collect::<Vec<_>>()
                 .join("; ")
         )
@@ -159,7 +180,7 @@ impl WbServer {
     /// Reports installation state: versions, database and data roots.
     #[tool(
         name = "server_info",
-        description = "Report Wise Bucket's installation state: version, database (PostgreSQL) status, this session, and the data roots (the only folders Wise Bucket may read). Errors include a code, a fix and a documentation link.",
+        description = "Report Wise Bucket's installation state: version, database (PostgreSQL) status, this session, and the data roots (the only folders Wise Bucket may read) with a count of candidate recordings in each. Errors include a code, a fix and a documentation link.",
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn server_info(&self) -> std::result::Result<CallToolResult, McpError> {

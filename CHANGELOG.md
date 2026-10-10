@@ -23,6 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The binary is renamed from `wise-bucket-server` to `wisebucket`, with a short alias `wbk` (not `wb`, which Weights & Biases installs).
 
 - `server_info` declares itself read-only (MCP tool annotations), and its error objects no longer repeat `status`. JSON errors, in tool results and `--json` output, now include the absolute `docs_url` next to `docs_ref`.
+- `server_info` reports how many candidate recordings each data root holds, by kind (`candidate_recordings`, `candidates`), so the agent can answer *"Which recordings does Wise Bucket see?"*. Each root's scan stops after 5 seconds.
 
 - CLI polish: colored status glyphs and `--help` (off when piped or with `NO_COLOR`), examples in `--help`, `--json` errors printed as `{"error": {…}}` on stderr, `roots check` results on stdout, `restore` asks for confirmation on a terminal (still requires `--yes` otherwise), and `docs gen` is hidden from help (contributor tool).
 
