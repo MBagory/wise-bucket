@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # datafusion, lance and re_ros_msg share one Arrow version: they move together (ADR 0013).
+      # This PR stays red until all three support the same Arrow; then it's the upgrade.
+      arrow-stack:
+        patterns: ["datafusion*", "lance*", "re_ros_msg"]
       rust-dependencies:
         patterns: ["*"]
   - package-ecosystem: github-actions
