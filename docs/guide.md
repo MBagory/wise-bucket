@@ -155,7 +155,14 @@ Your agent gets two tools: `server_info`, and `sql` to query the store. Both are
 
 ### When recordings are extracted
 
-While an agent session is open, Wise Bucket walks your folders at the start, then every minute (and each time the agent calls `server_info`). New and changed recordings are extracted in the background, newest first, one at a time, at low priority. A file changed in the last 5 seconds waits: it may still be being written. Several agent windows share the work and never extract the same file twice.
+While an agent session is open, Wise Bucket watches your folders for file events, and walks them at the start and each time the agent calls `server_info` ([ADR 0018](decisions/0018-extraction-on-file-events.md)). New and changed recordings are extracted in the background, newest first, one at a time, at low priority:
+
+- A file or rosbag2 folder **renamed into place** (a finished download, `mv`) is extracted at once.
+- A file **written in place** (`cp`, a logger) is extracted once it has not changed for 5 seconds.
+- Changes made by another computer on a **network share** send no file event: they are found at the next `server_info` call. The same goes for a folder declared during the session.
+- If a folder cannot be watched, the session walks your folders every minute instead.
+
+Several agent windows share the work and never extract the same file twice.
 
 Each recording has a **status**:
 

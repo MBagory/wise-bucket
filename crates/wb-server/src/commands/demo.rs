@@ -71,7 +71,7 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
         }));
     } else {
         ui::info(
-            "While an agent session is open, the readable formats (ROS 2 bags and MCAP, ULog, Parquet) are extracted into the store; the others are listed as not readable yet.",
+            "An open agent session extracts the readable formats (ROS 2 bags and MCAP, ULog, Parquet) into the store as soon as each download finishes (on a first run, from its next `server_info` call); the others are listed as not readable yet.",
         );
         ui::info("Ask your agent: \"Which recordings does Wise Bucket have in the demo root?\"");
         ui::info(format!(

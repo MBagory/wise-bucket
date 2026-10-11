@@ -1,47 +1,65 @@
 //! Automatic ingestion: while an agent session is open, new and changed recordings
 //! are extracted into the store in the background.
 //!
-//! Every minute (and whenever asked), the roots are walked. Each recording waiting for
-//! extraction is handed to a child process (`nice -n 10 wisebucket ingest <root:path>`),
-//! one at a time and newest first: a decoder crash stays in the child, and the child's
-//! lock keeps two sessions from extracting the same file.
+//! The roots are walked at startup, when `server_info` asks, and on file events. A file
+//! renamed into place (a finished download) is extracted at once; a file written in
+//! place waits until it has not changed for a few seconds. Each recording is handed to
+//! a child process (`nice -n 10 wisebucket ingest <root:path>`), one at a time and
+//! newest first: a decoder crash stays in the child, and the child's lock keeps two
+//! sessions from extracting the same file.
 
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::Stdio;
-use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::sync::Notify;
+use notify::event::ModifyKind;
+use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tokio::task::JoinHandle;
+use tokio::time::Instant;
 use wb_core::config::{self, Overrides};
+use wb_core::roots;
 use wb_data::store::{self, Entry, Store};
 
-/// How often the roots are walked for new recordings.
+/// How often the roots are walked when file events are not available.
 const DISCOVERY_EVERY: Duration = Duration::from_secs(60);
 /// Longest a root walk may take.
 const WALK_LIMIT: Duration = Duration::from_secs(30);
-/// Files changed more recently than this may still be being written: they wait.
+/// Files written in place and changed more recently than this may still be being
+/// written: they wait.
 const SETTLE: Duration = Duration::from_secs(5);
 /// Longest one extraction may run. ponytail: a fixed bound; make it depend on the
 /// file size if multi-hour extractions of huge bags turn out to be legitimate.
 const EXTRACTION_TIMEOUT: Duration = Duration::from_secs(3600);
 
+/// Why the worker should look at the roots.
+#[derive(Debug)]
+enum Trigger {
+    /// `server_info` was called.
+    Now,
+    /// A file or folder was renamed into place: it is complete.
+    Ready(PathBuf),
+    /// Something else changed in a root.
+    Changed,
+}
+
 /// The background ingestion of one session.
 pub struct Worker {
-    wake: Arc<Notify>,
+    tx: UnboundedSender<Trigger>,
     task: JoinHandle<()>,
 }
 
 impl Worker {
     pub fn spawn(overrides: Overrides) -> Self {
-        let wake = Arc::new(Notify::new());
-        let task = tokio::spawn(run(overrides, wake.clone()));
-        Self { wake, task }
+        let (tx, rx) = unbounded_channel();
+        let task = tokio::spawn(run(overrides, tx.clone(), rx));
+        Self { tx, task }
     }
 
-    /// Looks for new recordings now instead of at the next tick.
+    /// Looks for new recordings now.
     pub fn wake(&self) {
-        self.wake.notify_one();
+        let _ = self.tx.send(Trigger::Now);
     }
 
     /// Stops the worker; a running extraction is killed (its lock dies with it).
@@ -50,38 +68,194 @@ impl Worker {
     }
 }
 
-async fn run(overrides: Overrides, wake: Arc<Notify>) {
+/// What a file event means for the worker. `ignore` holds the worker's own output
+/// (store, logs): a root containing the state directory would otherwise wake itself.
+fn classify(ev: &Event, ignore: &[PathBuf]) -> Option<Trigger> {
+    // Reads (inotify reports opens) include the extraction's own.
+    if matches!(ev.kind, EventKind::Access(_)) {
+        return None;
+    }
+    let paths: Vec<&PathBuf> = ev
+        .paths
+        .iter()
+        .filter(|p| !ignore.iter().any(|i| p.starts_with(i)))
+        .collect();
+    if paths.is_empty() && !ev.paths.is_empty() {
+        return None;
+    }
+    // inotify gives both sides of a rename, FSEvents one event per side: the side
+    // that exists is the new name.
+    if matches!(ev.kind, EventKind::Modify(ModifyKind::Name(_)))
+        && let Some(p) = paths.iter().find(|p| p.exists())
+    {
+        return Some(Trigger::Ready(p.to_path_buf()));
+    }
+    Some(Trigger::Changed)
+}
+
+/// Watches `roots` recursively. `None` (with a warning) when some root cannot be watched.
+fn watch(
+    roots: &[PathBuf],
+    ignore: Vec<PathBuf>,
+    tx: UnboundedSender<Trigger>,
+) -> Option<RecommendedWatcher> {
+    let handler = move |res: notify::Result<Event>| {
+        let trigger = match res {
+            Ok(ev) => classify(&ev, &ignore),
+            Err(_) => Some(Trigger::Changed),
+        };
+        if let Some(t) = trigger {
+            let _ = tx.send(t);
+        }
+    };
+    let mut watcher = match notify::recommended_watcher(handler) {
+        Ok(w) => w,
+        Err(e) => {
+            tracing::warn!(error = %e, "cannot watch the data roots; walking them every minute");
+            return None;
+        }
+    };
+    for root in roots {
+        if let Err(e) = watcher.watch(root, RecursiveMode::Recursive) {
+            tracing::warn!(root = %root.display(), error = %e, "cannot watch a data root; walking the roots every minute");
+            return None;
+        }
+    }
+    Some(watcher)
+}
+
+async fn run(
+    overrides: Overrides,
+    tx: UnboundedSender<Trigger>,
+    mut rx: UnboundedReceiver<Trigger>,
+) {
+    let mut watcher: Option<RecommendedWatcher> = None;
+    let mut watched: Option<(Vec<PathBuf>, PathBuf)> = None;
+    let mut ready: HashSet<PathBuf> = HashSet::new();
     loop {
-        if let Ok(cfg) = config::load(&overrides) {
-            let walk_cfg = cfg.clone();
-            match tokio::task::spawn_blocking(move || store::discover(&walk_cfg, WALK_LIMIT)).await
-            {
-                Ok(Err(e)) => tracing::warn!(error = %e, "discovery failed"),
-                Err(e) => tracing::warn!(error = %e, "discovery panicked"),
-                Ok(Ok(_)) => {}
-            }
-            let store = Store::for_config(&cfg);
-            let mut tried = std::collections::HashSet::new();
-            loop {
-                if store.paused() {
-                    tracing::warn!("extraction paused: little free disk space");
+        let wait = pass(&overrides, &tx, &mut watcher, &mut watched, &ready).await;
+        ready.clear();
+
+        let mut deadline = wait.map(|d| Instant::now() + d);
+        loop {
+            let trigger = match deadline {
+                Some(d) => tokio::select! {
+                    t = rx.recv() => t,
+                    _ = tokio::time::sleep_until(d) => break,
+                },
+                None => rx.recv().await,
+            };
+            match trigger {
+                None => return,
+                Some(Trigger::Now) => break,
+                Some(Trigger::Ready(p)) => {
+                    ready.insert(p);
                     break;
                 }
-                let Some(next) = store
-                    .pending(SETTLE)
-                    .into_iter()
-                    .find(|e| !tried.contains(&store::recording_id(&e.candidate)))
-                else {
-                    break;
-                };
-                tried.insert(store::recording_id(&next.candidate));
-                extract(&overrides, &store, &next).await;
+                // Look once the change has had time to settle; later events in the
+                // meantime are covered by that same pass.
+                Some(Trigger::Changed) => {
+                    let t = Instant::now() + SETTLE;
+                    deadline = Some(deadline.map_or(t, |d| d.min(t)));
+                }
             }
         }
-        tokio::select! {
-            _ = wake.notified() => {}
-            _ = tokio::time::sleep(DISCOVERY_EVERY) => {}
+        // A burst of events gives one pass.
+        while let Ok(t) = rx.try_recv() {
+            if let Trigger::Ready(p) = t {
+                ready.insert(p);
+            }
         }
+    }
+}
+
+/// Walks the roots and extracts what is ready. Returns when to look again without an
+/// event: `SETTLE`-bound for files still being written, `DISCOVERY_EVERY` when events
+/// cannot be relied on.
+async fn pass(
+    overrides: &Overrides,
+    tx: &UnboundedSender<Trigger>,
+    watcher: &mut Option<RecommendedWatcher>,
+    watched: &mut Option<(Vec<PathBuf>, PathBuf)>,
+    ready: &HashSet<PathBuf>,
+) -> Option<Duration> {
+    let Ok(cfg) = config::load(overrides) else {
+        return Some(DISCOVERY_EVERY);
+    };
+    let root_set = roots::resolve(&cfg);
+    let root_paths: HashMap<String, PathBuf> = root_set
+        .roots
+        .iter()
+        .map(|r| (r.name.clone(), r.path.clone()))
+        .collect();
+    let store = Store::for_config(&cfg);
+
+    let key = (
+        root_set.roots.iter().map(|r| r.path.clone()).collect(),
+        cfg.state_dir.value.clone(),
+    );
+    if watched.as_ref() != Some(&key) {
+        *watcher = None;
+        let (paths, ignore, tx) = (
+            key.0.clone(),
+            vec![store.dir.clone(), cfg.state_dir.value.join("logs")],
+            tx.clone(),
+        );
+        *watcher = tokio::task::spawn_blocking(move || watch(&paths, ignore, tx))
+            .await
+            .unwrap_or_default();
+        *watched = Some(key);
+    }
+
+    // ponytail: each pass walks every root; walk only the event's directory if many
+    // arrivals in a big root make this slow.
+    let walk_cfg = cfg.clone();
+    match tokio::task::spawn_blocking(move || store::discover(&walk_cfg, WALK_LIMIT)).await {
+        Ok(Err(e)) => tracing::warn!(error = %e, "discovery failed"),
+        Err(e) => tracing::warn!(error = %e, "discovery panicked"),
+        Ok(Ok(_)) => {}
+    }
+
+    let is_ready = |e: &Entry| {
+        root_paths
+            .get(&e.candidate.root)
+            .is_some_and(|r| ready.contains(&r.join(&e.candidate.path)))
+    };
+    let mut tried = HashSet::new();
+    loop {
+        if store.paused() {
+            tracing::warn!("extraction paused: little free disk space");
+            return Some(DISCOVERY_EVERY);
+        }
+        let Some(next) = store
+            .pending(SETTLE)
+            .into_iter()
+            .chain(store.pending(Duration::ZERO).into_iter().filter(is_ready))
+            .find(|e| !tried.contains(&store::recording_id(&e.candidate)))
+        else {
+            break;
+        };
+        tried.insert(store::recording_id(&next.candidate));
+        extract(overrides, &store, &next).await;
+    }
+
+    // What is left is still being written: look again once the oldest has settled.
+    let now_ns = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as i64)
+        .unwrap_or(0);
+    let settle_ns = SETTLE.as_nanos() as i64;
+    let fresh = store
+        .pending(Duration::ZERO)
+        .iter()
+        .filter(|e| !tried.contains(&store::recording_id(&e.candidate)))
+        .map(|e| (settle_ns - (now_ns - e.candidate.mtime_ns)).clamp(0, settle_ns))
+        .min()
+        .map(|ns| Duration::from_nanos(ns as u64) + Duration::from_millis(50));
+    match (fresh, watcher.is_some()) {
+        (Some(d), _) => Some(d),
+        (None, true) => None,
+        (None, false) => Some(DISCOVERY_EVERY),
     }
 }
 

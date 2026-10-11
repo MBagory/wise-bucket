@@ -5,8 +5,9 @@
 mod common;
 
 use std::path::Path;
+use std::time::{Duration, Instant};
 
-use common::TestEnv;
+use common::{Session, TestEnv};
 use serde_json::{Value, json};
 
 /// A CSV recording at 10 Hz: `time_s;voltage`, voltage = `base` + i / 10.
@@ -20,6 +21,26 @@ fn bench(path: &Path, base: f64, rows: usize) {
 
 fn count(info: &Value, status: &str) -> u64 {
     info["store"]["recordings"][status].as_u64().unwrap_or(0)
+}
+
+/// Polls `sql` (which, unlike `server_info`, never walks the roots) until `path` is done.
+async fn done_within(s: &Session, path: &str, limit: Duration) {
+    let start = Instant::now();
+    loop {
+        let r = s
+            .sql(&format!(
+                "SELECT status FROM recordings WHERE path = '{path}'"
+            ))
+            .await;
+        if r["rows"][0]["status"] == "done" {
+            return;
+        }
+        assert!(
+            start.elapsed() < limit,
+            "{path} not extracted within {limit:?}: {r:#}"
+        );
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -75,6 +96,15 @@ async fn recordings_are_extracted_and_queried() {
         .await;
     assert_eq!(r["rows"][0]["n"], 20);
 
+    // File events start the extraction: at once for a file renamed into place (a
+    // finished download), once it has settled for a file written in place.
+    bench(&bags.join("bench4.csv.partial"), 40.0, 20);
+    std::fs::rename(bags.join("bench4.csv.partial"), bags.join("bench4.csv")).unwrap();
+    // Under the 5 s a file written in place waits.
+    done_within(&s, "bench4.csv", Duration::from_secs(4)).await;
+    bench(&bags.join("bench5.csv"), 50.0, 20);
+    done_within(&s, "bench5.csv", Duration::from_secs(20)).await;
+
     // A changed file is extracted again; a deleted one stays queryable as `missing`.
     bench(&bags.join("bench1.csv"), 100.0, 50);
     std::fs::remove_file(bags.join("bench2.csv")).unwrap();
@@ -124,7 +154,7 @@ async fn recordings_are_extracted_and_queried() {
     // The same query from a terminal.
     let out = env.ok(&["--json", "sql", "SELECT count(*) AS n FROM recordings"]);
     let r = common::objects(serde_json::from_slice(&out.stdout).unwrap());
-    assert_eq!(r["rows"][0]["n"], 4, "{r:#}");
+    assert_eq!(r["rows"][0]["n"], 6, "{r:#}");
 }
 
 #[tokio::test(flavor = "multi_thread")]
