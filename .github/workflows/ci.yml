@@ -80,7 +80,7 @@ jobs:
       - name: Generated reference pages are up to date
         run: cargo run -q -p wisebucket -- docs gen --check
       - name: Spell check
-        uses: crate-ci/typos@v1
+        uses: crate-ci/typos@v1.51.1
       - name: Link check
         uses: lycheeverse/lychee-action@v2
         with:
