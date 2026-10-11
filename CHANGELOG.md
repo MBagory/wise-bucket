@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added: compatible viewers in the guide
+
+- [Guide: viewers](docs/guide.md#viewers): Rerun, Foxglove, Lichtblick and PlotJuggler, what each one opens, their MCP servers, and where to get them.
+
 ### Added: the store, and SQL for your agent (milestone M1)
 
 - **Every recording in your data roots is extracted into a store**: a decoded, columnar copy of its signals, one table per stream, with a common nanosecond time column `t` (plus `t_sensor` from `header.stamp`, and `message_bytes`). Wise Bucket trades disk space for query speed ([ADR 0012](docs/decisions/0012-trade-storage-for-query-speed.md)). Readable formats: ROS 2 bags (MCAP or SQLite `.db3`; Humble bags are decoded with bundled standard message definitions), MCAP files, PX4 ULog, MAVLink telemetry logs (`.tlog`, one stream per message, with `system_id` and `component_id`), CSV, JSON Lines, Parquet and Arrow IPC. Images, point clouds, maps and video keep their timing and sizes only. ROS 1 bags are listed as `unsupported`.

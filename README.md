@@ -245,7 +245,7 @@ $ wisebucket doctor
 
 ## Documentation
 
-- [User guide](docs/guide.md): install, setup, recording folders, connecting your agent, the store and SQL
+- [User guide](docs/guide.md): install, setup, recording folders, connecting your agent, the store and SQL, [viewers](docs/guide.md#viewers)
 - [Troubleshooting and FAQ](docs/troubleshooting.md)
 - Reference: [Tables](docs/reference/tables.md) · [CLI](docs/reference/cli.md) · [Configuration](docs/reference/configuration.md) · [Errors](docs/reference/errors.md)
 - [Decision records](docs/decisions/README.md): why Wise Bucket is built the way it is, and the possible features ahead

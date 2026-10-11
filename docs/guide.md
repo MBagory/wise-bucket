@@ -7,6 +7,7 @@ Everything you need to install Wise Bucket, point it at your recordings, connect
 - [Recording folders](#recording-folders)
 - [Connect your agent](#connect-your-agent)
 - [The store and SQL](#the-store-and-sql)
+- [Viewers](#viewers)
 - [Everyday use](#everyday-use)
 - [Where things live](#where-things-live)
 - [Reset](#reset)
@@ -209,6 +210,19 @@ df = lance.dataset(f"<state directory>/store/<key>/<version>/{imu['dataset']}").
 ```
 
 `pip install pylance` provides `lance`; `.to_table()` gives Arrow, which pandas and Polars read directly. Prefer `wisebucket sql` for anything you can express in SQL: it finds the datasets for you.
+
+## Viewers
+
+To see what your agent found, open the original recording in a viewer at the time it points to. These viewers open the same files Wise Bucket reads:
+
+| Viewer | Opens | License | Agent control (MCP) | Get it |
+| --- | --- | --- | --- | --- |
+| [Rerun](https://rerun.io) | MCAP, including ROS 2 bags recorded as MCAP (experimental) | Open source (MIT, Apache-2.0) | [`rerun viewer-mcp`](https://rerun.io/docs/reference/viewer/mcp) | `pip3 install rerun-sdk` or `cargo binstall rerun-cli` ([all options](https://rerun.io/docs/getting-started/installing-viewer)) |
+| [Foxglove](https://foxglove.dev) | MCAP, ROS 2 `.db3`, PX4 ULog | Proprietary, sign-in on first launch, free plan for small teams | [Desktop app MCP server](https://docs.foxglove.dev/docs/agents/mcp-server) (paid plan) | [Download](https://foxglove.dev/download) |
+| [Lichtblick](https://github.com/lichtblick-suite/lichtblick) | MCAP, PX4 ULog | Open source (MPL-2.0) | None | [Web app](https://lichtblick-suite.github.io/lichtblick/) or [desktop releases](https://github.com/lichtblick-suite/lichtblick/releases) |
+| [PlotJuggler](https://github.com/PlotJuggler/PlotJuggler) | MCAP, ROS 2 bags, PX4 ULog, CSV, Parquet | Open source (MPL-2.0) | None | [Releases](https://github.com/PlotJuggler/PlotJuggler/releases), `sudo snap install plotjuggler`, or `sudo apt install ros-$ROS_DISTRO-plotjuggler-ros` |
+
+With a viewer's MCP server connected to the same agent, the agent can open the file and move to the right time itself. PlotJuggler's real site is its GitHub page: its README warns that `plotjuggler.com` is not theirs.
 
 ## Everyday use
 
