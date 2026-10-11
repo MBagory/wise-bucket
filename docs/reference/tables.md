@@ -60,3 +60,6 @@ Table function: the rows of one stream across all recordings (or those whose `re
 - **Percentiles:** `SELECT approx_percentile_cont(0.99) WITHIN GROUP (ORDER BY "linear_acceleration.z") FROM stream('/imu')`
 - **Join streams on time buckets:** `compute date_bin(...) in each stream, then JOIN ON the bucket and recording`
 - **Names:** `SELECT * FROM streams WHERE stream ILIKE '%imu%' OR columns ILIKE '%current%'`
+- **Plot (about 150 bins, width = (end - start) / 150 from streams):** `SELECT date_bin(INTERVAL '1 second', t) AS t, min("linear_acceleration.z") AS lo, avg("linear_acceleration.z") AS mean, max("linear_acceleration.z") AS hi FROM stream('/imu') WHERE recording = 'bags:run3' GROUP BY 1 ORDER BY 1`
+- **Page by time window:** `SELECT t, "linear_acceleration.z" FROM stream('/imu') WHERE recording = 'bags:run3' AND t >= TIMESTAMP '1970-01-01T00:00:00' AND t < TIMESTAMP '2100-01-01T00:00:00' ORDER BY t`
+- **Page by key, after the last row seen:** `SELECT recording, t, "linear_acceleration.z" FROM stream('/imu') WHERE recording > 'bags:run3' OR (recording = 'bags:run3' AND t > TIMESTAMP '1970-01-01T00:00:00') ORDER BY recording, t`

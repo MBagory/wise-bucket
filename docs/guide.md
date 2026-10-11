@@ -196,7 +196,7 @@ wisebucket sql "SELECT recording, stream, rows FROM streams WHERE stream ILIKE '
 wisebucket sql "SELECT date_bin(INTERVAL '1 second', t) AS w, count(*) FROM stream('/scan', 'bags:run3%') GROUP BY w ORDER BY w"
 ```
 
-Queries are read-only `SELECT`s, run by [Apache DataFusion](https://datafusion.apache.org) (a dialect close to PostgreSQL). Each query is limited to 30 seconds, 1 GB of memory and 200 returned rows (`truncated` says when more exist), and sees only the store. Quote dotted and upper-case column names: `"linear_acceleration.z"`. Add `--json` for machine-readable output.
+Queries are read-only `SELECT`s, run by [Apache DataFusion](https://datafusion.apache.org) (a dialect close to PostgreSQL). Each query is limited to 30 seconds and 1 GB of memory, and sees only the store. A result is capped at about 60 KB of rows, or `--limit N` rows; when rows are cut, a hint says how to get the rest. To go through a long stream, page by time window (`WHERE t > <last t> ORDER BY t`) or aggregate it with `date_bin` (see the [recipes](reference/tables.md#recipes)) ([ADR 0017](decisions/0017-result-size-and-paging.md)). Quote dotted and upper-case column names: `"linear_acceleration.z"`. Add `--json` for machine-readable output.
 
 ### Opening the store yourself
 

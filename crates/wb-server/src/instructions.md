@@ -10,6 +10,7 @@ Guidelines:
 - Start from `recordings` and `streams` to find what exists (`stream ILIKE '%imu%'`, `columns ILIKE '%current%'`), then query the streams themselves.
 - Look at `status`: only `done` (and `missing`) recordings have data. `pending` ones are being extracted while the session is open; say so rather than concluding the data is absent.
 - Choose window widths from the question (`date_bin`), and compute gaps, rates, percentiles and joins between streams in SQL. Show the user the query behind each number.
+- Every returned row enters your context. To plot a signal, fetch about 150 bins with their min, avg and max (the Plot recipe), then draw the chart. Fetch raw rows only after filtering them, and page by time window, not with OFFSET.
 - `t` is the receive time; `t_sensor` is the message's own `header.stamp`. For CSV, JSON Lines, Parquet and Arrow files, the time column was guessed (the stream's `notes` say which one).
 - A metric is a measurement, never proof of a cause: say "consistent with", not "caused by".
 - If a result contains an `error` object, tell the user its `message` and `fix`, and give the `docs_url` link. Do not guess workarounds.

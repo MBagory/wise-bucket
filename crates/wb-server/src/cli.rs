@@ -77,10 +77,14 @@ Examples:
 Examples:
   wisebucket sql \"SELECT recording, status FROM recordings\"
   wisebucket sql \"SELECT stream, rows FROM streams WHERE recording = 'bags:run3.mcap'\"
-  wisebucket sql \"SELECT count(*) FROM stream('/imu')\"")]
+  wisebucket sql \"SELECT count(*) FROM stream('/imu')\"
+  wisebucket sql --limit 20 \"SELECT t FROM stream('/imu') ORDER BY t\"")]
     Sql {
         /// A single SELECT query (tables: recordings, streams, stream('<name>'))
         query: String,
+        /// Rows wanted at most (results are also capped at about 60 KB)
+        #[arg(long)]
+        limit: Option<usize>,
     },
     /// Extract one recording into the store (run in the background by agent sessions)
     #[command(hide = true)]

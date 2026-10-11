@@ -49,12 +49,14 @@ pub struct WbServer {
 pub struct SqlArgs {
     /// One read-only SELECT query.
     pub query: String,
+    /// Rows wanted at most (the result is also capped at about 60 KB).
+    pub limit: Option<usize>,
 }
 
 fn sql_description() -> String {
     format!(
-        "Run one read-only SQL query (DataFusion dialect, close to PostgreSQL) over the store: a decoded, columnar copy of every recording in the data roots. Compute any metric with it; nothing is precomputed. At most {} rows (`truncated` says when more exist), {} s per query; only SELECT is allowed. Quote dotted or upper-case column names (\"linear_acceleration.z\"). Times are nanosecond timestamps.\n\nTables:\n{}\nRecipes:\n{}",
-        wb_data::sql::MAX_ROWS,
+        "Run one read-only SQL query (DataFusion dialect, close to PostgreSQL) over the store: a decoded, columnar copy of every recording in the data roots. Compute any metric with it; nothing is precomputed. Rows are arrays in the order of `columns`. Every row enters your context: aggregate or filter before fetching raw rows. A result is capped at {} KB and at `limit` rows if you set one; `truncated` and `hint` say when more exist and how to get them. Page by time window or by key (recipes), not with OFFSET: the store changes while you page. {} s per query; only SELECT is allowed. Quote dotted or upper-case column names (\"linear_acceleration.z\"). Times are nanosecond timestamps.\n\nTables:\n{}\nRecipes:\n{}",
+        wb_data::sql::MAX_BYTES / 1000,
         wb_data::sql::TIMEOUT.as_secs(),
         wb_data::tables::summary(),
         wb_data::tables::RECIPES
@@ -225,7 +227,7 @@ impl WbServer {
         Parameters(args): Parameters<SqlArgs>,
     ) -> std::result::Result<CallToolResult, McpError> {
         let result = match self.current_config() {
-            Ok(cfg) => wb_data::sql::query(&Store::for_config(&cfg), &args.query).await,
+            Ok(cfg) => wb_data::sql::query(&Store::for_config(&cfg), &args.query, args.limit).await,
             Err(e) => Err(e),
         };
         Ok(match result {

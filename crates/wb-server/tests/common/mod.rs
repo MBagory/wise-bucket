@@ -183,12 +183,12 @@ impl Session {
             .unwrap_or_else(|e| panic!("{name} call: {e}"))
     }
 
-    /// Runs a query with the `sql` tool and returns its structured result.
+    /// Runs a query with the `sql` tool and returns its structured result, rows as objects.
     pub async fn sql(&self, query: &str) -> Value {
         let res = self
             .call("sql", serde_json::json!({ "query": query }))
             .await;
-        res.structured_content.expect("structured content")
+        objects(res.structured_content.expect("structured content"))
     }
 
     /// Polls `server_info` until `ready` holds (each call also looks for new recordings).
@@ -232,4 +232,22 @@ impl Session {
 pub fn write(path: &Path, content: &str) {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     std::fs::write(path, content).unwrap();
+}
+
+/// A `sql` result with its rows as objects keyed by column, for readable assertions.
+pub fn objects(mut r: Value) -> Value {
+    let columns = r["columns"].as_array().cloned().unwrap_or_default();
+    if let Some(rows) = r["rows"].as_array_mut() {
+        for row in rows {
+            let cells = row.as_array().cloned().unwrap_or_default();
+            *row = Value::Object(
+                columns
+                    .iter()
+                    .map(|c| c.as_str().unwrap().to_string())
+                    .zip(cells)
+                    .collect(),
+            );
+        }
+    }
+    r
 }

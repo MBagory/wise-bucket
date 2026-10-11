@@ -277,11 +277,15 @@ async fn ingest_all(f: &Fixture) -> BTreeMap<String, Outcome> {
     out
 }
 
+/// The rows as objects keyed by column.
 async fn q(f: &Fixture, sql_text: &str) -> Vec<Value> {
-    sql::query(&f.store, sql_text)
+    let r = sql::query(&f.store, sql_text, None)
         .await
-        .unwrap_or_else(|e| panic!("{sql_text}\n→ {e}"))
-        .rows
+        .unwrap_or_else(|e| panic!("{sql_text}\n→ {e}"));
+    r.rows
+        .into_iter()
+        .map(|row| Value::Object(r.columns.iter().cloned().zip(row).collect()))
+        .collect()
 }
 
 async fn one(f: &Fixture, sql_text: &str) -> Value {
@@ -490,22 +494,48 @@ async fn sql_is_locked_down_and_capped() {
         "SELECT 1; SELECT 2".into(),
         "SELECT * FROM stream('/nope')".into(),
     ] {
-        let e = sql::query(&f.store, &bad).await.expect_err(&bad);
+        let e = sql::query(&f.store, &bad, None).await.expect_err(&bad);
         assert_eq!(e.kind(), ErrorKind::QueryFailed, "{bad}: {e}");
     }
     assert!(!f.bags.join("copy.csv").exists());
-    let r = sql::query(&f.store, "SELECT * FROM generate_series(1, 500)")
+    // Results are capped by size, and by `limit` when the agent sets one.
+    let big = "SELECT value, repeat('x', 100) AS s FROM generate_series(1, 100000)";
+    let r = sql::query(&f.store, big, None).await.unwrap();
+    assert!(r.truncated && r.row_count > 100, "{}", r.row_count);
+    assert!(serde_json::to_vec(&r.rows).unwrap().len() <= sql::MAX_BYTES);
+    assert!(r.hint.unwrap().contains("KB"));
+    let r = sql::query(&f.store, big, Some(3)).await.unwrap();
+    assert_eq!((r.row_count, r.truncated), (3, true));
+    assert!(r.hint.unwrap().contains("limit 3"));
+    let r = sql::query(&f.store, "SELECT 1 AS a", Some(1))
         .await
         .unwrap();
-    assert_eq!((r.row_count, r.truncated), (sql::MAX_ROWS, true));
+    assert_eq!(
+        (r.rows, r.truncated, r.hint),
+        (vec![vec![json!(1)]], false, None)
+    );
+    // The hint gives the next page's condition when the result has `t`.
     let r = sql::query(
         &f.store,
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1",
+        "SELECT t FROM stream('/sample') ORDER BY t",
+        Some(2),
     )
     .await
     .unwrap();
+    assert!(
+        r.hint.as_deref().unwrap().contains(&format!(
+            "t > TIMESTAMP '{}'",
+            r.rows[1][0].as_str().unwrap()
+        )),
+        "{:?}",
+        r.hint
+    );
     assert_eq!(
-        r.rows,
+        q(
+            &f,
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY 1",
+        )
+        .await,
         vec![
             json!({"table_name": "recordings"}),
             json!({"table_name": "streams"})
@@ -580,7 +610,7 @@ async fn documented_recipes_run() {
             .replace("\"linear_acceleration.z\"", "\"header.stamp.sec\"")
             .replace("'bags:run3'", "'bags:run1.mcap'")
             .replace("'%imu%'", "'%sample%'");
-        let r = sql::query(&f.store, &sql_text)
+        let r = sql::query(&f.store, &sql_text, None)
             .await
             .unwrap_or_else(|e| panic!("recipe failed: {sql_text}\n→ {e}"));
         assert!(r.row_count > 0, "{sql_text}");

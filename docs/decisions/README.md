@@ -22,3 +22,4 @@ ADRs are **never rewritten**. When a decision changes, a new ADR supersedes the 
 | [0014](0014-possible-features-instead-of-milestones.md) | Possible features instead of a milestone roadmap | 2026-10-10 | Accepted |
 | [0015](0015-first-release-after-m1.md) | First release after M1 is tested | 2026-10-10 | Accepted (supersedes [0007](0007-no-release-before-the-mvp.md)) |
 | [0016](0016-formats-need-an-external-rust-decoder.md) | A format ships only when an external Rust crate decodes it | 2026-10-11 | Accepted |
+| [0017](0017-result-size-and-paging.md) | Results capped by size; paging and downsampling are the agent's SQL | 2026-10-11 | Accepted |

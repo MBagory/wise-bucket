@@ -30,8 +30,9 @@ use wb_core::error::{ErrorKind, Result, WbError, err};
 use crate::columns::{FlatColumn, flat_columns, time_type};
 use crate::store::{Row, Store};
 
-/// Rows returned at most; more are flagged with `truncated`.
-pub const MAX_ROWS: usize = 200;
+/// Bytes of rows returned at most (about 20k tokens): every row enters the agent's
+/// context, and clients cut tool results beyond about 25k tokens.
+pub const MAX_BYTES: usize = 60_000;
 /// Longest text cell returned, in characters.
 const MAX_CELL: usize = 1000;
 /// Longest a query may run.
@@ -43,72 +44,104 @@ const MEMORY: usize = 1 << 30;
 #[derive(Debug, Clone, Serialize)]
 pub struct QueryResult {
     pub columns: Vec<String>,
-    pub rows: Vec<serde_json::Value>,
+    /// One array per row, in the order of `columns`.
+    pub rows: Vec<Vec<serde_json::Value>>,
     pub row_count: usize,
     pub truncated: bool,
+    /// When truncated: why, and how to get the rest.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
 }
 
 fn query_err(e: impl std::fmt::Display) -> WbError {
     err(ErrorKind::QueryFailed, e.to_string())
 }
 
-/// Runs one read-only query over the store.
-pub async fn query(store: &Store, sql: &str) -> Result<QueryResult> {
+enum Cut {
+    Limit(usize),
+    Size,
+}
+
+/// Runs one read-only query over the store, returning at most `limit` rows and
+/// [`MAX_BYTES`] of them.
+pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<QueryResult> {
     let ctx = context(store).map_err(query_err)?;
     let options = SQLOptions::new()
         .with_allow_ddl(false)
         .with_allow_dml(false)
         .with_allow_statements(false);
     let run = async {
-        let df = ctx.sql_with_options(sql, options).await?;
+        let mut df = ctx
+            .sql_with_options(sql, options)
+            .await
+            .map_err(query_err)?;
+        if let Some(n) = limit {
+            // One more row tells whether more exist.
+            df = df.limit(0, Some(n + 1)).map_err(query_err)?;
+        }
         let columns: Vec<String> = df
             .schema()
             .fields()
             .iter()
             .map(|f| f.name().clone())
             .collect();
-        let mut stream = df.execute_stream().await?;
-        let mut batches = Vec::new();
-        let mut rows = 0;
+        let mut stream = df.execute_stream().await.map_err(query_err)?;
+        let mut rows = Vec::new();
+        let mut bytes = 0;
         while let Some(batch) = stream.next().await {
-            let batch = batch?;
-            rows += batch.num_rows();
-            batches.push(batch);
-            if rows > MAX_ROWS {
-                break;
+            for mut obj in to_json(&[batch.map_err(query_err)?])? {
+                if let Some(n) = limit.filter(|&n| rows.len() == n) {
+                    return Ok((columns, rows, Some(Cut::Limit(n))));
+                }
+                shorten(&mut obj);
+                let row: Vec<serde_json::Value> = columns
+                    .iter()
+                    .map(|c| obj.get_mut(c.as_str()).map(serde_json::Value::take))
+                    .map(Option::unwrap_or_default)
+                    .collect();
+                bytes += serde_json::to_vec(&row).map_err(query_err)?.len() + 1;
+                if bytes > MAX_BYTES {
+                    return Ok((columns, rows, Some(Cut::Size)));
+                }
+                rows.push(row);
             }
         }
-        Ok::<_, DataFusionError>((columns, batches, rows))
+        Ok::<_, WbError>((columns, rows, None))
     };
-    let (columns, batches, rows) = tokio::time::timeout(TIMEOUT, run)
-        .await
-        .map_err(|_| {
-            query_err(format!(
-                "the query ran for more than {} s and was stopped",
-                TIMEOUT.as_secs()
-            ))
-        })?
-        .map_err(query_err)?;
-    let truncated = rows > MAX_ROWS;
-    let mut kept = Vec::new();
-    let mut left = MAX_ROWS;
-    for b in batches {
-        if left == 0 {
-            break;
+    let (columns, rows, cut) = tokio::time::timeout(TIMEOUT, run).await.map_err(|_| {
+        query_err(format!(
+            "the query ran for more than {} s and was stopped",
+            TIMEOUT.as_secs()
+        ))
+    })??;
+    let hint = cut.map(|cut| {
+        // The next rows start after the last `t` returned, when the result has one.
+        let next = columns
+            .iter()
+            .position(|c| c == "t")
+            .and_then(|i| rows.last()?[i].as_str().map(str::to_string))
+            .map_or("a time window on t (ORDER BY t)".to_string(), |last| {
+                format!("WHERE t > TIMESTAMP '{last}' ORDER BY t")
+            });
+        match cut {
+            Cut::Limit(n) => format!(
+                "More rows exist beyond limit {n}: raise limit, or fetch the next rows with {next}."
+            ),
+            Cut::Size => format!(
+                "Cut at {} rows to stay under {} KB: every row enters your context. Aggregate \
+                 instead (date_bin with min, avg and max per bin: the Plot recipe), filter with \
+                 WHERE, select fewer columns, or fetch the next rows with {next}.",
+                rows.len(),
+                MAX_BYTES / 1000
+            ),
         }
-        let n = b.num_rows().min(left);
-        kept.push(b.slice(0, n));
-        left -= n;
-    }
-    let mut rows_json = to_json(&kept)?;
-    for row in &mut rows_json {
-        shorten(row);
-    }
+    });
     Ok(QueryResult {
         columns,
-        row_count: rows_json.len(),
-        rows: rows_json,
-        truncated,
+        row_count: rows.len(),
+        rows,
+        truncated: hint.is_some(),
+        hint,
     })
 }
 

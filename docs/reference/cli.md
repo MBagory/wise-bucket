@@ -186,16 +186,21 @@ Print the configuration file locations
 
 Run a read-only SQL query over the store (what your agent's `sql` tool runs)
 
-**Usage:** `wisebucket sql <QUERY>`
+**Usage:** `wisebucket sql [OPTIONS] <QUERY>`
 
 Examples:
   wisebucket sql "SELECT recording, status FROM recordings"
   wisebucket sql "SELECT stream, rows FROM streams WHERE recording = 'bags:run3.mcap'"
   wisebucket sql "SELECT count(*) FROM stream('/imu')"
+  wisebucket sql --limit 20 "SELECT t FROM stream('/imu') ORDER BY t"
 
 ###### **Arguments:**
 
 * `<QUERY>` — A single SELECT query (tables: recordings, streams, stream('<name>'))
+
+###### **Options:**
+
+* `--limit <LIMIT>` — Rows wanted at most (results are also capped at about 60 KB)
 
 
 

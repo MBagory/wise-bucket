@@ -106,16 +106,24 @@ async fn recordings_are_extracted_and_queried() {
         assert_eq!(e["code"], "query_failed", "{bad}");
         assert!(e["docs_url"].as_str().unwrap().ends_with("#query_failed"));
     }
-    let r = s.sql("SELECT * FROM generate_series(1, 500)").await;
+    let res = s
+        .call(
+            "sql",
+            json!({ "query": "SELECT * FROM generate_series(1, 500)", "limit": 2 }),
+        )
+        .await;
+    let r = res.structured_content.unwrap();
     assert_eq!(
-        (r["row_count"].as_u64(), &r["truncated"]),
-        (Some(200), &json!(true))
+        (&r["rows"], &r["truncated"]),
+        (&json!([[1], [2]]), &json!(true)),
+        "{r:#}"
     );
+    assert!(r["hint"].as_str().unwrap().contains("limit 2"), "{r:#}");
     s.close().await;
 
     // The same query from a terminal.
     let out = env.ok(&["--json", "sql", "SELECT count(*) AS n FROM recordings"]);
-    let r: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let r = common::objects(serde_json::from_slice(&out.stdout).unwrap());
     assert_eq!(r["rows"][0]["n"], 4, "{r:#}");
 }
 

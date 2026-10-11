@@ -26,9 +26,9 @@ fn cell(v: &Value) -> String {
     }
 }
 
-pub async fn run(global: &GlobalArgs, query: &str) -> Result<()> {
+pub async fn run(global: &GlobalArgs, query: &str, limit: Option<usize>) -> Result<()> {
     let cfg = config::load(&global.overrides())?;
-    let result = wb_data::sql::query(&Store::for_config(&cfg), query).await?;
+    let result = wb_data::sql::query(&Store::for_config(&cfg), query, limit).await?;
     if global.json {
         ui::json(&json!(result));
         return Ok(());
@@ -36,7 +36,7 @@ pub async fn run(global: &GlobalArgs, query: &str) -> Result<()> {
     let cells: Vec<Vec<String>> = result
         .rows
         .iter()
-        .map(|r| result.columns.iter().map(|c| cell(&r[c])).collect())
+        .map(|r| r.iter().map(cell).collect())
         .collect();
     let widths: Vec<usize> = result
         .columns
@@ -68,15 +68,10 @@ pub async fn run(global: &GlobalArgs, query: &str) -> Result<()> {
     for r in &cells {
         println!("{}", line(r.iter().map(String::as_str).collect()));
     }
-    ui::info(format!(
-        "{} row(s){}",
-        result.row_count,
-        if result.truncated {
-            format!(" (more rows were cut: at most {})", wb_data::sql::MAX_ROWS)
-        } else {
-            String::new()
-        }
-    ));
+    ui::info(format!("{} row(s)", result.row_count));
+    if let Some(hint) = &result.hint {
+        ui::info(hint);
+    }
     Ok(())
 }
 

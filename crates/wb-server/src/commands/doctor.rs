@@ -192,7 +192,7 @@ async fn store_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
             Some(ErrorKind::Io),
         ));
     }
-    match wb_data::sql::query(&store, "SELECT count(*) AS n FROM recordings").await {
+    match wb_data::sql::query(&store, "SELECT count(*) AS n FROM recordings", None).await {
         Ok(_) => checks.push(Check::ok("sql", "queries run")),
         Err(e) => checks.push(Check::fail("sql", &e)),
     }
