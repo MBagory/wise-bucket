@@ -58,10 +58,6 @@ The message comes from the query engine and names the problem: an unknown table 
 - `download_failed`: check network access to `github.com` (proxy, firewall), then re-run `demo`. Completed downloads are kept.
 - `checksum_mismatch`: the downloaded file is corrupted or was tampered with. Re-run `demo`: files with a wrong checksum are downloaded again. If it happens again, please report it (see [SECURITY.md](../SECURITY.md)).
 
-### `config_invalid` after updating
-
-The configuration format changed: a data root's `robot = "…"` is now `hardware = "…"`. Edit the line in your user configuration (`wisebucket config path` shows where).
-
 ### WSL2
 
 - Run the agent **inside WSL** so it can start the Linux binary.
@@ -92,6 +88,14 @@ No. The store is a folder of [Lance](https://github.com/lance-format/lance) file
 ### Does Wise Bucket compute metrics for me?
 
 Not in advance. Your agent writes a SQL query for each question (rates, gaps, windows, percentiles, joins between streams) and shows you the query behind each number. You can run the same queries with `wisebucket sql`. ([ADR 0010](decisions/0010-metrics-are-sql-written-by-the-agent.md))
+
+### Why is a result cut, with `truncated` and a hint?
+
+Every row your agent receives enters its context, so a result holds about 60 KB of rows. The hint says how to get the rest: aggregate with `date_bin`, filter, or fetch the next page by time. To plot a long signal, the agent fetches about 150 bins with their min, average and max. ([ADR 0017](decisions/0017-result-size-and-paging.md))
+
+### Why can't Wise Bucket read my format (CAN with DBC, MDF4, ROS 1…)?
+
+A format is added only when an external Rust crate decodes it. Formats waiting for a crate, or for their turn, are on the list of [possible features](decisions/0014-possible-features-instead-of-milestones.md). ([ADR 0016](decisions/0016-formats-need-an-external-rust-decoder.md))
 
 ### Can my agent read files outside my recording folders through Wise Bucket?
 

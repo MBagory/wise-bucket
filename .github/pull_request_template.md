@@ -1,6 +1,6 @@
 ## What and why
 
-<!-- What does this change, and which issue or milestone does it serve? -->
+<!-- What does this change, and which issue or possible feature does it serve? Design changes come with an ADR in docs/decisions/. -->
 
 ## Checklist
 

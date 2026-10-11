@@ -4,6 +4,8 @@ Why Wise Bucket is built the way it is. Each **architecture decision record** (A
 
 ADRs are **never rewritten**. When a decision changes, a new ADR supersedes the old one, which stays here, marked with what replaced it. To propose one, copy the [template](template.md) and take the next number.
 
+The principles these decisions add up to are summarized in the [README](../../README.md#overview).
+
 | # | Decision | Date | Status |
 | --- | --- | --- | --- |
 | [0001](0001-local-stdio-mcp-server.md) | A local stdio MCP server; the agent owns the model | 2026-09-28 | Accepted |

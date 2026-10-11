@@ -6,7 +6,7 @@ body:
     id: problem
     attributes:
       label: What investigation or workflow is hard today?
-      description: Describe the robot, the data and the question you were trying to answer.
+      description: Describe the hardware, the data and the question you were trying to answer.
     validations:
       required: true
   - type: textarea

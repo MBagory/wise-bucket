@@ -22,5 +22,5 @@
     <text x="360" y="160" font-size="88" font-weight="800" fill="#f8fafc" letter-spacing="-1.5">Wise <tspan fill="#2dd4bf">Bucket</tspan></text>
     <text x="364" y="212" font-size="28" fill="#94a3b8">Long-term context &amp; insights for your time-series data</text>
   </g>
-  <text x="364" y="258" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#5eead4" opacity="0.85">MCP server · CSV · Parquet · MDF4 · TDMS · HDF5 · CAN · MCAP · ULog</text>
+  <text x="364" y="258" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#5eead4" opacity="0.85">MCP server · ROS 2 · MCAP · ULog · MAVLink · CSV · Parquet · Arrow</text>
 </svg>

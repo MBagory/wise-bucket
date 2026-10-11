@@ -108,7 +108,7 @@ wisebucket roots remove flights                                        # the fol
 - **Your decision only:** Wise Bucket gives your agent no tool to add a folder. You add folders from the command line or a configuration file.
 - **Live:** folder changes reach a running agent session on its next call, no restart needed.
 
-**No recordings yet?** `wisebucket demo` downloads public sample files (ROS 2 bags, MCAP, ULog, Parquet, and formats not readable yet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data).
+**No recordings yet?** `wisebucket demo` downloads public sample files (ROS 2 bags, MCAP, ULog, MAVLink, Parquet, and formats not readable yet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data).
 
 ## Connect your agent
 
@@ -171,9 +171,9 @@ Each recording has a **status**:
 
 ### What gets extracted
 
-Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MCAP file, the messages of a ULog file, or a single `table` for CSV, JSON Lines, Parquet and Arrow files. Each stream is a table with:
+Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MCAP file, the messages of a ULog file or a MAVLink telemetry log, or a single `table` for CSV, JSON Lines, Parquet and Arrow files. Each stream is a table with:
 
-- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970), or the time column of a table.
+- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970), the record time for a MAVLink telemetry log, or the time column of a table.
 - **`t_sensor`**, the message's own `header.stamp`, when a ROS 2 message has one.
 - **`message_bytes`**, the size of each message (bags and MCAP).
 - **The message fields**, nested names joined with dots (`linear_acceleration.z`). Arrays stay arrays.
@@ -184,7 +184,7 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 
 ### Querying
 
-Your agent writes the SQL; you can run the same queries with `wisebucket sql`. There are three things to query (full list of columns: [tables reference](reference/tables.md)):
+**Nothing is computed in advance**: there are no precomputed statistics or fixed windows. Your agent writes the SQL each question needs, at the question's time scale, and shows you the query behind each number; you can run the same queries with `wisebucket sql` ([ADR 0010](decisions/0010-metrics-are-sql-written-by-the-agent.md)). There are three things to query (full list of columns: [tables reference](reference/tables.md)):
 
 - `recordings`: every recording, with its status, hardware and time range
 - `streams`: every stream of every recording, with its row count, columns and notes

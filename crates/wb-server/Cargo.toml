@@ -1,6 +1,6 @@
 [package]
 name = "wisebucket"
-description = "Wise Bucket: MCP server and CLI for evidence-backed, iterative robot investigations"
+description = "Wise Bucket: MCP server and CLI for evidence-backed, iterative hardware investigations"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
