@@ -21,18 +21,6 @@ Wise Bucket connects your **AI agent** to **your time-series data** (telemetry, 
 > [!WARNING]
 > **Early alpha, no release yet.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
 
-```mermaid
-flowchart TB
-    subgraph wb["Wise Bucket"]
-        store[("Lance database")] --> engine["DataFusion<br/>SQL engine"] --> mcp["MCP server"]
-    end
-    rec[/"Your recordings<br/>ROS 2, MCAP, ULog, CSV…"/] -->|"decoded once"| store
-    mcp -->|"SQL, in milliseconds"| agent["Your AI agent<br/>Claude Code, Codex, Cursor…"]
-    agent <-->|"questions, answers"| you(["You"])
-    agent -->|"displays the data"| viewer["Viewer<br/>Rerun, Foxglove"]
-    you -.->|"CLI configuration"| wb
-```
-
 ### ⚡ Built for speed
 
 Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Lance](https://github.com/lance-format/lance). Each recording is decoded once into Lance datasets, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
@@ -48,6 +36,18 @@ Your agent plots any signal instantly, and works with [viewer MCP servers](docs/
 ### 🔭 Tomorrow
 
 Store investigation context, and search all your recordings for similar behaviour and anomalies.
+
+```mermaid
+flowchart TB
+    subgraph wb["Wise Bucket"]
+        store[("Lance database")] --> engine["DataFusion<br/>SQL engine"] --> mcp["MCP server"]
+    end
+    rec[/"Your recordings<br/>ROS 2, MCAP, ULog, CSV…"/] -->|"decoded once"| store
+    mcp -->|"SQL, in milliseconds"| agent["Your AI agent<br/>Claude Code, Codex, Cursor…"]
+    agent <-->|"questions, answers"| you(["You"])
+    agent -->|"displays the data"| viewer["Viewer<br/>Rerun, Foxglove"]
+    you -.->|"CLI configuration"| wb
+```
 
 ## Getting started
 
