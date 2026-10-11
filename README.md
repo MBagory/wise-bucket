@@ -181,13 +181,12 @@ The files go to `<state dir>/demo/<format>/`. They are fetched from their upstre
 | --- | --- | --- | --- |
 | *all* | everything you downloaded | *"Which recordings does Wise Bucket have in the demo root, and which could it read?"* | ✅ |
 | `ros2-mcap` · `ros2-db3` | ROS 2 talker demo, 4.5 s: `/topic` (`std_msgs/String`) and `/rosout`, 10 messages each, as MCAP and as SQLite | *"Is `/topic` published at a steady rate?"* · *"Do the MCAP and SQLite copies hold the same messages?"* | ✅ |
-| `mcap` | ROS 1-encoded demo (`/chatter`, `/diagnostics`) and an MCAP spec conformance file | *"Which topics are in `demo.mcap`, and at what rates?"* · *"Does the conformance file hold exactly ten messages?"* | ✅ timing and sizes (ROS 1 payloads are not decoded yet) |
+| `mcap` | MCAP spec conformance file (made-up encodings) | *"Does the conformance file hold exactly ten messages?"* | ✅ timing and sizes |
 | `ulog` | PX4 autopilot on the bench, disarmed, 69 s, no barometer detected | *"What is the IMU noise floor at rest?"* · *"When does CPU load peak, and what runs then?"* · *"Why is the barometric altitude flat?"* | ✅ |
 | `parquet` | 8-row table covering the Parquet primitive types | *"Which column types does it hold?"* | ✅ |
-| `ros1-bag` | demo bag plus one bag (`/chatter`, `/numbers`) stored uncompressed, LZ4 and BZ2 | *"Do the three compressions decode to the same `/numbers` sequence?"* | listed, not readable yet |
 | `dataflash` | ArduPlane 3.8 software-in-the-loop log | *"How large is the roll tracking error?"* · *"Does battery voltage sag with current?"* | not yet |
-| `tlog` | one MAVLink 2 `BATTERY_STATUS` followed by a truncated packet | *"What battery state was reported?"* | not yet |
-| `can` | Vector ASC capture (20 frames, 9 IDs, 4 error frames), a BLF file, and an unrelated DBC | *"Which IDs are on the bus, and when do the error frames occur?"* | not yet |
+| `tlog` | one MAVLink 2 `BATTERY_STATUS` followed by a truncated packet | *"What battery state was reported?"* | ✅ |
+| `can` | Vector ASC capture (20 frames, 9 IDs, 4 error frames) and a BLF file | *"Which IDs are on the bus, and when do the error frames occur?"* | not yet |
 | `mdf4` | MDF 4.10 file whose four channels have meaningless names | *"What do these channels measure?"* | not yet |
 
 ## Everyday use

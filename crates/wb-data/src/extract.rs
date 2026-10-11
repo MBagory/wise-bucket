@@ -11,7 +11,7 @@ use crate::ros2::{self, Decoder};
 use crate::sink::{StreamMeta, StreamSink};
 
 /// Messages per batch (and per decoder run).
-const BATCH: usize = 8192;
+pub(crate) const BATCH: usize = 8192;
 
 /// The streams extracted from one recording.
 #[derive(Debug, Default)]
@@ -69,6 +69,7 @@ pub async fn extract(path: &Path, kind: RecordingKind, out: &Path) -> Result<Ext
         | RecordingKind::JsonLines
         | RecordingKind::Parquet
         | RecordingKind::ArrowIpc => crate::tabular::read(path, kind, out).await,
+        RecordingKind::Tlog => crate::tlog::read(path, out).await,
         RecordingKind::Ros1Bag => Err(err(
             ErrorKind::RecordingUnreadable,
             "ROS 1 bags are not readable yet",

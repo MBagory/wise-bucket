@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added: the store, and SQL for your agent (milestone M1)
 
-- **Every recording in your data roots is extracted into a store**: a decoded, columnar copy of its signals, one table per stream, with a common nanosecond time column `t` (plus `t_sensor` from `header.stamp`, and `message_bytes`). Wise Bucket trades disk space for query speed ([ADR 0012](docs/decisions/0012-trade-storage-for-query-speed.md)). Readable formats: ROS 2 bags (MCAP or SQLite `.db3`; Humble bags are decoded with bundled standard message definitions), MCAP files, PX4 ULog, CSV, JSON Lines, Parquet and Arrow IPC. Images, point clouds, maps and video keep their timing and sizes only. ROS 1 bags are listed as `unsupported`.
+- **Every recording in your data roots is extracted into a store**: a decoded, columnar copy of its signals, one table per stream, with a common nanosecond time column `t` (plus `t_sensor` from `header.stamp`, and `message_bytes`). Wise Bucket trades disk space for query speed ([ADR 0012](docs/decisions/0012-trade-storage-for-query-speed.md)). Readable formats: ROS 2 bags (MCAP or SQLite `.db3`; Humble bags are decoded with bundled standard message definitions), MCAP files, PX4 ULog, MAVLink telemetry logs (`.tlog`, one stream per message, with `system_id` and `component_id`), CSV, JSON Lines, Parquet and Arrow IPC. Images, point clouds, maps and video keep their timing and sizes only. ROS 1 bags are listed as `unsupported`.
 - **Automatic, in the background:** while an agent session is open, new and changed recordings are found every minute and extracted, newest first, one at a time, in a low-priority child process. Several agent windows never extract the same file twice. A deleted recording stays queryable as `missing`. Extraction pauses below 10 GB of free disk space.
 - **The `sql` tool** (and `wisebucket sql "<query>"`): read-only SQL over the tables `recordings` and `streams` and the function `stream('<name>' [, '<recording LIKE pattern>'])`, run by Apache DataFusion over Lance datasets. Nothing is computed in advance: rates, gaps, windows, percentiles and joins are written when a question needs them ([ADR 0010](docs/decisions/0010-metrics-are-sql-written-by-the-agent.md)). Queries are capped at 30 s, 1 GB and 200 rows; DDL, writes and file access are refused.
 - `server_info` reports the store (recordings per status, size, paused) and each root's hardware; `doctor` checks the store and SQL.
@@ -23,7 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **Data roots name their hardware, not their robot:** `roots add --hardware` replaces `--robot`, and the configuration key `robot = "…"` becomes `hardware = "…"`. Edit existing lines: the old key fails with `config_invalid`.
 - A root's `include`/`exclude` globs are now applied (matched against file paths; a rosbag2 folder through its `metadata.yaml`).
-- `roots check` and `server_info` count recordings by kind: `rosbag2` replaces `rosbag2_dirs`, and `db3`, `csv`, `json_lines`, `parquet` and `arrow_ipc` are new.
+- `roots check` and `server_info` count recordings by kind: `rosbag2` replaces `rosbag2_dirs`, and `db3`, `csv`, `json_lines`, `parquet`, `arrow_ipc` and `tlog` are new.
 - Building from source needs Rust 1.96 or newer, a C compiler and `protoc`.
 
 ### Removed: pgvector until M4, and the 0.1.0-rc.1 pre-release
@@ -60,7 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added: sample data
 
-- `demo [FORMAT…] | --all | --list`: downloads public sample recordings (ROS 2 MCAP and SQLite bags, MCAP, ROS 1 bags, PX4 ULog, ArduPilot DataFlash, MAVLink tlog, CAN ASC/BLF + DBC, MDF4, Parquet) from their upstream projects at pinned commits, verifies their SHA-256, and declares them as the `demo` data root. Nothing is redistributed by this repository.
+- `demo [FORMAT…] | --all | --list`: downloads public sample recordings (ROS 2 MCAP and SQLite bags, MCAP, PX4 ULog, ArduPilot DataFlash, MAVLink tlog, CAN ASC/BLF, MDF4, Parquet; only formats an existing Rust crate can decode) from their upstream projects at pinned commits, verifies their SHA-256, and declares them as the `demo` data root. Nothing is redistributed by this repository.
 - Per-format sample tests (`cargo test -p wisebucket --test samples -- --ignored`), run by a dedicated CI job per format.
 
 ### Added: milestone M0 (foundation)

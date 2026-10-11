@@ -121,77 +121,18 @@ pub const FORMATS: &[Format] = &[
     },
     Format {
         key: "mcap",
-        description: "Loose MCAP files (ROS 1-encoded demo, spec conformance file)",
+        description: "MCAP spec conformance file (ten messages, made-up encodings)",
         license: "MIT",
-        files: &[
-            SampleFile {
-                path: "demo.mcap",
-                url: lfs!(
-                    "foxglove/mcap",
-                    "60e73f4b4ec065c26324d71b57dfb53085008528",
-                    "testdata/mcap/demo.mcap"
-                ),
-                size: 990,
-                sha256: "b90a0af442bfc6aaf31d7ae0a361f04d2a4eecca7168f9917391b74697af5c8c",
-            },
-            SampleFile {
-                path: "TenMessages-ch-chx-mx-pad-rch-rsh-st-sum.mcap",
-                url: lfs!(
-                    "foxglove/mcap",
-                    "60e73f4b4ec065c26324d71b57dfb53085008528",
-                    "tests/conformance/data/TenMessages/TenMessages-ch-chx-mx-pad-rch-rsh-st-sum.mcap"
-                ),
-                size: 1083,
-                sha256: "358413d53e6fb2753efb3eac682bc9d776bb2afb1de5e395817efd8f16303fbc",
-            },
-        ],
-    },
-    Format {
-        key: "ros1-bag",
-        description: "ROS 1 bags (demo, and one bag in three compressions)",
-        license: "MIT",
-        files: &[
-            SampleFile {
-                path: "demo.bag",
-                url: lfs!(
-                    "foxglove/mcap",
-                    "60e73f4b4ec065c26324d71b57dfb53085008528",
-                    "testdata/bags/demo.bag"
-                ),
-                size: 5295,
-                sha256: "7792eacb1f0e8f7b7123ce127a1115c818f1826244cd7239f538da6133f65568",
-            },
-            SampleFile {
-                path: "noetic-multitopic-none.bag",
-                url: lfs!(
-                    "foxglove/mcap",
-                    "60e73f4b4ec065c26324d71b57dfb53085008528",
-                    "testdata/bags/generated/noetic-multitopic-none.bag"
-                ),
-                size: 5482,
-                sha256: "a5a7acb5f8af7c5d1bbfe2a4dbc2b3e411abc83284019c0c63c570a49f8d9f1e",
-            },
-            SampleFile {
-                path: "noetic-multitopic-lz4.bag",
-                url: lfs!(
-                    "foxglove/mcap",
-                    "60e73f4b4ec065c26324d71b57dfb53085008528",
-                    "testdata/bags/generated/noetic-multitopic-lz4.bag"
-                ),
-                size: 5381,
-                sha256: "2399908bc2ad38b59e3f400511d397acac4078b440dd73a0e62fd1c002a0b5ef",
-            },
-            SampleFile {
-                path: "noetic-multitopic-bz2.bag",
-                url: lfs!(
-                    "foxglove/mcap",
-                    "60e73f4b4ec065c26324d71b57dfb53085008528",
-                    "testdata/bags/generated/noetic-multitopic-bz2.bag"
-                ),
-                size: 5349,
-                sha256: "fe84b3c9d29b1755795d4df9474975064e25cfe66a0717b55fbf88583b3c67a8",
-            },
-        ],
+        files: &[SampleFile {
+            path: "TenMessages-ch-chx-mx-pad-rch-rsh-st-sum.mcap",
+            url: lfs!(
+                "foxglove/mcap",
+                "60e73f4b4ec065c26324d71b57dfb53085008528",
+                "tests/conformance/data/TenMessages/TenMessages-ch-chx-mx-pad-rch-rsh-st-sum.mcap"
+            ),
+            size: 1083,
+            sha256: "358413d53e6fb2753efb3eac682bc9d776bb2afb1de5e395817efd8f16303fbc",
+        }],
     },
     Format {
         key: "ulog",
@@ -240,8 +181,8 @@ pub const FORMATS: &[Format] = &[
     },
     Format {
         key: "can",
-        description: "CAN logs (Vector ASC with error frames, BLF) and a DBC database",
-        license: "LGPL-3.0 (ASC, BLF), MIT (DBC)",
+        description: "CAN logs (Vector ASC with error frames, BLF)",
+        license: "LGPL-3.0",
         files: &[
             SampleFile {
                 path: "logfile.asc",
@@ -262,16 +203,6 @@ pub const FORMATS: &[Format] = &[
                 ),
                 size: 420,
                 sha256: "c04d0cb0ed2a34668e643687d9e815e0d5e395746702d2e0b82e286ca6529415",
-            },
-            SampleFile {
-                path: "socialledge.dbc",
-                url: raw!(
-                    "cantools/cantools",
-                    "86d15e08ea34dc1a2282907bfa3d87c988018115",
-                    "tests/files/dbc/socialledge.dbc"
-                ),
-                size: 2808,
-                sha256: "e3769d6b84eb3df186492690f26da314f233b6ea474a7f1a1edd960d7f27bff4",
             },
         ],
     },

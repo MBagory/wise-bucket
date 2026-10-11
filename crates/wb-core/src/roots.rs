@@ -292,6 +292,8 @@ pub enum RecordingKind {
     JsonLines,
     Parquet,
     ArrowIpc,
+    /// A MAVLink telemetry log (`.tlog`): timestamped MAVLink 1/2 frames.
+    Tlog,
     /// A ROS 1 bag: recognized, not readable yet.
     Ros1Bag,
 }
@@ -307,6 +309,7 @@ impl RecordingKind {
             "jsonl" | "ndjson" => Self::JsonLines,
             "parquet" => Self::Parquet,
             "arrow" | "feather" | "ipc" => Self::ArrowIpc,
+            "tlog" => Self::Tlog,
             "bag" => Self::Ros1Bag,
             _ => return None,
         })
@@ -328,6 +331,7 @@ impl RecordingKind {
             Self::JsonLines => "JSON Lines",
             Self::Parquet => "Parquet",
             Self::ArrowIpc => "Arrow IPC",
+            Self::Tlog => "MAVLink tlog",
             Self::Ros1Bag => "ROS 1 bags (not readable yet)",
         }
     }

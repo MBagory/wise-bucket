@@ -14,8 +14,10 @@ pub mod tables;
 mod db3;
 mod mcap_reader;
 mod ros2;
+mod rows;
 mod sink;
 mod tabular;
+mod tlog;
 mod ulog;
 
 /// Version of the extraction output. Bump it whenever the content of extracted

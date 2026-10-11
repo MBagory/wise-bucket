@@ -29,7 +29,7 @@ pub const TABLES: &[TableDoc] = &[
             "recording" "text" "Identifier `root:path`, used everywhere else",
             "root" "text" "Data root name",
             "path" "text" "Path inside the root (a folder for rosbag2)",
-            "kind" "text" "`rosbag2`, `mcap`, `db3`, `ulog`, `csv`, `json_lines`, `parquet`, `arrow_ipc`, `ros1_bag`",
+            "kind" "text" "`rosbag2`, `mcap`, `db3`, `ulog`, `csv`, `json_lines`, `parquet`, `arrow_ipc`, `tlog`, `ros1_bag`",
             "hardware" "text" "Hardware declared for the root (`roots add --hardware`)",
             "status" "text" "`done`, `pending`, `extracting`, `failed`, `paused` (low disk space), `missing` (file gone, data kept), `unsupported`",
             "error" "text" "Why extraction failed",
@@ -43,7 +43,7 @@ pub const TABLES: &[TableDoc] = &[
     },
     TableDoc {
         name: "streams",
-        description: "One row per stream of each extracted recording: topics (ROS 2), messages (ULog), or `table` (CSV, JSON Lines, Parquet, Arrow IPC).",
+        description: "One row per stream of each extracted recording: topics (ROS 2), messages (ULog, MAVLink), or `table` (CSV, JSON Lines, Parquet, Arrow IPC).",
         columns: cols![
             "recording" "text" "`root:path`",
             "stream" "text" "Stream name, as given to `stream()`",
@@ -62,7 +62,7 @@ pub const TABLES: &[TableDoc] = &[
         description: "Table function: the rows of one stream across all recordings (or those whose `recording` matches the LIKE pattern). Columns are the union over recordings; missing ones are null.",
         columns: cols![
             "recording" "text" "`root:path` of the row's recording",
-            "t" "timestamp" "Receive time (MCAP log time, bag timestamp), ULog `timestamp` (time since boot, shown near 1970), or the table's time column. Nanoseconds",
+            "t" "timestamp" "Receive time (MCAP log time, bag timestamp), ULog `timestamp` (time since boot, shown near 1970), the tlog record time, or the table's time column. Nanoseconds",
             "t_sensor" "timestamp" "ROS `header.stamp`, when the message has one",
             "message_bytes" "int" "Size of each message on the wire (bags and MCAP)",
             "<field>" "any" "Message fields, nested names flattened with dots: quote them, `\"linear_acceleration.z\"`. Arrays stay arrays (`unnest`). Table files keep their own columns",

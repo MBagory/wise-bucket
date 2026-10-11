@@ -221,7 +221,7 @@ Examples:
 
 * `<FORMAT>` — Formats to download (default: choose interactively, or all without a terminal)
 
-  Possible values: `ros2-mcap`, `ros2-db3`, `mcap`, `ros1-bag`, `ulog`, `dataflash`, `tlog`, `can`, `mdf4`, `parquet`
+  Possible values: `ros2-mcap`, `ros2-db3`, `mcap`, `ulog`, `dataflash`, `tlog`, `can`, `mdf4`, `parquet`
 
 
 ###### **Options:**

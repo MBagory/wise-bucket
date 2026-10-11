@@ -27,12 +27,10 @@ const SIGNATURES: &[(&str, &[u8])] = &[
     ("metadata.yaml", b"rosbag2_bagfile_information:"),
     (".mcap", b"\x89MCAP0\r\n"),
     (".db3", b"SQLite format 3\0"),
-    (".bag", b"#ROSBAG V2.0\n"),
     (".ulg", b"ULog\x01\x12\x35"),
     (".BIN", b"\xa3\x95"),
     (".asc", b"date "),
     (".blf", b"LOGG"),
-    (".dbc", b"VERSION"),
     (".mf4", b"MDF     4."),
     (".parquet", b"PAR1"),
 ];
@@ -135,16 +133,10 @@ async fn ros2_db3() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
 async fn mcap() {
-    let (env, _) = check("mcap", "mcap", 2);
-    let s = extracted(&env, 2).await;
+    let (env, _) = check("mcap", "mcap", 1);
+    let s = extracted(&env, 1).await;
     assert!(number(&s, "SELECT count(*) AS n FROM streams").await > 0);
     s.close().await;
-}
-
-#[test]
-#[ignore = "network: fetches public samples"]
-fn ros1_bag() {
-    check("ros1-bag", "ros1_bag", 4);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -179,6 +171,36 @@ async fn parquet() {
     s.close().await;
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn tlog() {
+    let (env, _) = check("tlog", "tlog", 1);
+    let s = extracted(&env, 1).await;
+    let r = s
+        .sql(
+            "SELECT CAST(t AS BIGINT) AS t, voltages[1] AS v, battery_remaining, \
+             battery_function, system_id FROM stream('BATTERY_STATUS')",
+        )
+        .await;
+    assert_eq!(r["row_count"], 1, "{r:#}");
+    let row = &r["rows"][0];
+    assert_eq!(row["t"], 47_333_000_000_i64, "{r:#}");
+    assert_eq!(row["v"], 12587, "{r:#}");
+    assert_eq!(row["battery_remaining"], 100, "{r:#}");
+    assert_eq!(
+        row["battery_function"], "MAV_BATTERY_FUNCTION_UNKNOWN",
+        "{r:#}"
+    );
+    assert_eq!(row["system_id"], 1, "{r:#}");
+    // The truncated tail is reported, not an error.
+    let r = s.sql("SELECT notes FROM recordings").await;
+    assert!(
+        r["rows"][0]["notes"].as_str().unwrap().contains("skipped"),
+        "{r:#}"
+    );
+    s.close().await;
+}
+
 // The formats below have no reader yet: `roots check` counts them as `other`.
 
 #[test]
@@ -189,14 +211,8 @@ fn dataflash() {
 
 #[test]
 #[ignore = "network: fetches public samples"]
-fn tlog() {
-    check("tlog", "other", 1);
-}
-
-#[test]
-#[ignore = "network: fetches public samples"]
 fn can() {
-    check("can", "other", 3);
+    check("can", "other", 2);
 }
 
 #[test]
@@ -211,7 +227,6 @@ fn every_format_has_a_test() {
         "ros2-mcap",
         "ros2-db3",
         "mcap",
-        "ros1-bag",
         "ulog",
         "dataflash",
         "tlog",

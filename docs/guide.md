@@ -85,6 +85,7 @@ A recording folder (a *data root*) is a named folder that Wise Bucket may read. 
 | `.mcap` | MCAP (ROS 2 messages are decoded; other encodings keep their timing and sizes) |
 | `.db3` | a rosbag2 SQLite file |
 | `.ulg` | PX4 ULog |
+| `.tlog` | a MAVLink telemetry log (QGroundControl, MAVProxy): one stream per message |
 | `.csv`, `.jsonl` / `.ndjson`, `.parquet`, `.arrow` / `.feather` / `.ipc` | a table |
 | `.bag` | a ROS 1 bag: listed, not readable yet |
 
