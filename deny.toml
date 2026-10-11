@@ -6,6 +6,10 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+  # paste: archived compile-time macro crate used by lance and mcap; unmaintained, not a vulnerability, no fix upstream.
+  { id = "RUSTSEC-2024-0436", reason = "paste is archived; pulled in by lance and mcap, no alternative upstream" },
+]
 
 [licenses]
 version = 2
