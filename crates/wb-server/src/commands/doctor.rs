@@ -5,9 +5,9 @@ use std::process::ExitCode;
 use serde::Serialize;
 use serde_json::json;
 use wb_core::config::{self, EffectiveConfig};
-use wb_core::db::{self, Purpose};
 use wb_core::error::{ErrorKind, Result, WbError, docs_ref, err};
 use wb_core::{fsutil, roots};
+use wb_data::store::{Status as RecordingStatus, Store};
 
 use crate::cli::GlobalArgs;
 use crate::ui::{self, Status};
@@ -99,7 +99,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
         checks.push(Check::warn(
             "user config",
             "not created yet: run `wisebucket setup`",
-            Some(ErrorKind::DbNotInitialized),
+            None,
         ));
     }
 
@@ -136,7 +136,7 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
         )),
     }
 
-    database_checks(&cfg, &mut checks).await;
+    store_checks(&cfg, &mut checks).await;
 
     // Roots.
     let set = roots::resolve(&cfg);
@@ -160,61 +160,40 @@ async fn collect(global: &GlobalArgs) -> Vec<Check> {
     checks
 }
 
-async fn database_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
-    let m = db::managed_for(cfg);
-    if !m.is_runtime_installed() {
-        checks.push(Check::fail(
-            "postgresql",
-            &err(
-                ErrorKind::DbNotInitialized,
-                "managed PostgreSQL is not installed",
-            ),
-        ));
-        return;
-    }
+async fn store_checks(cfg: &EffectiveConfig, checks: &mut Vec<Check>) {
+    let store = Store::for_config(cfg);
+    let counts = store.counts();
+    let n = |st: RecordingStatus| counts.get(&st).copied().unwrap_or(0);
     checks.push(Check::ok(
-        "postgresql",
-        format!("{} installed", db::managed::PG_VERSION),
+        "store",
+        format!(
+            "{} · {} · {} done, {} pending, {} failed",
+            store.dir.display(),
+            ui::bytes(store.size()),
+            n(RecordingStatus::Done) + n(RecordingStatus::Missing),
+            n(RecordingStatus::Pending) + n(RecordingStatus::Extracting),
+            n(RecordingStatus::Failed)
+        ),
     ));
-    if !m.is_initialized() {
-        checks.push(Check::fail(
-            "database",
-            &err(ErrorKind::DbNotInitialized, "cluster not initialized"),
+    if n(RecordingStatus::Failed) > 0 {
+        checks.push(Check::warn(
+            "extraction",
+            format!(
+                "{} recording(s) failed: `wisebucket sql \"SELECT recording, error FROM recordings WHERE status = 'failed'\"`",
+                n(RecordingStatus::Failed)
+            ),
+            Some(ErrorKind::RecordingUnreadable),
         ));
-        return;
     }
-    match m.socket_dir() {
-        Ok(d) => checks.push(Check::ok("socket", d.display().to_string())),
-        Err(e) => {
-            checks.push(Check::fail("socket", &e));
-            return;
-        }
+    if store.paused() {
+        checks.push(Check::warn(
+            "extraction",
+            "paused: under 10 GB free on the store's disk",
+            Some(ErrorKind::Io),
+        ));
     }
-    match db::open(cfg, Purpose::Cli).await {
-        Ok(handle) => {
-            let i = &handle.info;
-            let sessions = wb_core::session::active(&handle.pool)
-                .await
-                .map(|s| s.len())
-                .unwrap_or(0);
-            checks.push(Check::ok(
-                "database",
-                format!(
-                    "PostgreSQL {} · pg_trgm {} · {} active session(s){}",
-                    i.server_version,
-                    i.pg_trgm_version.as_deref().unwrap_or("?"),
-                    sessions,
-                    if handle.started_here {
-                        " (started for this check)"
-                    } else {
-                        ""
-                    }
-                ),
-            ));
-            if let Err(e) = handle.release(cfg).await {
-                checks.push(Check::fail("database stop", &e));
-            }
-        }
-        Err(e) => checks.push(Check::fail("database", &e)),
+    match wb_data::sql::query(&store, "SELECT count(*) AS n FROM recordings").await {
+        Ok(_) => checks.push(Check::ok("sql", "queries run")),
+        Err(e) => checks.push(Check::fail("sql", &e)),
     }
 }

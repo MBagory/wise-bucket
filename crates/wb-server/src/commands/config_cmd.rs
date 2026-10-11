@@ -58,16 +58,6 @@ pub async fn run(global: &GlobalArgs, cmd: &ConfigCommand) -> Result<()> {
                 cfg.state_dir.value.display(),
                 o(&cfg.state_dir.origin)
             );
-            println!(
-                "runtime_dir       {}{}",
-                cfg.runtime_dir.value.display(),
-                o(&cfg.runtime_dir.origin)
-            );
-            println!(
-                "keep_running      {}{}",
-                cfg.keep_running.value,
-                o(&cfg.keep_running.origin)
-            );
             if set.roots.is_empty() {
                 println!("roots             (none)");
             }

@@ -1,4 +1,4 @@
-//! Test harness: isolated configuration + state per test, shared PostgreSQL runtime.
+//! Test harness: isolated configuration and state per test.
 
 #![allow(dead_code)]
 
@@ -7,20 +7,14 @@ use std::process::{Output, Stdio};
 use std::time::{Duration, Instant};
 
 use rmcp::model::{
-    CallToolRequestParams, ClientCapabilities, Implementation, InitializeRequestParams,
+    CallToolRequestParams, CallToolResult, ClientCapabilities, Implementation,
+    InitializeRequestParams,
 };
 use rmcp::service::RunningService;
 use rmcp::{RoleClient, ServiceExt};
 use serde_json::Value;
 
 pub const BIN: &str = env!("CARGO_BIN_EXE_wisebucket");
-
-/// Shared runtime (PostgreSQL) so each test does not download it again.
-pub fn runtime_dir() -> PathBuf {
-    std::env::var_os("WB_TEST_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("wb runtime"))
-}
 
 pub struct TestEnv {
     // Kept alive for the duration of the test.
@@ -58,10 +52,8 @@ impl TestEnv {
     }
 
     fn apply(&self, cmd: &mut std::process::Command) {
-        cmd.env_remove("WB_KEEP_RUNNING")
-            .env("WB_CONFIG", &self.config)
+        cmd.env("WB_CONFIG", &self.config)
             .env("WB_STATE_DIR", &self.state)
-            .env("WB_RUNTIME_DIR", runtime_dir())
             .current_dir(&self.cwd);
         for (k, v) in &self.extra_env {
             cmd.env(k, v);
@@ -106,20 +98,17 @@ impl TestEnv {
         self.ok(&["setup", "--yes"]);
     }
 
-    pub fn pg_running(&self) -> bool {
-        let st = self.json(&["db", "status"]);
-        st["running"].as_bool().unwrap_or(false)
-    }
-
-    pub fn wait_pg(&self, running: bool, timeout: Duration) -> bool {
-        let start = Instant::now();
-        while start.elapsed() < timeout {
-            if self.pg_running() == running {
-                return true;
+    /// The server log lines of every session (all days).
+    pub fn server_log(&self) -> String {
+        let mut out = String::new();
+        if let Ok(entries) = std::fs::read_dir(self.state.join("logs")) {
+            for e in entries.flatten() {
+                if e.file_name().to_string_lossy().starts_with("server.log") {
+                    out.push_str(&std::fs::read_to_string(e.path()).unwrap_or_default());
+                }
             }
-            std::thread::sleep(Duration::from_millis(300));
         }
-        false
+        out
     }
 
     /// Starts an MCP session (the server process plus an rmcp client).
@@ -178,6 +167,44 @@ impl Session {
             "server_info returned an error result"
         );
         res.structured_content.expect("structured content")
+    }
+
+    /// Calls a tool with JSON arguments.
+    pub async fn call(&self, name: &str, args: serde_json::Value) -> CallToolResult {
+        let mut params = CallToolRequestParams::new(name.to_string());
+        if let serde_json::Value::Object(map) = args {
+            params = params.with_arguments(map);
+        }
+        self.client
+            .as_ref()
+            .unwrap()
+            .call_tool(params)
+            .await
+            .unwrap_or_else(|e| panic!("{name} call: {e}"))
+    }
+
+    /// Runs a query with the `sql` tool and returns its structured result.
+    pub async fn sql(&self, query: &str) -> Value {
+        let res = self
+            .call("sql", serde_json::json!({ "query": query }))
+            .await;
+        res.structured_content.expect("structured content")
+    }
+
+    /// Polls `server_info` until `ready` holds (each call also looks for new recordings).
+    pub async fn wait_until(&self, what: &str, ready: impl Fn(&Value) -> bool) -> Value {
+        let start = Instant::now();
+        loop {
+            let info = self.server_info().await;
+            if ready(&info) {
+                return info;
+            }
+            assert!(
+                start.elapsed() < Duration::from_secs(90),
+                "timed out waiting for {what}: {info:#}"
+            );
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
     }
 
     pub async fn tools(&self) -> Vec<rmcp::model::Tool> {

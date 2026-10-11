@@ -53,19 +53,13 @@ impl<T> Sourced<T> {
 pub struct RootSpec {
     pub name: String,
     pub path: PathBuf,
+    /// Default hardware (robot, vehicle, test bench…) the recordings in this root come from.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub robot: Option<String>,
+    pub hardware: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub include: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exclude: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DatabaseSection {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub keep_running: Option<bool>,
 }
 
 /// User configuration file (machine specific).
@@ -74,8 +68,10 @@ pub struct DatabaseSection {
 pub struct UserConfigFile {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_dir: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub database: Option<DatabaseSection>,
+    /// Obsolete since M1 (the managed database was removed). Accepted and ignored so
+    /// configurations written by M0's `setup` keep loading.
+    #[serde(default, skip_serializing)]
+    pub database: Option<toml::Value>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub roots: Vec<RootSpec>,
 }
@@ -95,8 +91,6 @@ pub struct EffectiveConfig {
     pub user_config_path: Sourced<PathBuf>,
     pub user_config_exists: bool,
     pub state_dir: Sourced<PathBuf>,
-    pub runtime_dir: Sourced<PathBuf>,
-    pub keep_running: Sourced<bool>,
     pub roots: Vec<RootDecl>,
 }
 
@@ -105,7 +99,6 @@ pub struct EffectiveConfig {
 pub struct Overrides {
     pub config_path: Option<PathBuf>,
     pub state_dir: Option<PathBuf>,
-    pub keep_running: Option<bool>,
 }
 
 /// Abstraction over the process environment (tests inject their own).
@@ -138,17 +131,6 @@ fn read_toml<T: for<'de> Deserialize<'de> + Default>(path: &Path) -> Result<(T, 
         Err(e) => Err(err(
             ErrorKind::ConfigInvalid,
             format!("cannot read {}: {e}", path.display()),
-        )),
-    }
-}
-
-fn parse_bool(key: &str, v: &str) -> Result<bool> {
-    match v.to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => Ok(true),
-        "0" | "false" | "no" | "off" => Ok(false),
-        _ => Err(err(
-            ErrorKind::ConfigInvalid,
-            format!("{key} must be true or false, got {v:?}"),
         )),
     }
 }
@@ -198,31 +180,6 @@ pub fn load_with(overrides: &Overrides, envs: &dyn EnvSource) -> Result<Effectiv
         Sourced::new(paths::default_state_dir()?, Origin::Default)
     };
 
-    // --- runtime dir (PostgreSQL binaries); shareable between state dirs
-    let runtime_dir = if let Some(p) = envs.get(env::RUNTIME_DIR) {
-        Sourced::new(
-            paths::absolutize(Path::new(&p), &cwd),
-            Origin::Env(env::RUNTIME_DIR.into()),
-        )
-    } else {
-        Sourced::new(state_dir.value.join("runtime"), state_dir.origin.clone())
-    };
-
-    // --- database
-    let db_section = user.database.clone().unwrap_or_default();
-    let keep_running = if let Some(v) = overrides.keep_running {
-        Sourced::new(v, Origin::Cli("--keep-running".into()))
-    } else if let Some(v) = envs.get(env::KEEP_RUNNING) {
-        Sourced::new(
-            parse_bool(env::KEEP_RUNNING, &v)?,
-            Origin::Env(env::KEEP_RUNNING.into()),
-        )
-    } else if let Some(v) = db_section.keep_running {
-        Sourced::new(v, user_origin.clone())
-    } else {
-        Sourced::new(false, Origin::Default)
-    };
-
     // --- roots (validated separately, see `roots::resolve`)
     let roots: Vec<RootDecl> = user
         .roots
@@ -238,8 +195,6 @@ pub fn load_with(overrides: &Overrides, envs: &dyn EnvSource) -> Result<Effectiv
         user_config_path,
         user_config_exists: user_exists,
         state_dir,
-        runtime_dir,
-        keep_running,
         roots,
     })
 }
@@ -275,8 +230,8 @@ fn root_table(spec: &RootSpec) -> toml_edit::Table {
     let mut t = toml_edit::Table::new();
     t["name"] = toml_edit::value(&spec.name);
     t["path"] = toml_edit::value(spec.path.to_string_lossy().as_ref());
-    if let Some(r) = &spec.robot {
-        t["robot"] = toml_edit::value(r);
+    if let Some(h) = &spec.hardware {
+        t["hardware"] = toml_edit::value(h);
     }
     let arr = |v: &Vec<String>| {
         let mut a = toml_edit::Array::new();
@@ -346,7 +301,15 @@ pub fn remove_root_from_file(path: &Path, name: &str) -> Result<bool> {
     Ok(true)
 }
 
-/// Sets a top-level or dotted scalar key (e.g. `database.keep_running`).
+/// Creates the user configuration file (header only) if it does not exist yet.
+pub fn ensure_user_file(path: &Path) -> Result<()> {
+    if path.exists() {
+        return Ok(());
+    }
+    save_document(path, &toml_edit::DocumentMut::new(), USER_HEADER)
+}
+
+/// Sets a top-level or dotted scalar key (e.g. `state_dir`).
 pub fn set_key_in_file(path: &Path, key: &str, value: toml_edit::Value) -> Result<()> {
     let mut doc = load_document(path)?;
     let mut parts = key.split('.').peekable();
@@ -391,15 +354,7 @@ pub const KEYS: &[KeyDoc] = &[
         env: env::STATE_DIR,
         cli: "--state-dir",
         default: "Linux `~/.local/share/wisebucket`, macOS `~/Library/Application Support/wisebucket`",
-        description: "Where Wise Bucket keeps its database, caches and logs.",
-    },
-    KeyDoc {
-        key: "database.keep_running",
-        layer: "user",
-        env: env::KEEP_RUNNING,
-        cli: "--keep-running",
-        default: "`false`",
-        description: "Keep PostgreSQL running after the last session ends.",
+        description: "Where Wise Bucket keeps its store (the decoded columnar copy of your recordings) and its logs.",
     },
     KeyDoc {
         key: "[[roots]] name",
@@ -418,12 +373,12 @@ pub const KEYS: &[KeyDoc] = &[
         description: "Folder Wise Bucket may read: absolute or `~/…`.",
     },
     KeyDoc {
-        key: "[[roots]] robot",
+        key: "[[roots]] hardware",
         layer: "user",
         env: "",
-        cli: "`--robot`",
+        cli: "`--hardware`",
         default: "",
-        description: "Default robot for recordings found in this root (used from milestone M3).",
+        description: "The hardware (robot, vehicle, test bench…) the recordings in this root come from. Shown in the `recordings` table.",
     },
     KeyDoc {
         key: "[[roots]] include / exclude",
@@ -440,14 +395,6 @@ pub const KEYS: &[KeyDoc] = &[
         cli: "--config",
         default: "Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml`",
         description: "Location of the user configuration file.",
-    },
-    KeyDoc {
-        key: "(dir) runtime",
-        layer: "-",
-        env: env::RUNTIME_DIR,
-        cli: "",
-        default: "`<state_dir>/runtime`",
-        description: "Where managed PostgreSQL binaries are installed. Can be shared between state directories.",
     },
 ];
 
@@ -527,7 +474,6 @@ mod tests {
         let c = load_with(&Overrides::default(), &env).unwrap();
         assert_eq!(c.state_dir.value, d.path().join("from-file"));
         assert!(matches!(c.state_dir.origin, Origin::UserConfig(_)));
-        assert!(c.keep_running.value);
 
         let env = fake(
             d.path(),
@@ -544,7 +490,6 @@ mod tests {
         let c = load_with(&o, &env).unwrap();
         assert_eq!(c.state_dir.value, PathBuf::from("/tmp/from-cli"));
         assert!(matches!(c.state_dir.origin, Origin::Cli(_)));
-        assert_eq!(c.runtime_dir.value, PathBuf::from("/tmp/from-cli/runtime"));
     }
 
     #[test]
@@ -566,7 +511,7 @@ mod tests {
         let spec = RootSpec {
             name: "bags".into(),
             path: "/data/bags".into(),
-            robot: Some("r".into()),
+            hardware: Some("r".into()),
             include: vec![],
             exclude: vec![],
         };

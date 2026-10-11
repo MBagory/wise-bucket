@@ -17,19 +17,14 @@ This document contains the help content for the `wisebucket` command-line progra
 * [`wisebucket config`↴](#wisebucket-config)
 * [`wisebucket config show`↴](#wisebucket-config-show)
 * [`wisebucket config path`↴](#wisebucket-config-path)
-* [`wisebucket db`↴](#wisebucket-db)
-* [`wisebucket db status`↴](#wisebucket-db-status)
-* [`wisebucket db start`↴](#wisebucket-db-start)
-* [`wisebucket db stop`↴](#wisebucket-db-stop)
-* [`wisebucket backup`↴](#wisebucket-backup)
-* [`wisebucket restore`↴](#wisebucket-restore)
+* [`wisebucket sql`↴](#wisebucket-sql)
 * [`wisebucket doctor`↴](#wisebucket-doctor)
 * [`wisebucket demo`↴](#wisebucket-demo)
 * [`wisebucket completions`↴](#wisebucket-completions)
 
 ## `wisebucket`
 
-Wise Bucket: evidence-backed, iterative robot investigations for your AI coding agent.
+Wise Bucket: evidence-backed, iterative hardware investigations for your AI coding agent.
 
 Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 
@@ -39,17 +34,16 @@ Examples:
   wisebucket setup                         Set up the database and recording folders
   wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
   wisebucket demo --all                    Try it on public sample recordings
+  wisebucket sql "SELECT * FROM streams"  Query the store yourself
   wisebucket doctor                        Check the installation
 
 ###### **Subcommands:**
 
 * `serve` — Run the MCP server on stdin/stdout (what your harness launches)
-* `setup` — One-time machine setup: database, recording folders, and how to connect your agent
+* `setup` — One-time machine setup: recording folders, and how to connect your agent
 * `roots` — Manage data roots (folders Wise Bucket may read)
 * `config` — Inspect the effective configuration
-* `db` — Control the managed PostgreSQL server
-* `backup` — Write a backup of the Wise Bucket database (custom pg_dump format)
-* `restore` — Restore a backup made with `backup` (replaces current data)
+* `sql` — Run a read-only SQL query over the store (what your agent's `sql` tool runs)
 * `doctor` — Check the whole installation and explain how to fix problems
 * `demo` — Download public sample recordings and declare them as the `demo` data root
 * `completions` — Print a shell completion script to stdout
@@ -57,8 +51,7 @@ Examples:
 ###### **Options:**
 
 * `--config <FILE>` — User configuration file [env: WB_CONFIG]
-* `--state-dir <DIR>` — State directory (database, caches, logs) [env: WB_STATE_DIR]
-* `--keep-running` — Keep the managed PostgreSQL running after the last session [env: WB_KEEP_RUNNING]
+* `--state-dir <DIR>` — State directory (the store of decoded recordings, logs) [env: WB_STATE_DIR]
 * `--json` — Machine-readable JSON output (where supported)
 * `-v`, `--verbose` — More diagnostic logging on stderr (-v, -vv)
 
@@ -74,7 +67,7 @@ Run the MCP server on stdin/stdout (what your harness launches)
 
 ## `wisebucket setup`
 
-One-time machine setup: database, recording folders, and how to connect your agent
+One-time machine setup: recording folders, and how to connect your agent
 
 **Usage:** `wisebucket setup [OPTIONS]`
 
@@ -113,7 +106,7 @@ Declare a folder Wise Bucket may read
 
 Examples:
   wisebucket roots add bags ~/robot-logs
-  wisebucket roots add field /data/field --robot rover-b --exclude '**/tmp/**'
+  wisebucket roots add field /data/field --hardware rover-b --exclude '**/tmp/**'
 
 ###### **Arguments:**
 
@@ -122,7 +115,7 @@ Examples:
 
 ###### **Options:**
 
-* `--robot <ROBOT>` — Default robot for recordings in this folder
+* `--hardware <HARDWARE>` — The hardware (robot, vehicle, test bench…) these recordings come from
 * `--include <INCLUDE>` — Glob pattern of files to consider (repeatable)
 * `--exclude <EXCLUDE>` — Glob pattern of files to ignore (repeatable)
 
@@ -189,73 +182,20 @@ Print the configuration file locations
 
 
 
-## `wisebucket db`
+## `wisebucket sql`
 
-Control the managed PostgreSQL server
+Run a read-only SQL query over the store (what your agent's `sql` tool runs)
 
-**Usage:** `wisebucket db <COMMAND>`
+**Usage:** `wisebucket sql <QUERY>`
 
-###### **Subcommands:**
-
-* `status` — Show database mode, state and active sessions
-* `start` — Start the managed PostgreSQL server
-* `stop` — Stop the managed PostgreSQL server
-
-
-
-## `wisebucket db status`
-
-Show database mode, state and active sessions
-
-**Usage:** `wisebucket db status`
-
-
-
-## `wisebucket db start`
-
-Start the managed PostgreSQL server
-
-**Usage:** `wisebucket db start`
-
-
-
-## `wisebucket db stop`
-
-Stop the managed PostgreSQL server
-
-**Usage:** `wisebucket db stop [OPTIONS]`
-
-###### **Options:**
-
-* `--force` — Stop even if MCP sessions are connected
-
-
-
-## `wisebucket backup`
-
-Write a backup of the Wise Bucket database (custom pg_dump format)
-
-**Usage:** `wisebucket backup <FILE>`
+Examples:
+  wisebucket sql "SELECT recording, status FROM recordings"
+  wisebucket sql "SELECT stream, rows FROM streams WHERE recording = 'bags:run3.mcap'"
+  wisebucket sql "SELECT count(*) FROM stream('/imu')"
 
 ###### **Arguments:**
 
-* `<FILE>` — Output file
-
-
-
-## `wisebucket restore`
-
-Restore a backup made with `backup` (replaces current data)
-
-**Usage:** `wisebucket restore [OPTIONS] <FILE>`
-
-###### **Arguments:**
-
-* `<FILE>` — Backup file
-
-###### **Options:**
-
-* `--yes` — Confirm replacing the current data
+* `<QUERY>` — A single SELECT query (tables: recordings, streams, stream('<name>'))
 
 
 

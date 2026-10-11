@@ -1,5 +1,5 @@
 [files]
-extend-exclude = ["LICENSE", "CODE_OF_CONDUCT.md", "*.lock"]
+extend-exclude = ["LICENSE", "CODE_OF_CONDUCT.md", "*.lock", "crates/wb-data/src/ros2/*.msgs"]
 
 [default.extend-words]
 # Domain vocabulary

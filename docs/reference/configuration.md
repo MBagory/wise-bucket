@@ -6,14 +6,12 @@ Precedence, highest first: **command line** > **`WB_*` environment variables** >
 
 | Key | Layer | Environment | Command line | Default | Description |
 | --- | --- | --- | --- | --- | --- |
-| `state_dir` | user | `WB_STATE_DIR` | `--state-dir` | Linux `~/.local/share/wisebucket`, macOS `~/Library/Application Support/wisebucket` | Where Wise Bucket keeps its database, caches and logs. |
-| `database.keep_running` | user | `WB_KEEP_RUNNING` | `--keep-running` | `false` | Keep PostgreSQL running after the last session ends. |
+| `state_dir` | user | `WB_STATE_DIR` | `--state-dir` | Linux `~/.local/share/wisebucket`, macOS `~/Library/Application Support/wisebucket` | Where Wise Bucket keeps its store (the decoded columnar copy of your recordings) and its logs. |
 | `[[roots]] name` | user |  | `roots add <name>` |  | Short unique name used in log references (`name:relative/path`). Lowercase letters, digits, `-`, `_`; max 32. |
 | `[[roots]] path` | user |  | `roots add <name> <path>` |  | Folder Wise Bucket may read: absolute or `~/…`. |
-| `[[roots]] robot` | user |  | `--robot` |  | Default robot for recordings found in this root (used from milestone M3). |
+| `[[roots]] hardware` | user |  | `--hardware` |  | The hardware (robot, vehicle, test bench…) the recordings in this root come from. Shown in the `recordings` table. |
 | `[[roots]] include / exclude` | user |  | `--include` / `--exclude` | all supported formats | Glob patterns restricting which files are considered recordings. |
 | `(file) user config` | - | `WB_CONFIG` | `--config` | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` | Location of the user configuration file. |
-| `(dir) runtime` | - | `WB_RUNTIME_DIR` |  | `<state_dir>/runtime` | Where managed PostgreSQL binaries are installed. Can be shared between state directories. |
 
 ## Examples
 
@@ -23,16 +21,14 @@ Precedence, highest first: **command line** > **`WB_*` environment variables** >
 # ~/.config/wisebucket/config.toml (Linux)
 # ~/Library/Application Support/wisebucket/config.toml (macOS)
 
-# Optional: where the database, caches and logs live.
+# Optional: where the store (the decoded copy of your recordings) and logs live.
+# Choose a disk with room: the store grows with your recordings.
 # state_dir = "~/wisebucket-state"
 
-[database]
-keep_running = false    # stop PostgreSQL when the last session ends
-
 [[roots]]
-name = "bags"                                  # logs are referenced as bags:2026-09-24/dock_run3
+name = "bags"                                  # recordings are referenced as bags:2026-09-24/dock_run3
 path = "~/robot-logs/bags"
-robot = "rover-b"                              # optional default robot for these recordings
+hardware = "rover-b"                           # optional: the hardware these recordings come from
 include = ["**/*.mcap", "**/metadata.yaml"]    # optional
 exclude = ["**/tmp/**"]                        # optional
 

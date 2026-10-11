@@ -9,7 +9,7 @@
 //! cargo test -p wisebucket --test samples ulog -- --ignored --exact
 //! ```
 //!
-//! From M3 on, each format test grows a decode check against its manifest.
+//! Readable formats are also extracted into the store and checked with SQL.
 
 mod common;
 
@@ -56,9 +56,8 @@ fn assert_signature(path: &Path) {
     }
 }
 
-/// Fetches a format, checks every file's signature, then declares it as a root
-/// and checks how `roots check` counts it.
-fn check(key: &str, kind: &str, count: u64) {
+/// Fetches a format's samples (checking every file's signature) and returns their folder.
+fn fetched(key: &str) -> std::path::PathBuf {
     let format = samples::find(key).unwrap();
     let cache = cache_dir();
     samples::fetch(format, &cache, &|msg| eprintln!("{msg}")).unwrap();
@@ -66,8 +65,14 @@ fn check(key: &str, kind: &str, count: u64) {
     for f in format.files {
         assert_signature(&dir.join(f.path));
     }
+    dir
+}
 
+/// Declares a format's samples as a root and checks how `roots check` counts them.
+fn check(key: &str, kind: &str, count: u64) -> (TestEnv, std::path::PathBuf) {
+    let dir = fetched(key);
     let env = TestEnv::new();
+    env.setup();
     env.ok(&["roots", "add", "s", &dir.to_string_lossy()]);
     let check = env.json(&["roots", "check"]);
     assert_eq!(
@@ -75,24 +80,65 @@ fn check(key: &str, kind: &str, count: u64) {
         Some(count),
         "{check:#}"
     );
+    (env, dir)
 }
 
-#[test]
-#[ignore = "network: fetches public samples"]
-fn ros2_mcap() {
-    check("ros2-mcap", "rosbag2_dirs", 1);
+/// Opens a session and waits until `done` recordings are extracted, none failed.
+async fn extracted(env: &TestEnv, done: u64) -> common::Session {
+    let s = env.session("samples").await;
+    let n = |i: &serde_json::Value, st: &str| i["store"]["recordings"][st].as_u64().unwrap_or(0);
+    s.wait_until("extraction", |i| n(i, "done") + n(i, "failed") == done)
+        .await;
+    let failed = s
+        .sql("SELECT recording, error FROM recordings WHERE status = 'failed'")
+        .await;
+    assert_eq!(failed["row_count"], 0, "{failed:#}");
+    s
 }
 
-#[test]
-#[ignore = "network: fetches public samples"]
-fn ros2_db3() {
-    check("ros2-db3", "rosbag2_dirs", 1);
+async fn number(s: &common::Session, query: &str) -> u64 {
+    let r = s.sql(query).await;
+    r["rows"][0]["n"]
+        .as_u64()
+        .unwrap_or_else(|| panic!("{query}: {r:#}"))
 }
 
-#[test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
-fn mcap() {
-    check("mcap", "mcap", 2);
+async fn ros2_mcap() {
+    let (env, _) = check("ros2-mcap", "rosbag2", 1);
+    let s = extracted(&env, 1).await;
+    assert!(number(&s, "SELECT count(*) AS n FROM stream('/topic')").await > 0);
+    let r = s
+        .sql("SELECT decoded FROM streams WHERE stream = '/rosout'")
+        .await;
+    assert_eq!(r["rows"][0]["decoded"], true, "{r:#}");
+    s.close().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn ros2_db3() {
+    let (env, _) = check("ros2-db3", "rosbag2", 1);
+    let s = extracted(&env, 1).await;
+    assert!(
+        number(
+            &s,
+            "SELECT count(*) AS n FROM stream('/topic') WHERE data IS NOT NULL"
+        )
+        .await
+            > 0
+    );
+    s.close().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn mcap() {
+    let (env, _) = check("mcap", "mcap", 2);
+    let s = extracted(&env, 2).await;
+    assert!(number(&s, "SELECT count(*) AS n FROM streams").await > 0);
+    s.close().await;
 }
 
 #[test]
@@ -101,10 +147,36 @@ fn ros1_bag() {
     check("ros1-bag", "ros1_bag", 4);
 }
 
-#[test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
-fn ulog() {
-    check("ulog", "ulog", 1);
+async fn ulog() {
+    let (env, _) = check("ulog", "ulog", 1);
+    let s = extracted(&env, 1).await;
+    assert!(
+        number(
+            &s,
+            "SELECT count(*) AS n FROM streams WHERE decoded AND rows > 0"
+        )
+        .await
+            > 10
+    );
+    s.close().await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn parquet() {
+    let (env, _) = check("parquet", "parquet", 1);
+    let s = extracted(&env, 1).await;
+    assert_eq!(
+        number(
+            &s,
+            "SELECT count(*) AS n FROM stream('table') WHERE t IS NOT NULL"
+        )
+        .await,
+        8
+    );
+    s.close().await;
 }
 
 // The formats below have no reader yet: `roots check` counts them as `other`.
@@ -131,12 +203,6 @@ fn can() {
 #[ignore = "network: fetches public samples"]
 fn mdf4() {
     check("mdf4", "other", 1);
-}
-
-#[test]
-#[ignore = "network: fetches public samples"]
-fn parquet() {
-    check("parquet", "other", 1);
 }
 
 #[test]

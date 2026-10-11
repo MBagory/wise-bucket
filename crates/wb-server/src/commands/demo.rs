@@ -42,17 +42,19 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
             RootSpec {
                 name: ROOT_NAME.into(),
                 path: dir.clone(),
-                robot: None,
+                hardware: None,
                 include: vec![],
                 exclude: vec![],
             },
         )?,
         Some(r) if r.spec.path == dir => {
-            let c = roots::count_candidates(&dir, 200_000, Duration::from_secs(10));
-            ui::ok(format!(
-                "root {ROOT_NAME:?} already declared · {} candidate recordings",
-                c.total()
-            ));
+            let summary = roots::resolve(&cfg)
+                .get(ROOT_NAME)
+                .map(|root| {
+                    roots::count_candidates(root, 200_000, Duration::from_secs(10)).summary()
+                })
+                .unwrap_or_default();
+            ui::ok(format!("root {ROOT_NAME:?} already declared · {summary}"));
         }
         Some(r) => ui::warn(format!(
             "a root named {ROOT_NAME:?} already points to {}; left unchanged. Declare the samples under another name with `wisebucket roots add <name> {}`",
@@ -69,9 +71,9 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
         }));
     } else {
         ui::info(
-            "MCAP, rosbag2, ROS 1 and ULog files count as recordings today; the other formats get readers in later milestones.",
+            "While an agent session is open, the readable formats (ROS 2 bags and MCAP, ULog, Parquet) are extracted into the store; the others are listed as not readable yet.",
         );
-        ui::info("Ask your agent: \"Which recordings does Wise Bucket see in the demo root?\"");
+        ui::info("Ask your agent: \"Which recordings does Wise Bucket have in the demo root?\"");
         ui::info(format!(
             "Remove later with `wisebucket roots remove {ROOT_NAME}` and by deleting {}",
             dir.display()

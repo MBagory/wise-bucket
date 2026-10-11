@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolResult, ContentBlock, Implementation, InitializeRequestParams, InitializeResult,
     ServerCapabilities, ServerConfig,
@@ -12,15 +13,17 @@ use rmcp::service::RequestContext;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler, ServiceExt, tool, tool_handler, tool_router,
 };
+use schemars::JsonSchema;
+use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::Mutex;
 use wb_core::config::{self, EffectiveConfig};
-use wb_core::db::{self, Db, Purpose};
-use wb_core::error::{Result, WbError};
-use wb_core::roots::{self, RootSet};
-use wb_core::session::{self, SessionId, SessionStart};
+use wb_core::error::Result;
+use wb_core::roots::{self, CandidateCounts, RootSet};
+use wb_data::store::{self, Store};
 
 use crate::ui;
+use crate::worker::Worker;
 
 /// Instructions sent to the harness in `initialize`.
 pub const INSTRUCTIONS: &str = include_str!("instructions.md");
@@ -31,11 +34,8 @@ pub struct AppState {
     /// Kept so data roots can be re-read on each call: `roots add` and `demo`
     /// take effect without restarting the harness.
     pub overrides: config::Overrides,
-    /// The database, or why it is unavailable (the server still starts so the
-    /// user can be told how to fix it from inside the harness).
-    pub db: std::result::Result<Db, WbError>,
-    pub session_id: Option<SessionId>,
     pub client: Mutex<Option<(String, String)>>,
+    pub worker: Option<Worker>,
 }
 
 #[derive(Clone)]
@@ -44,62 +44,77 @@ pub struct WbServer {
     tool_router: ToolRouter<Self>,
 }
 
+/// Arguments of the `sql` tool.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct SqlArgs {
+    /// One read-only SELECT query.
+    pub query: String,
+}
+
+fn sql_description() -> String {
+    format!(
+        "Run one read-only SQL query (DataFusion dialect, close to PostgreSQL) over the store: a decoded, columnar copy of every recording in the data roots. Compute any metric with it; nothing is precomputed. At most {} rows (`truncated` says when more exist), {} s per query; only SELECT is allowed. Quote dotted or upper-case column names (\"linear_acceleration.z\"). Times are nanosecond timestamps.\n\nTables:\n{}\nRecipes:\n{}",
+        wb_data::sql::MAX_ROWS,
+        wb_data::sql::TIMEOUT.as_secs(),
+        wb_data::tables::summary(),
+        wb_data::tables::RECIPES
+    )
+}
+
 impl WbServer {
     pub fn new(state: Arc<AppState>) -> Self {
-        Self {
-            state,
-            tool_router: Self::tool_router(),
+        let mut tool_router = Self::tool_router();
+        if let Some(route) = tool_router.map.get_mut("sql") {
+            route.attr.description = Some(sql_description().into());
         }
+        Self { state, tool_router }
     }
 
-    /// The data roots as declared now (the config file may have changed since startup).
-    fn current_roots(&self) -> RootSet {
-        match config::load(&self.state.overrides) {
-            Ok(cfg) => roots::resolve(&cfg),
-            Err(e) => RootSet {
-                roots: Vec::new(),
-                problems: vec![(None, e)],
-            },
-        }
+    /// The configuration as it is now (the files may have changed since startup).
+    fn current_config(&self) -> std::result::Result<EffectiveConfig, wb_core::WbError> {
+        config::load(&self.state.overrides)
     }
 
     async fn server_info_value(&self) -> Value {
         let s = &self.state;
-        let root_set = self.current_roots();
-        let database = match &s.db {
-            Ok(db) => {
-                let active = session::active(&db.pool).await.map(|v| v.len()).ok();
-                json!({
-                    "status": "ok",
-                    "postgresql": db.info.server_version,
-                    "pg_trgm": db.info.pg_trgm_version,
-                    "active_sessions": active,
-                })
-            }
-            Err(e) => json!({ "status": "error", "error": e.to_json() }),
+        let cfg = self.current_config();
+        let root_set = match &cfg {
+            Ok(cfg) => roots::resolve(cfg),
+            Err(e) => RootSet {
+                roots: Vec::new(),
+                problems: vec![(None, wb_core::error::err(e.kind(), e.message()))],
+            },
         };
-        // ponytail: rescans every root on each call (capped per root); cache the counts if large roots make it slow.
-        let paths: Vec<_> = root_set.roots.iter().map(|r| r.path.clone()).collect();
-        let counts = tokio::task::spawn_blocking(move || {
-            paths
-                .iter()
-                .map(|p| roots::count_candidates(p, 200_000, Duration::from_secs(5)))
-                .collect::<Vec<_>>()
+        let cfg = cfg.unwrap_or_else(|_| s.cfg.clone());
+        // Walk the roots now, so a file added a moment ago is counted and extracted soon.
+        // ponytail: walks every root on each call (capped per root); rely on the
+        // background discovery alone if large roots make this slow.
+        let walk_cfg = cfg.clone();
+        let entries = tokio::task::spawn_blocking(move || {
+            store::discover(&walk_cfg, Duration::from_secs(5)).unwrap_or_default()
         })
         .await
         .unwrap_or_default();
+        if let Some(w) = &s.worker {
+            w.wake();
+        }
+        let store = Store::for_config(&cfg);
+        let counts = store.counts();
         let roots: Vec<Value> = root_set
             .roots
             .iter()
-            .enumerate()
-            .map(|(i, r)| {
+            .map(|r| {
+                let mut c = CandidateCounts::default();
+                for e in entries.iter().filter(|e| e.candidate.root == r.name) {
+                    *c.by_kind.entry(e.candidate.kind).or_default() += 1;
+                }
                 json!({
                     "name": r.name,
                     "path": r.path,
-                    "robot": r.robot,
+                    "hardware": r.hardware,
                     "declared_in": r.origin.to_string(),
-                    "candidate_recordings": counts.get(i).map(|c| c.total()),
-                    "candidates": counts.get(i),
+                    "candidate_recordings": c.total(),
+                    "candidates": c,
                 })
             })
             .collect();
@@ -107,13 +122,17 @@ impl WbServer {
         let client = s.client.lock().await.clone();
         json!({
             "wise_bucket_version": wb_core::VERSION,
-            "milestone": "M0",
+            "milestone": "M1",
             "session": {
-                "id": s.session_id,
                 "client": client.map(|(n, v)| json!({ "name": n, "version": v })),
             },
-            "database": database,
-            "state_dir": s.cfg.state_dir.value,
+            "state_dir": cfg.state_dir.value,
+            "store": {
+                "path": store.dir,
+                "size_bytes": store.size(),
+                "recordings": counts,
+                "paused": store.paused(),
+            },
             "roots": roots,
             "root_problems": root_problems,
             "docs": ui::DOCS_BASE,
@@ -122,22 +141,27 @@ impl WbServer {
 }
 
 fn summary(v: &Value) -> String {
-    let db = &v["database"];
-    let db_line = if db["status"] == "ok" {
-        format!(
-            "database: PostgreSQL {} · {} active session(s)",
-            db["postgresql"].as_str().unwrap_or("?"),
-            db["active_sessions"]
-        )
-    } else {
-        format!(
-            "database: ERROR [{}] {} → fix: {} ({})",
-            db["error"]["code"].as_str().unwrap_or("?"),
-            db["error"]["message"].as_str().unwrap_or(""),
-            db["error"]["fix"].as_str().unwrap_or(""),
-            db["error"]["docs_url"].as_str().unwrap_or("")
-        )
-    };
+    let st = &v["store"];
+    let counts = st["recordings"]
+        .as_object()
+        .map(|o| {
+            o.iter()
+                .map(|(k, n)| format!("{n} {k}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "empty".into());
+    let store_line = format!(
+        "store: {counts} · {} · {}{}",
+        ui::bytes(st["size_bytes"].as_u64().unwrap_or(0)),
+        st["path"].as_str().unwrap_or("?"),
+        if st["paused"] == true {
+            " · extraction PAUSED: little free disk space"
+        } else {
+            ""
+        }
+    );
     let roots = v["roots"].as_array().cloned().unwrap_or_default();
     let roots_line = if roots.is_empty() {
         "data roots: none declared (the engineer adds them with `wisebucket roots add <name> <path>`)".to_string()
@@ -148,15 +172,14 @@ fn summary(v: &Value) -> String {
                 .iter()
                 .map(|r| {
                     format!(
-                        "{} → {} ({} candidate recordings{})",
+                        "{} → {}{} ({} recordings)",
                         r["name"].as_str().unwrap_or("?"),
                         r["path"].as_str().unwrap_or("?"),
-                        r["candidate_recordings"],
-                        if r["candidates"]["truncated"] == true {
-                            ", scan stopped early"
-                        } else {
-                            ""
-                        }
+                        r["hardware"]
+                            .as_str()
+                            .map(|h| format!(", hardware {h}"))
+                            .unwrap_or_default(),
+                        r["candidate_recordings"]
                     )
                 })
                 .collect::<Vec<_>>()
@@ -165,7 +188,7 @@ fn summary(v: &Value) -> String {
     };
     let problems = v["root_problems"].as_array().map(|a| a.len()).unwrap_or(0);
     format!(
-        "Wise Bucket {} (milestone M0)\n{db_line}\n{roots_line}{}",
+        "Wise Bucket {} (milestone M1)\n{store_line}\n{roots_line}{}",
         v["wise_bucket_version"].as_str().unwrap_or("?"),
         if problems > 0 {
             format!("\nroot problems: {problems} (see root_problems)")
@@ -177,10 +200,10 @@ fn summary(v: &Value) -> String {
 
 #[tool_router]
 impl WbServer {
-    /// Reports installation state: versions, database and data roots.
+    /// Reports installation state: version, store and data roots.
     #[tool(
         name = "server_info",
-        description = "Report Wise Bucket's installation state: version, database (PostgreSQL) status, this session, and the data roots (the only folders Wise Bucket may read) with a count of candidate recordings in each. Errors include a code, a fix and a documentation link.",
+        description = "Report Wise Bucket's state: version, the store (how many recordings are extracted, pending or failed, its size) and the data roots (the only folders Wise Bucket may read) with a count of recordings in each. Also looks for new recordings. Errors include a code, a fix and a documentation link.",
         annotations(read_only_hint = true, open_world_hint = false)
     )]
     async fn server_info(&self) -> std::result::Result<CallToolResult, McpError> {
@@ -189,6 +212,26 @@ impl WbServer {
         let mut res = CallToolResult::structured(v);
         res.content = vec![ContentBlock::text(text)];
         Ok(res)
+    }
+
+    /// Runs one read-only SQL query over the store (description set in `new`).
+    #[tool(
+        name = "sql",
+        description = "Run one read-only SQL query over the store.",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
+    async fn sql(
+        &self,
+        Parameters(args): Parameters<SqlArgs>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let result = match self.current_config() {
+            Ok(cfg) => wb_data::sql::query(&Store::for_config(&cfg), &args.query).await,
+            Err(e) => Err(e),
+        };
+        Ok(match result {
+            Ok(r) => CallToolResult::structured(json!(r)),
+            Err(e) => CallToolResult::structured_error(json!({ "error": e.to_json() })),
+        })
     }
 }
 
@@ -210,12 +253,7 @@ impl ServerHandler for WbServer {
         let name = request.client_info.name.clone();
         let version = request.client_info.version.clone();
         tracing::info!(client = %name, version = %version, "MCP client initialized");
-        *self.state.client.lock().await = Some((name.clone(), version.clone()));
-        if let (Ok(db), Some(id)) = (&self.state.db, self.state.session_id)
-            && let Err(e) = session::set_client(&db.pool, id, &name, &version).await
-        {
-            tracing::warn!(error = %e, "cannot record MCP client");
-        }
+        *self.state.client.lock().await = Some((name, version));
         context.peer.set_peer_info(request.clone());
         self.negotiate_initialize(&request)
     }
@@ -226,55 +264,15 @@ pub async fn serve(overrides: &config::Overrides) -> Result<()> {
     let cfg = config::load(overrides)?;
     let _log_guard = crate::logging::init_file(&cfg.state_dir.value.join("logs"));
     tracing::info!(version = wb_core::VERSION, state_dir = %cfg.state_dir.value.display(), "starting MCP server");
-
     for (name, e) in &roots::resolve(&cfg).problems {
         tracing::warn!(root = ?name, error = %e, "invalid data root");
     }
 
-    let db = db::open(&cfg, Purpose::Session).await;
-    if let Err(e) = &db {
-        tracing::error!(error = %e, "database unavailable; server_info will report it");
-    }
-    let session_id = match &db {
-        Ok(db) => {
-            let start = SessionStart {
-                pid: std::process::id(),
-                hostname: std::env::var("HOSTNAME").ok(),
-                cwd: std::env::current_dir()
-                    .ok()
-                    .map(|p| p.display().to_string()),
-            };
-            match session::start(&db.pool, &start).await {
-                Ok(id) => Some(id),
-                Err(e) => {
-                    tracing::error!(error = %e, "cannot record session");
-                    None
-                }
-            }
-        }
-        Err(_) => None,
-    };
-
     let state = Arc::new(AppState {
         cfg,
         overrides: overrides.clone(),
-        db,
-        session_id,
         client: Mutex::new(None),
-    });
-
-    // Heartbeat: keeps `last_seen_at` fresh for `db status` and provenance.
-    let hb_state = state.clone();
-    let heartbeat = tokio::spawn(async move {
-        let mut tick = tokio::time::interval(Duration::from_secs(session::HEARTBEAT_SECS));
-        loop {
-            tick.tick().await;
-            if let (Ok(db), Some(id)) = (&hb_state.db, hb_state.session_id)
-                && let Err(e) = session::heartbeat(&db.pool, id).await
-            {
-                tracing::warn!(error = %e, "heartbeat failed");
-            }
-        }
+        worker: Some(Worker::spawn(overrides.clone())),
     });
 
     let server = WbServer::new(state.clone());
@@ -295,19 +293,9 @@ pub async fn serve(overrides: &config::Overrides) -> Result<()> {
         }
         Err(e) => tracing::error!(error = %e, "MCP service failed to start"),
     }
-    heartbeat.abort();
-    let _ = heartbeat.await;
     tracing::info!("client disconnected; shutting down");
-
-    // Release: end the session, close the pool, stop PostgreSQL if this was the last session.
-    if let Ok(db) = &state.db {
-        if let Some(id) = state.session_id {
-            let _ = session::end(&db.pool, id).await;
-        }
-        match db.release(&state.cfg).await {
-            Ok(outcome) => tracing::info!(?outcome, "database released"),
-            Err(e) => tracing::warn!(error = %e, "database release failed"),
-        }
+    if let Some(w) = &state.worker {
+        w.stop();
     }
     Ok(())
 }

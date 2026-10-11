@@ -64,7 +64,10 @@ fn tmp_sibling(path: &Path) -> PathBuf {
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
-    path.with_file_name(format!(".{name}.tmp-{}", std::process::id()))
+    // Unique per write: threads of one process may write the same file concurrently.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    path.with_file_name(format!(".{name}.tmp-{}-{n}", std::process::id()))
 }
 
 /// An exclusive advisory lock on a file, released on drop.
@@ -76,16 +79,7 @@ pub struct FileLock {
 impl FileLock {
     /// Blocks until the lock is acquired.
     pub fn acquire(path: &Path) -> Result<Self> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).io_ctx(|| format!("create {}", dir.display()))?;
-        }
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(path)
-            .io_ctx(|| format!("open lock {}", path.display()))?;
+        let file = open_lock_file(path)?;
         file.lock().io_ctx(|| format!("lock {}", path.display()))?;
         Ok(Self {
             file,
@@ -93,9 +87,49 @@ impl FileLock {
         })
     }
 
+    /// Takes the lock if it is free, without waiting. `None` if another process holds it.
+    pub fn try_acquire(path: &Path) -> Result<Option<Self>> {
+        let file = open_lock_file(path)?;
+        match file.try_lock() {
+            Ok(()) => Ok(Some(Self {
+                file,
+                path: path.to_path_buf(),
+            })),
+            Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+            Err(std::fs::TryLockError::Error(e)) => {
+                Err(e).io_ctx(|| format!("lock {}", path.display()))
+            }
+        }
+    }
+
+    /// Whether another process currently holds the lock (best effort: the answer may
+    /// change right after).
+    pub fn is_held(path: &Path) -> bool {
+        if !path.exists() {
+            return false;
+        }
+        match OpenOptions::new().read(true).open(path) {
+            Ok(f) => matches!(f.try_lock_shared(), Err(std::fs::TryLockError::WouldBlock)),
+            Err(_) => false,
+        }
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
+}
+
+fn open_lock_file(path: &Path) -> Result<File> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).io_ctx(|| format!("create {}", dir.display()))?;
+    }
+    OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(path)
+        .io_ctx(|| format!("open lock {}", path.display()))
 }
 
 impl Drop for FileLock {
@@ -228,9 +262,17 @@ mod tests {
     #[test]
     fn lock_roundtrip() {
         let d = tempfile::tempdir().unwrap();
-        let l = FileLock::acquire(&d.path().join("x.lock")).unwrap();
+        let p = d.path().join("x.lock");
+        assert!(!FileLock::is_held(&p));
+        let l = FileLock::acquire(&p).unwrap();
+        // flock locks belong to the open file, so a second open in this process sees it held.
+        assert!(FileLock::is_held(&p));
+        assert!(FileLock::try_acquire(&p).unwrap().is_none());
         drop(l);
-        FileLock::acquire(&d.path().join("x.lock")).unwrap();
+        assert!(!FileLock::is_held(&p));
+        let l = FileLock::try_acquire(&p).unwrap().expect("free lock");
+        drop(l);
+        FileLock::acquire(&p).unwrap();
         assert!(available_space(d.path()).unwrap_or(1) > 0);
     }
 }

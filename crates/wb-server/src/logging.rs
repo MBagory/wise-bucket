@@ -12,8 +12,8 @@ fn filter(verbose: u8) -> EnvFilter {
     EnvFilter::try_from_env("WB_LOG").unwrap_or_else(|_| {
         EnvFilter::new(match verbose {
             0 => "warn",
-            1 => "info,sqlx=warn",
-            _ => "debug,sqlx=info",
+            1 => "info,lance=warn,datafusion=warn",
+            _ => "debug",
         })
     })
 }
@@ -45,7 +45,8 @@ pub fn init_file(logs_dir: &Path) -> Option<WorkerGuard> {
         )
         .with(fmt::layer().with_writer(writer).with_ansi(false))
         .with(
-            EnvFilter::try_from_env("WB_LOG").unwrap_or_else(|_| EnvFilter::new("info,sqlx=warn")),
+            EnvFilter::try_from_env("WB_LOG")
+                .unwrap_or_else(|_| EnvFilter::new("info,lance=warn,datafusion=warn")),
         )
         .try_init();
     Some(guard)

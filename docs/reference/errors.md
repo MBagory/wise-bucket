@@ -12,15 +12,10 @@ Every error reported by Wise Bucket, in the terminal or in an MCP tool result, c
 | [`root_overlap`](#root_overlap) | Two data roots overlap |
 | [`root_duplicate_name`](#root_duplicate_name) | Two data roots share the same name |
 | [`outside_roots`](#outside_roots) | A path is outside every configured data root |
-| [`unsupported_platform`](#unsupported_platform) | Managed PostgreSQL is not available for this platform |
 | [`download_failed`](#download_failed) | A download failed |
 | [`checksum_mismatch`](#checksum_mismatch) | A downloaded file does not match its pinned checksum |
-| [`db_not_initialized`](#db_not_initialized) | The managed database has not been set up yet |
-| [`db_start_failed`](#db_start_failed) | The managed PostgreSQL server could not be started |
-| [`db_connect_failed`](#db_connect_failed) | Cannot connect to the database |
-| [`migration_failed`](#migration_failed) | Applying database migrations failed |
-| [`socket_path_too_long`](#socket_path_too_long) | The PostgreSQL socket path is too long |
-| [`backup_failed`](#backup_failed) | Backup or restore failed |
+| [`recording_unreadable`](#recording_unreadable) | A recording could not be extracted into the store |
+| [`query_failed`](#query_failed) | A SQL query was rejected or failed |
 | [`io_error`](#io_error) | A file-system operation failed |
 | [`internal_error`](#internal_error) | Unexpected internal error |
 
@@ -60,59 +55,29 @@ Root names must be unique. Rename one of them with `wisebucket roots remove` the
 
 Wise Bucket only reads files inside declared roots. Add the folder with `wisebucket roots add <name> <path>` (there is deliberately no MCP tool for this).
 
-## unsupported_platform
-
-**Managed PostgreSQL is not available for this platform**
-
-Wise Bucket supports Linux (x86_64, aarch64) and macOS (x86_64, arm64). On Windows, use WSL2.
-
 ## download_failed
 
 **A download failed**
 
-Check your network connection or proxy, then re-run the command (`setup` or `demo`): files already downloaded are kept. A download that stalls fails after a timeout instead of hanging.
+Check your network connection or proxy, then re-run `wisebucket demo`: files already downloaded are kept. A download that stalls fails after a timeout instead of hanging.
 
 ## checksum_mismatch
 
 **A downloaded file does not match its pinned checksum**
 
-The file was corrupted, tampered with, or changed upstream. Re-run the command (`setup` or `demo`): files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).
+The file was corrupted, tampered with, or changed upstream. Re-run `wisebucket demo`: files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).
 
-## db_not_initialized
+## recording_unreadable
 
-**The managed database has not been set up yet**
+**A recording could not be extracted into the store**
 
-Run `wisebucket setup` once on this machine.
+The file may be truncated, corrupt, or use a feature Wise Bucket cannot read yet. The message says which. The recording itself is untouched, and it is retried automatically when the file changes. If the file opens in its own tools, please open an issue with the message.
 
-## db_start_failed
+## query_failed
 
-**The managed PostgreSQL server could not be started**
+**A SQL query was rejected or failed**
 
-Look at `<state-dir>/logs/postgres.log`. Common causes: a full disk, a stale `postmaster.pid` after a crash, or a socket directory that is not writable. `wisebucket doctor` checks all of them.
-
-## db_connect_failed
-
-**Cannot connect to the database**
-
-Run `wisebucket db status`, then `wisebucket doctor`.
-
-## migration_failed
-
-**Applying database migrations failed**
-
-Make a backup, then report the error with `wisebucket doctor` output attached. Do not edit the `wb` schema by hand.
-
-## socket_path_too_long
-
-**The PostgreSQL socket path is too long**
-
-Unix sockets are limited to about 100 characters. Use a shorter `--state-dir`, or set `TMPDIR` to a short directory.
-
-## backup_failed
-
-**Backup or restore failed**
-
-Check the message for the `pg_dump`/`pg_restore` output.
+Read the message: it comes from the query engine (DataFusion) and names the problem (unknown table or column, syntax, a write or DDL statement, a timeout). Only `SELECT` queries over the documented tables are allowed. See the tables reference.
 
 ## io_error
 

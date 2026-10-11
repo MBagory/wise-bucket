@@ -5,9 +5,10 @@
 
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, UNIX_EPOCH};
 
-use serde::Serialize;
+use globset::{Glob, GlobSet, GlobSetBuilder};
+use serde::{Deserialize, Serialize};
 
 use crate::config::{EffectiveConfig, Origin, RootDecl, RootSpec};
 use crate::error::{ErrorKind, Result, WbError, err};
@@ -22,7 +23,7 @@ pub struct Root {
     pub name: String,
     /// Canonical absolute path.
     pub path: PathBuf,
-    pub robot: Option<String>,
+    pub hardware: Option<String>,
     pub include: Vec<String>,
     pub exclude: Vec<String>,
     pub origin: Origin,
@@ -89,7 +90,7 @@ pub fn resolve_decl(decl: &RootDecl) -> Result<Root> {
     Ok(Root {
         name: spec.name.clone(),
         path: canonical,
-        robot: spec.robot.clone(),
+        hardware: spec.hardware.clone(),
         include: spec.include.clone(),
         exclude: spec.exclude.clone(),
         origin: decl.origin.clone(),
@@ -277,30 +278,174 @@ pub fn locate(set: &RootSet, path: &Path) -> Result<RootRef> {
     ))
 }
 
-/// Recording kinds recognized when counting candidates (full readers arrive in later milestones).
+/// Kind of recording found in a data root.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RecordingKind {
+    /// A rosbag2 folder: `metadata.yaml` plus `.mcap` or `.db3` splits.
+    Rosbag2,
+    Mcap,
+    /// A rosbag2 SQLite file outside a rosbag2 folder.
+    Db3,
+    Ulog,
+    Csv,
+    JsonLines,
+    Parquet,
+    ArrowIpc,
+    /// A ROS 1 bag: recognized, not readable yet.
+    Ros1Bag,
+}
+
+impl RecordingKind {
+    /// Kind of a loose file, from its extension (case-insensitive).
+    pub fn from_extension(ext: &str) -> Option<Self> {
+        Some(match ext.to_ascii_lowercase().as_str() {
+            "mcap" => Self::Mcap,
+            "db3" => Self::Db3,
+            "ulg" => Self::Ulog,
+            "csv" => Self::Csv,
+            "jsonl" | "ndjson" => Self::JsonLines,
+            "parquet" => Self::Parquet,
+            "arrow" | "feather" | "ipc" => Self::ArrowIpc,
+            "bag" => Self::Ros1Bag,
+            _ => return None,
+        })
+    }
+
+    /// Whether Wise Bucket can extract this kind into the store.
+    pub fn supported(self) -> bool {
+        self != Self::Ros1Bag
+    }
+
+    /// Plural label for summaries.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Rosbag2 => "rosbag2 folders",
+            Self::Mcap => "MCAP",
+            Self::Db3 => "rosbag2 SQLite",
+            Self::Ulog => "ULog",
+            Self::Csv => "CSV",
+            Self::JsonLines => "JSON Lines",
+            Self::Parquet => "Parquet",
+            Self::ArrowIpc => "Arrow IPC",
+            Self::Ros1Bag => "ROS 1 bags (not readable yet)",
+        }
+    }
+}
+
+/// A recording found in a data root.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Candidate {
+    /// Name of the data root.
+    pub root: String,
+    /// Path relative to the root (a folder for a rosbag2 recording).
+    pub path: PathBuf,
+    pub kind: RecordingKind,
+    /// Size in bytes (all splits for a rosbag2 folder).
+    pub size: u64,
+    /// Latest modification time, in nanoseconds since the Unix epoch.
+    pub mtime_ns: i64,
+}
+
+/// The recordings found in a root.
+#[derive(Debug, Clone, Default)]
+pub struct Walk {
+    pub candidates: Vec<Candidate>,
+    /// Files that are not recordings.
+    pub other: u64,
+    /// `true` if the walk stopped early (entry or time limit).
+    pub truncated: bool,
+}
+
+/// How many recordings of each kind a root holds.
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct CandidateCounts {
-    pub mcap: u64,
-    pub rosbag2_dirs: u64,
-    pub ros1_bag: u64,
-    pub ulog: u64,
+    #[serde(flatten)]
+    pub by_kind: BTreeMap<RecordingKind, u64>,
     pub other: u64,
     /// `true` if the scan stopped early (entry or time limit).
     pub truncated: bool,
 }
 
 impl CandidateCounts {
+    /// Number of recordings, readable or not.
     pub fn total(&self) -> u64 {
-        self.mcap + self.rosbag2_dirs + self.ros1_bag + self.ulog
+        self.by_kind.values().sum()
+    }
+
+    pub fn get(&self, kind: RecordingKind) -> u64 {
+        self.by_kind.get(&kind).copied().unwrap_or(0)
+    }
+
+    /// Human summary, e.g. `37 recordings (31 MCAP, 6 rosbag2 folders)`.
+    pub fn summary(&self) -> String {
+        let parts: Vec<String> = self
+            .by_kind
+            .iter()
+            .map(|(k, n)| format!("{n} {}", k.label()))
+            .collect();
+        format!(
+            "{} recording(s){}{}",
+            self.total(),
+            if parts.is_empty() {
+                String::new()
+            } else {
+                format!(" ({})", parts.join(", "))
+            },
+            if self.truncated {
+                ", scan stopped early"
+            } else {
+                ""
+            }
+        )
     }
 }
 
-/// Counts candidate recordings under a root without following symlinks.
-pub fn count_candidates(root: &Path, max_entries: u64, max_time: Duration) -> CandidateCounts {
+impl From<&Walk> for CandidateCounts {
+    fn from(w: &Walk) -> Self {
+        let mut by_kind = BTreeMap::new();
+        for c in &w.candidates {
+            *by_kind.entry(c.kind).or_default() += 1;
+        }
+        Self {
+            by_kind,
+            other: w.other,
+            truncated: w.truncated,
+        }
+    }
+}
+
+fn globset(patterns: &[String]) -> GlobSet {
+    let mut b = GlobSetBuilder::new();
+    for p in patterns {
+        // Invalid patterns are ignored here; `doctor` would be the place to report them.
+        if let Ok(g) = Glob::new(p) {
+            b.add(g);
+        }
+    }
+    b.build().unwrap_or_else(|_| GlobSet::empty())
+}
+
+fn mtime_ns(meta: &std::fs::Metadata) -> i64 {
+    meta.modified()
+        .ok()
+        .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| d.as_nanos() as i64)
+        .unwrap_or(0)
+}
+
+/// Lists the recordings in a root, without following symlinks, applying its
+/// `include`/`exclude` globs (matched against file paths relative to the root; a
+/// rosbag2 folder is matched through its `metadata.yaml`).
+pub fn candidates(root: &Root, max_entries: u64, max_time: Duration) -> Walk {
+    let include = globset(&root.include);
+    let exclude = globset(&root.exclude);
+    let wanted =
+        |rel: &Path| (root.include.is_empty() || include.is_match(rel)) && !exclude.is_match(rel);
     let start = Instant::now();
-    let mut counts = CandidateCounts::default();
+    let mut walk = Walk::default();
     let mut seen = 0u64;
-    let mut stack = vec![root.to_path_buf()];
+    let mut stack = vec![root.path.clone()];
     while let Some(dir) = stack.pop() {
         let Ok(entries) = std::fs::read_dir(&dir) else {
             continue;
@@ -309,8 +454,8 @@ pub fn count_candidates(root: &Path, max_entries: u64, max_time: Duration) -> Ca
         for entry in entries.flatten() {
             seen += 1;
             if seen > max_entries || start.elapsed() > max_time {
-                counts.truncated = true;
-                return counts;
+                walk.truncated = true;
+                return walk;
             }
             let Ok(ft) = entry.file_type() else { continue };
             let name = entry.file_name().to_string_lossy().to_string();
@@ -318,30 +463,88 @@ pub fn count_candidates(root: &Path, max_entries: u64, max_time: Duration) -> Ca
                 if !name.starts_with('.') {
                     stack.push(entry.path());
                 }
-            } else if ft.is_file() {
-                files.push(name);
+            } else if ft.is_file()
+                && let Ok(meta) = entry.metadata()
+            {
+                files.push((name, meta));
             }
         }
+        let rel_dir = dir.strip_prefix(&root.path).unwrap_or(&dir).to_path_buf();
         // A rosbag2 folder (metadata.yaml + .mcap/.db3 splits) is one recording.
-        if files.iter().any(|f| f == "metadata.yaml") {
-            counts.rosbag2_dirs += 1;
+        if files.iter().any(|(f, _)| f == "metadata.yaml") {
+            // Globs describe files: a rosbag2 folder is matched through its metadata.yaml.
+            if wanted(&rel_dir.join("metadata.yaml")) {
+                walk.candidates.push(Candidate {
+                    root: root.name.clone(),
+                    path: rel_dir,
+                    kind: RecordingKind::Rosbag2,
+                    size: files.iter().map(|(_, m)| m.len()).sum(),
+                    mtime_ns: files.iter().map(|(_, m)| mtime_ns(m)).max().unwrap_or(0),
+                });
+            }
             continue;
         }
-        for name in files {
-            match Path::new(&name)
+        for (name, meta) in files {
+            let rel = rel_dir.join(&name);
+            let kind = Path::new(&name)
                 .extension()
                 .and_then(|e| e.to_str())
-                .map(str::to_ascii_lowercase)
-                .as_deref()
-            {
-                Some("mcap") => counts.mcap += 1,
-                Some("bag") => counts.ros1_bag += 1,
-                Some("ulg") => counts.ulog += 1,
-                _ => counts.other += 1,
+                .and_then(RecordingKind::from_extension);
+            match kind {
+                Some(kind) if wanted(&rel) => walk.candidates.push(Candidate {
+                    root: root.name.clone(),
+                    path: rel,
+                    kind,
+                    size: meta.len(),
+                    mtime_ns: mtime_ns(&meta),
+                }),
+                Some(_) => {}
+                None => walk.other += 1,
             }
         }
     }
-    counts
+    walk
+}
+
+/// The recording at `rel` inside a root (a file, or a rosbag2 folder), if it is one.
+pub fn candidate(root: &Root, rel: &Path) -> Option<Candidate> {
+    let abs = root.path.join(rel);
+    let meta = std::fs::metadata(&abs).ok()?;
+    let (kind, size, mtime) = if meta.is_dir() {
+        let files: Vec<std::fs::Metadata> = std::fs::read_dir(&abs)
+            .ok()?
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+            .filter_map(|e| e.metadata().ok())
+            .collect();
+        if !abs.join("metadata.yaml").is_file() {
+            return None;
+        }
+        (
+            RecordingKind::Rosbag2,
+            files.iter().map(|m| m.len()).sum(),
+            files.iter().map(mtime_ns).max().unwrap_or(0),
+        )
+    } else {
+        let ext = abs.extension()?.to_str()?;
+        (
+            RecordingKind::from_extension(ext)?,
+            meta.len(),
+            mtime_ns(&meta),
+        )
+    };
+    Some(Candidate {
+        root: root.name.clone(),
+        path: rel.to_path_buf(),
+        kind,
+        size,
+        mtime_ns: mtime,
+    })
+}
+
+/// Counts the recordings in a root (see [`candidates`]).
+pub fn count_candidates(root: &Root, max_entries: u64, max_time: Duration) -> CandidateCounts {
+    CandidateCounts::from(&candidates(root, max_entries, max_time))
 }
 
 /// Convenience: build a [`RootDecl`] for a user-config root.
@@ -362,7 +565,7 @@ mod tests {
             spec: RootSpec {
                 name: name.into(),
                 path: path.to_path_buf(),
-                robot: None,
+                hardware: None,
                 include: vec![],
                 exclude: vec![],
             },
@@ -477,19 +680,49 @@ mod tests {
     }
 
     #[test]
-    fn counts_recordings() {
+    fn finds_recordings_with_globs() {
         let d = tempfile::tempdir().unwrap();
         let r = d.path();
         std::fs::create_dir_all(r.join("run1")).unwrap();
         std::fs::write(r.join("run1/metadata.yaml"), "").unwrap();
-        std::fs::write(r.join("run1/run1_0.mcap"), "").unwrap();
+        std::fs::write(r.join("run1/run1_0.mcap"), "abc").unwrap();
         std::fs::write(r.join("loose.MCAP"), "").unwrap();
         std::fs::write(r.join("old.bag"), "").unwrap();
         std::fs::write(r.join("flight.ulg"), "").unwrap();
-        let c = count_candidates(r, 10_000, Duration::from_secs(5));
-        assert_eq!((c.mcap, c.rosbag2_dirs, c.ros1_bag, c.ulog), (1, 1, 1, 1));
-        assert!(!c.truncated);
-        let c = count_candidates(r, 2, Duration::from_secs(5));
-        assert!(c.truncated);
+        std::fs::write(r.join("bench.csv"), "").unwrap();
+        std::fs::write(r.join("notes.txt"), "").unwrap();
+        std::fs::create_dir_all(r.join("tmp")).unwrap();
+        std::fs::write(r.join("tmp/scratch.csv"), "").unwrap();
+        let set = resolve_decls(&[decl("bags", r, r)]);
+        let mut root = set.roots[0].clone();
+        let c = count_candidates(&root, 10_000, Duration::from_secs(5));
+        use RecordingKind::*;
+        assert_eq!(
+            [Rosbag2, Mcap, Ros1Bag, Ulog, Csv].map(|k| c.get(k)),
+            [1, 1, 1, 1, 2]
+        );
+        assert_eq!((c.total(), c.other, c.truncated), (6, 1, false));
+        let w = candidates(&root, 10_000, Duration::from_secs(5));
+        let bag = w.candidates.iter().find(|c| c.kind == Rosbag2).unwrap();
+        assert_eq!((bag.path.as_path(), bag.size), (Path::new("run1"), 3));
+        assert!(bag.mtime_ns > 0);
+        assert_eq!(candidate(&root, Path::new("run1")).as_ref(), Some(bag));
+        assert_eq!(candidate(&root, Path::new("bench.csv")).unwrap().kind, Csv);
+        assert!(candidate(&root, Path::new("notes.txt")).is_none());
+        assert!(candidate(&root, Path::new("tmp")).is_none());
+
+        root.exclude = vec!["tmp/**".into()];
+        assert_eq!(
+            count_candidates(&root, 10_000, Duration::from_secs(5)).get(Csv),
+            1
+        );
+        root.exclude.clear();
+        root.include = vec!["**/*.csv".into()];
+        let c = count_candidates(&root, 10_000, Duration::from_secs(5));
+        assert_eq!((c.total(), c.get(Csv)), (2, 2));
+        root.include = vec!["**/metadata.yaml".into()];
+        let c = count_candidates(&root, 10_000, Duration::from_secs(5));
+        assert_eq!((c.total(), c.get(Rosbag2)), (1, 1));
+        assert!(count_candidates(&root, 2, Duration::from_secs(5)).truncated);
     }
 }

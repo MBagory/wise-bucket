@@ -5,6 +5,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added: the store, and SQL for your agent (milestone M1)
+
+- **Every recording in your data roots is extracted into a store**: a decoded, columnar copy of its signals, one table per stream, with a common nanosecond time column `t` (plus `t_sensor` from `header.stamp`, and `message_bytes`). Wise Bucket trades disk space for query speed ([ADR 0012](docs/decisions/0012-trade-storage-for-query-speed.md)). Readable formats: ROS 2 bags (MCAP or SQLite `.db3`; Humble bags are decoded with bundled standard message definitions), MCAP files, PX4 ULog, CSV, JSON Lines, Parquet and Arrow IPC. Images, point clouds, maps and video keep their timing and sizes only. ROS 1 bags are listed as `unsupported`.
+- **Automatic, in the background:** while an agent session is open, new and changed recordings are found every minute and extracted, newest first, one at a time, in a low-priority child process. Several agent windows never extract the same file twice. A deleted recording stays queryable as `missing`. Extraction pauses below 10 GB of free disk space.
+- **The `sql` tool** (and `wisebucket sql "<query>"`): read-only SQL over the tables `recordings` and `streams` and the function `stream('<name>' [, '<recording LIKE pattern>'])`, run by Apache DataFusion over Lance datasets. Nothing is computed in advance: rates, gaps, windows, percentiles and joins are written when a question needs them ([ADR 0010](docs/decisions/0010-metrics-are-sql-written-by-the-agent.md)). Queries are capped at 30 s, 1 GB and 200 rows; DDL, writes and file access are refused.
+- `server_info` reports the store (recordings per status, size, paused) and each root's hardware; `doctor` checks the store and SQL.
+- References: [tables](docs/reference/tables.md) (generated); [decision records](docs/decisions/README.md) for why Wise Bucket is built this way, and the list of possible features that replaces the milestone roadmap.
+- New error codes: `recording_unreadable`, `query_failed`.
+
+### Removed: PostgreSQL
+
+- The managed PostgreSQL is gone ([ADR 0011](docs/decisions/0011-no-database.md)): `setup` downloads nothing, and nothing runs in the background without an agent session. Removed: `db status|start|stop`, `backup`, `restore`, `--keep-running`, `WB_KEEP_RUNNING`, `WB_RUNTIME_DIR`, and the error codes `unsupported_platform`, `db_not_initialized`, `db_start_failed`, `db_connect_failed`, `migration_failed`, `socket_path_too_long` and `backup_failed`. The platform limits it imposed (macOS 15+, glibc 2.34+) are gone.
+- The `[database]` section of existing user configurations is ignored; you can delete it. In the state directory, `runtime/`, `pg/`, `secrets/` and `run/` can be deleted.
+
+### Changed
+
+- **Data roots name their hardware, not their robot:** `roots add --hardware` replaces `--robot`, and the configuration key `robot = "…"` becomes `hardware = "…"`. Edit existing lines: the old key fails with `config_invalid`.
+- A root's `include`/`exclude` globs are now applied (matched against file paths; a rosbag2 folder through its `metadata.yaml`).
+- `roots check` and `server_info` count recordings by kind: `rosbag2` replaces `rosbag2_dirs`, and `db3`, `csv`, `json_lines`, `parquet` and `arrow_ipc` are new.
+- Building from source needs Rust 1.96 or newer, a C compiler and `protoc`.
+
 ### Removed: pgvector until M4, and the 0.1.0-rc.1 pre-release
 
 - The 0.1.0-rc.1 pre-release is withdrawn. Binaries will be published from the first usable version (milestone M4); until then, install from source (`cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked`).

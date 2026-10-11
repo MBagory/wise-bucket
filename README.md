@@ -7,7 +7,7 @@
 [![CI](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml/badge.svg)](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-guide-blue)](docs/guide.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![MSRV](https://img.shields.io/badge/rust-1.94%2B-orange.svg)](Cargo.toml)
+[![MSRV](https://img.shields.io/badge/rust-1.96%2B-orange.svg)](Cargo.toml)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-red)
 
 [Overview](#overview) · [Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Platforms](#platforms) · [Docs](#documentation) · [Contributing](#contributing)
@@ -16,19 +16,18 @@
 
 ## Overview
 
-Wise Bucket connects your **AI agent** to the **time-series data on your machine**, in the formats R&D teams actually record:
+Wise Bucket connects your **AI agent** to the **time-series data on your machine**, so it can answer questions about your hardware (robots, drones, vehicles, test benches) from what was actually recorded.
 
-- Tabular exports: CSV, Parquet
-- Test benches and instruments: ASAM MDF4 (`.mf4`), NI TDMS (`.tdms`), HDF5 (`.h5`)
-- Buses and telemetry: CAN captures (candump, Vector ASC/BLF) decoded with a DBC file, MAVLink (`.tlog`)
-- Robotics and embedded logs: MCAP / ROS bags, PX4 ULog (`.ulg`), ArduPilot DataFlash (`.bin`)
+It reads today:
 
-The goal is to give the agent **the full context it usually lacks**, by *standardizing metadata* and *asking you for whatever seems missing*.
+- **Robotics:** ROS 2 bags (MCAP or SQLite `.db3`, including Humble bags), MCAP files
+- **Drones:** PX4 ULog (`.ulg`)
+- **Tables:** CSV, JSON Lines, Parquet, Arrow IPC
 
-*Next*, it will compute and store **signal-processing metrics** and **embeddings**, to surface *analogies* and *weak signals* across all your recordings. Whether you ask a new question or come back to an old one, your agent will answer with **long-term context**.
+More formats are on the list of [possible features](docs/decisions/0014-possible-features-instead-of-milestones.md): CAN with DBC, ASAM MDF4, NI TDMS, HDF5, MAVLink, ArduPilot DataFlash, ROS 1 bags…
 
 > [!WARNING]
-> **Work in progress.** Wise Bucket is in early alpha and under active development. Commands, configuration and on-disk formats may change without notice, and it is not ready for production use. **There is no release yet: the first usable version (MVP) comes with milestone M4** (see [Roadmap](#roadmap)). Feedback and [issues](https://github.com/MBagory/wise-bucket/issues) are welcome.
+> **Work in progress.** Wise Bucket is in early alpha. Commands, configuration and on-disk formats may change without notice. **There is no release yet**: the first one follows the testing of milestone M1 ([ADR 0015](docs/decisions/0015-first-release-after-m1.md)). Feedback and [issues](https://github.com/MBagory/wise-bucket/issues) are welcome.
 
 ### How it works
 
@@ -39,49 +38,46 @@ flowchart LR
     subgraph machine["Your machine"]
         agent["AI agent<br/>Claude Code, Codex, Cursor…"]
         wb["Wise Bucket<br/>MCP server"]
-        db[("PostgreSQL (private)<br/>investigation memory")]
-        data[/"Recording folders<br/>MCAP, ULog, CAN, MDF4…"/]
+        store[("Store<br/>decoded columnar copy")]
+        data[/"Recording folders<br/>ROS 2 bags, MCAP, ULog, CSV…"/]
     end
-    you <-->|"questions, answers,<br/>missing context"| agent
+    you <-->|"questions, answers"| agent
     agent <-->|"prompts"| llm
-    agent <-->|"MCP tool calls (stdio)"| wb
-    wb <-->|"Unix socket"| db
+    agent <-->|"MCP: sql, server_info"| wb
     wb -->|"reads only"| data
+    wb <-->|"extracts in the background,<br/>queries with SQL"| store
     you -.->|"declares with<br/>wisebucket roots add"| data
 ```
 
-Your agent owns the model: **Wise Bucket never calls one**. It only reads the folders **you** declare, and the agent cannot add any.
+**Wise Bucket trades disk space for speed.** It reads each recording once and keeps a decoded, columnar copy of its signals: one table per stream (topic), with a common time column. Every question your agent asks then becomes a SQL query that reads only the columns and time range it needs, in milliseconds to seconds, instead of a new pass over your bags. Nothing is computed in advance: rates, gaps, windows, percentiles and joins between streams are written when a question needs them.
 
-### Roadmap
+The copy is **derived**: delete it any time and it is rebuilt. Your recordings are never modified. New and changed files are extracted automatically while an agent session is open.
 
-Wise Bucket is built one milestone at a time:
-
-- **M0, foundation** (now): install, private database, recording folders, `server_info`
-- **M1, knowledge of your hardware**: unknown sensors, buses and software are asked about once, then remembered
-- **M2, investigations**: questions, hypotheses and predictions registered before the data
-- **M3, recordings**: ROS 2 MCAP bags indexed and tied to your hardware
-- **M4, metrics and similarity search: the MVP and first release.** Ask a question, register predictions, attach a bag, compute metrics, and find similar past cases.
-- **M5, evaluation** on real investigations, then **E1–E12** expansions (more formats, Windows, background analysis…)
+Your agent owns the model: **Wise Bucket never calls one**. It only reads the folders **you** declare, and the agent cannot add any. Why it is built this way: [decision records](docs/decisions/README.md).
 
 ## Getting started
 
 ### 1. Install
 
-Prebuilt binaries come with the first release (M4). Until then, build from source with [Rust](https://rustup.rs) 1.94 or newer (no C compiler needed; it compiles in a few minutes):
+Prebuilt binaries come with the first release. Until then, build from source. You need [Rust](https://rustup.rs) 1.96 or newer, a C compiler, and `protoc` (the Protocol Buffers compiler):
 
 ```sh
+xcode-select --install && brew install protobuf                      # macOS
+sudo apt install build-essential protobuf-compiler                  # Debian, Ubuntu
+sudo dnf install gcc protobuf-compiler                              # RHEL family, Fedora
+
 cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked
 ```
 
-This installs `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. To update, run the same command again. Check [Platforms](#platforms) first.
+The build takes several minutes. It installs `wisebucket` and its short alias `wbk` in `~/.cargo/bin`. To update, run the same command again.
 
-### 2. Set up your machine (once, about a minute)
+### 2. Set up your machine (once)
 
 ```sh
 wisebucket setup
 ```
 
-`setup` only asks which folders hold your recordings. Re-run it any time: **it only does what's missing**.
+`setup` only asks which folders hold your recordings. There is nothing to download and no database to install. Re-run it any time.
 
 <details>
 <summary>Example session</summary>
@@ -90,14 +86,11 @@ wisebucket setup
 $ wisebucket setup
 Wise Bucket setup
 ✔ state directory: ~/.local/share/wisebucket
-… Downloading https://github.com/theseus-rs/postgresql-binaries/…/postgresql-17.11.0-x86_64-unknown-linux-gnu.tar.gz
-✔ PostgreSQL 17.11.0 ready
-✔ database ready: PostgreSQL 17.11, pg_trgm 1.6
-? Add a folder containing recordings (rosbags, MCAP, …)? › yes
+? Add a folder containing recordings (ROS 2 bags, MCAP, ULog, CSV…)? › yes
   Folder path › ~/robot-logs/bags
   Short name › bags
-  Default robot for these recordings (optional) › rover-b
-✔ root "bags" → /home/me/robot-logs/bags · 37 candidate recordings (31 MCAP, 6 rosbag2 folders, 0 ROS 1, 0 ULog)
+  Hardware these recordings come from (robot, vehicle…; optional) › rover-b
+✔ root "bags" → /home/me/robot-logs/bags · 37 recording(s) (6 rosbag2 folders, 31 MCAP)
 ? Add another folder? › no
 ✔ configuration written to ~/.config/wisebucket/config.toml
 
@@ -134,29 +127,37 @@ args = ["serve"]
 
 ### 4. Talk to your agent
 
-Start a new agent session, in any folder (in Claude Code, `/mcp` lists `wise-bucket`). Then just ask:
+Start a new agent session, in any folder (in Claude Code, `/mcp` lists `wise-bucket`). The first session starts extracting your recordings in the background. Then ask:
 
 ```text
-you   › Is Wise Bucket ready? Which recording folders can you use?
+you   › Is Wise Bucket ready? What does it have?
 
 agent › ⏺ wise-bucket · server_info
-        Wise Bucket 0.1.0 is connected and its database is running
-        (PostgreSQL 17.11, 1 active session).
-        I can use one recording folder: bags → /home/me/robot-logs/bags,
-        with 37 recordings (31 MCAP files, 6 rosbag2 folders).
+        Wise Bucket 0.1.0 is connected. Of the 37 recordings in bags
+        (/home/me/robot-logs/bags, hardware rover-b), 30 are extracted
+        and 7 are being extracted now.
+
+you   › In the demo ULog, what is the accelerometer noise floor at rest?
+
+agent › ⏺ wise-bucket · sql
+          SELECT count(*), stddev("accelerometer_m_s2[2]"), avg("accelerometer_m_s2[2]")
+          FROM stream('sensor_combined')
+        Over 17,070 samples, the vertical acceleration averages −9.62 m/s²
+        (gravity) with a standard deviation of 0.16 m/s²: that is the noise
+        floor at rest.
 ```
 
 <details>
 <summary>When something isn't right, the answer tells you what to do</summary>
 
 ```text
-you   › Is Wise Bucket ready?
+you   › What happened in run7.mcap?
 
-agent › ⏺ wise-bucket · server_info
-        Not yet: the database hasn't been set up on this machine
-        (db_not_initialized). Run `wisebucket setup` once,
-        then start a new session.
-        Docs: https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#db_not_initialized
+agent › ⏺ wise-bucket · sql
+        run7.mcap could not be extracted: the file ends in the middle of a
+        chunk (recording_unreadable). The recording itself is untouched; it is
+        retried automatically if the file changes.
+        Docs: https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#recording_unreadable
 ```
 
 </details>
@@ -172,24 +173,22 @@ wisebucket demo --all           # everything (about 4 MB)
 wisebucket demo --list          # formats, sizes and licenses
 ```
 
-The files go to `<state dir>/demo/<format>/`. They are fetched from their upstream projects at a pinned commit and checked against a SHA-256, and they **stay under their own licenses** (Apache-2.0, MIT, BSD-3-Clause, LGPL-3.0): this repository does not include them. Re-running `demo` only downloads what is missing. Your agent sees the `demo` root straight away; remove it with `wisebucket roots remove demo` and by deleting the folder.
+The files go to `<state dir>/demo/<format>/`. They are fetched from their upstream projects at a pinned commit and checked against a SHA-256, and they **stay under their own licenses** (Apache-2.0, MIT, BSD-3-Clause, LGPL-3.0): this repository does not include them. Re-running `demo` only downloads what is missing. Open an agent session and the readable ones are extracted within seconds. Remove them with `wisebucket roots remove demo` and by deleting the folder.
 
 ### Investigations to try
 
-Wise Bucket currently **lists and counts** recordings; it does not read them yet. Each line below says which milestone makes the investigation runnable.
-
-| Format | Sample | Ask your agent | Runnable from |
+| Format | Sample | Ask your agent | Today? |
 | --- | --- | --- | --- |
-| *all* | everything you downloaded | *"Which recordings does Wise Bucket see in the demo root?"* | now (M0) |
-| `ros2-mcap` · `ros2-db3` | ROS 2 talker demo, 4.5 s: `/topic` (`std_msgs/String`) and `/rosout`, 10 messages each, as MCAP and as SQLite | *"Is `/topic` published at a steady rate?"* · *"Do the MCAP and SQLite copies hold the same messages?"* | M3 (MCAP), E2 (`.db3`) |
-| `mcap` | ROS 1-encoded demo (`/chatter`, `/diagnostics`) and an MCAP spec conformance file | *"Which topics are in `demo.mcap`, and at what rates?"* · *"Does the conformance file decode to exactly ten messages?"* | M3 (conformance), E3 (ROS 1 encoding) |
-| `ros1-bag` | demo bag plus one bag (`/chatter`, `/numbers`) stored uncompressed, LZ4 and BZ2 | *"Do the three compressions decode to the same `/numbers` sequence? Any gaps?"* | E3 (ROS 1) |
-| `ulog` | PX4 autopilot on the bench, disarmed, 69 s, no barometer detected | *"Why is the barometric altitude flat?"* · *"What is the IMU noise floor at rest?"* · *"When does CPU load peak (83 %) and what runs then?"* | E3 (ULog), M4 (metrics) |
-| `dataflash` | ArduPlane 3.8 software-in-the-loop log: attitude, PIDs, EKF, GPS, battery, vibration | *"How large is the roll tracking error (`ATT.DesRoll` vs `ATT.Roll`)?"* · *"Does battery voltage sag with current?"* · *"Are vibration levels within ArduPilot's limits?"* | E3 (DataFlash), M4 |
-| `tlog` | one MAVLink 2 `BATTERY_STATUS` (12.59 V, 100 %) followed by a truncated packet | *"What battery state was reported?"* · *"Is the truncated tail reported instead of failing the whole file?"* | E3 (MAVLink) |
-| `can` | Vector ASC capture (20 frames, 9 IDs, 4 error frames, 28 s), a BLF file, and an unrelated DBC | *"Which IDs are on the bus, how often, and when do the error frames occur?"* · *"Which frames can't this DBC decode?"* (all of them, so Wise Bucket should ask you for the right one) | E3 (CAN) |
-| `mdf4` | MDF 4.10 file whose four channels have meaningless names | *"What do these channels measure?"* Wise Bucket cannot guess, so it should ask you to bind them | E3 (MDF4) |
-| `parquet` | 8-row table covering the Parquet primitive types | no investigation: it checks the format of Wise Bucket's decoded cache | M3 |
+| *all* | everything you downloaded | *"Which recordings does Wise Bucket have in the demo root, and which could it read?"* | ✅ |
+| `ros2-mcap` · `ros2-db3` | ROS 2 talker demo, 4.5 s: `/topic` (`std_msgs/String`) and `/rosout`, 10 messages each, as MCAP and as SQLite | *"Is `/topic` published at a steady rate?"* · *"Do the MCAP and SQLite copies hold the same messages?"* | ✅ |
+| `mcap` | ROS 1-encoded demo (`/chatter`, `/diagnostics`) and an MCAP spec conformance file | *"Which topics are in `demo.mcap`, and at what rates?"* · *"Does the conformance file hold exactly ten messages?"* | ✅ timing and sizes (ROS 1 payloads are not decoded yet) |
+| `ulog` | PX4 autopilot on the bench, disarmed, 69 s, no barometer detected | *"What is the IMU noise floor at rest?"* · *"When does CPU load peak, and what runs then?"* · *"Why is the barometric altitude flat?"* | ✅ |
+| `parquet` | 8-row table covering the Parquet primitive types | *"Which column types does it hold?"* | ✅ |
+| `ros1-bag` | demo bag plus one bag (`/chatter`, `/numbers`) stored uncompressed, LZ4 and BZ2 | *"Do the three compressions decode to the same `/numbers` sequence?"* | listed, not readable yet |
+| `dataflash` | ArduPlane 3.8 software-in-the-loop log | *"How large is the roll tracking error?"* · *"Does battery voltage sag with current?"* | not yet |
+| `tlog` | one MAVLink 2 `BATTERY_STATUS` followed by a truncated packet | *"What battery state was reported?"* | not yet |
+| `can` | Vector ASC capture (20 frames, 9 IDs, 4 error frames), a BLF file, and an unrelated DBC | *"Which IDs are on the bus, and when do the error frames occur?"* | not yet |
+| `mdf4` | MDF 4.10 file whose four channels have meaningless names | *"What do these channels measure?"* | not yet |
 
 ## Everyday use
 
@@ -197,17 +196,15 @@ Wise Bucket currently **lists and counts** recordings; it does not read them yet
 
 | You want to… | Run |
 | --- | --- |
-| Add a recording folder (a NAS mount works too) | `wisebucket roots add flights /Volumes/lab-nas/px4` |
+| Add a recording folder (a NAS mount works too) | `wisebucket roots add flights /Volumes/lab-nas/px4 --hardware drone-2` |
 | See what your folders contain | `wisebucket roots check` |
-| See which agent windows are connected | `wisebucket db status` |
+| Query the store yourself, as your agent does | `wisebucket sql "SELECT status, count(*) FROM recordings GROUP BY status"` |
 | Check that everything works | `wisebucket doctor` |
-| Back up (and restore) your data | `wisebucket backup wb.dump` · `restore wb.dump --yes` |
 | See your settings and where each comes from | `wisebucket config show --origin` |
 | Tab-complete commands in your shell | `wisebucket completions zsh > ~/.zfunc/_wisebucket` (also `bash`, `fish`) |
 
-
 > [!IMPORTANT]
-> Folder changes reach running agent sessions straight away. Your recordings are **never modified, moved or included in backups**; `roots remove` only *forgets* a folder.
+> Folder changes reach running agent sessions straight away. Your recordings are **never modified or moved**: the store holds a decoded copy, and `roots remove` only *forgets* a folder.
 
 ### Check your installation
 
@@ -220,13 +217,13 @@ Wise Bucket currently **lists and counts** recordings; it does not read them yet
 $ wisebucket doctor
 ✔ configuration      loaded (~/.config/wisebucket/config.toml)
 ✔ state directory    ~/.local/share/wisebucket · 84.6 GB free
-✔ postgresql         17.11.0 installed
-✔ database           managed · PostgreSQL 17.11 · pg_trgm 1.6 · 0 active session(s)
+✔ store              ~/.local/share/wisebucket/store · 1.2 GB · 36 done, 0 pending, 1 failed
+⚠ extraction         1 recording(s) failed: `wisebucket sql "SELECT recording, error FROM recordings WHERE status = 'failed'"`
+                     ↳ recording_unreadable · https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#recording_unreadable
+✔ sql                queries run
 ✔ data root          bags → /home/me/robot-logs/bags
-✖ data root          root "old-bags": /home/me/old-bags is not accessible
-                     ↳ root_invalid · https://github.com/MBagory/wise-bucket/blob/main/docs/reference/errors.md#root_invalid
 
-6 check(s), 1 failed, 0 warning(s)
+6 check(s), 0 failed, 1 warning(s)
 ```
 
 </details>
@@ -237,24 +234,22 @@ $ wisebucket doctor
 | --- | --- |
 | Your settings and recording folders | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` |
 | How your agent starts Wise Bucket | Your agent's user-level MCP settings (e.g. `claude mcp get wise-bucket`) |
-| Database, logs, generated passwords | Linux `~/.local/share/wisebucket/`, macOS `~/Library/Application Support/wisebucket/` (about 250 MB) |
+| The store (decoded copy of your recordings) and logs | Linux `~/.local/share/wisebucket/`, macOS `~/Library/Application Support/wisebucket/` |
 
 ## Platforms
 
 | Platform | Supported |
 | --- | --- |
-| macOS 15 or later, Apple Silicon / Intel | ✅ |
-| Linux x86_64 / arm64 with glibc 2.34 or later: Ubuntu 22.04+, Debian 12+, RHEL / Rocky / Alma 9+, Fedora, Amazon Linux 2023, Arch | ✅ |
-| Older Linux (Ubuntu 20.04, Debian 11, RHEL 8), Alpine and other musl distros | ❌ |
+| macOS, Apple Silicon / Intel | ✅ |
+| Linux x86_64 / arm64 | ✅ |
 | Windows | through WSL2 |
-
-The limits come from the PostgreSQL binaries that `setup` downloads. On Linux they also need a few common system libraries, which are already installed on desktops and servers; minimal containers may lack them (see [the guide](docs/guide.md#install)).
 
 ## Documentation
 
-- [User guide](docs/guide.md): install, setup, recording folders, connecting your agent, everyday use
+- [User guide](docs/guide.md): install, setup, recording folders, connecting your agent, the store and SQL
 - [Troubleshooting and FAQ](docs/troubleshooting.md)
-- Reference: [CLI](docs/reference/cli.md) · [Configuration](docs/reference/configuration.md) · [Errors](docs/reference/errors.md)
+- Reference: [Tables](docs/reference/tables.md) · [CLI](docs/reference/cli.md) · [Configuration](docs/reference/configuration.md) · [Errors](docs/reference/errors.md)
+- [Decision records](docs/decisions/README.md): why Wise Bucket is built the way it is, and the possible features ahead
 - [Security and privacy](SECURITY.md)
 
 ## Contributing
@@ -262,18 +257,18 @@ The limits come from the PostgreSQL binaries that `setup` downloads. On Linux th
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ```sh
-cargo build
-cargo test --workspace               # first run downloads PostgreSQL (~1 min)
-cargo run -p wisebucket -- docs gen   # regenerate reference pages after changing the CLI, errors or config
+cargo build                          # needs a C compiler and protoc
+cargo test --workspace
+cargo run -p wisebucket -- docs gen   # regenerate reference pages after changing the CLI, errors, config or tables
 cargo test -p wisebucket --test samples -- --ignored  # per-format sample checks (downloads ~4 MB once)
 ```
 
-The acceptance tests drive **the real binary** through **a real MCP client**. They cover two concurrent sessions, stop-after-last, recording folders, `doctor` and backup/restore.
+The acceptance tests drive **the real binary** through **a real MCP client**: background extraction, files added, changed and deleted during a session, two sessions at once, and the SQL lockdown. Format tests extract generated fixtures with exact expected values.
 
 ## Security
 
-**Recordings and the database stay on your machine.** Downloads are *pinned and verified*. What your agent sends to its own model follows your agent's terms. Report vulnerabilities **privately**: see [SECURITY.md](SECURITY.md).
+**Recordings and the store stay on your machine.** The agent's SQL is read-only and sees only the store. Downloads (`demo`) are *pinned and verified*. What your agent sends to its own model follows your agent's terms. Report vulnerabilities **privately**: see [SECURITY.md](SECURITY.md).
 
 ## License
 
-[Apache License 2.0](LICENSE). Built on [PostgreSQL](https://www.postgresql.org), [theseus-rs PostgreSQL binaries](https://github.com/theseus-rs/postgresql-binaries), the [Rust MCP SDK](https://github.com/modelcontextprotocol/rust-sdk) and [SQLx](https://github.com/launchbadge/sqlx). To cite Wise Bucket, use [CITATION.cff](CITATION.cff).
+[Apache License 2.0](LICENSE). Built on [Apache DataFusion](https://datafusion.apache.org), [Lance](https://github.com/lance-format/lance), [Apache Arrow](https://arrow.apache.org), the [Rust MCP SDK](https://github.com/modelcontextprotocol/rust-sdk), [mcap](https://github.com/foxglove/mcap), Rerun's [re_ros_msg](https://github.com/rerun-io/rerun), [px4-ulog](https://github.com/PX4/px4-ulog-rs) and [SQLite](https://sqlite.org). Bundled ROS 2 message definitions come from [ros2/common_interfaces](https://github.com/ros2/common_interfaces) and related repositories (Apache-2.0, BSD-3-Clause). To cite Wise Bucket, use [CITATION.cff](CITATION.cff).

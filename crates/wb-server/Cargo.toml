@@ -27,6 +27,7 @@ path = "src/bin/wbk.rs"
 
 [dependencies]
 wb-core = { path = "../wb-core" }
+wb-data = { path = "../wb-data" }
 clap = { version = "4.6", features = ["derive", "env", "wrap_help"] }
 clap-markdown = "0.1.5"
 dialoguer = { version = "0.12", default-features = false }

@@ -12,7 +12,7 @@ const STYLES: Styles = Styles::styled()
     .literal(AnsiColor::Cyan.on_default().bold())
     .placeholder(AnsiColor::Cyan.on_default());
 
-/// Wise Bucket: evidence-backed, iterative robot investigations for your AI coding agent.
+/// Wise Bucket: evidence-backed, iterative hardware investigations for your AI coding agent.
 ///
 /// Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 #[derive(Debug, Parser)]
@@ -26,6 +26,7 @@ Examples:
   wisebucket setup                         Set up the database and recording folders
   wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
   wisebucket demo --all                    Try it on public sample recordings
+  wisebucket sql \"SELECT * FROM streams\"  Query the store yourself
   wisebucket doctor                        Check the installation"
 )]
 pub struct Cli {
@@ -42,13 +43,9 @@ pub struct GlobalArgs {
     #[arg(long, global = true, value_name = "FILE")]
     pub config: Option<PathBuf>,
 
-    /// State directory (database, caches, logs) [env: WB_STATE_DIR]
+    /// State directory (the store of decoded recordings, logs) [env: WB_STATE_DIR]
     #[arg(long, global = true, value_name = "DIR")]
     pub state_dir: Option<PathBuf>,
-
-    /// Keep the managed PostgreSQL running after the last session [env: WB_KEEP_RUNNING]
-    #[arg(long, global = true)]
-    pub keep_running: bool,
 
     /// Machine-readable JSON output (where supported)
     #[arg(long, global = true)]
@@ -63,7 +60,7 @@ pub struct GlobalArgs {
 pub enum Command {
     /// Run the MCP server on stdin/stdout (what your harness launches)
     Serve,
-    /// One-time machine setup: database, recording folders, and how to connect your agent
+    /// One-time machine setup: recording folders, and how to connect your agent
     #[command(after_help = "\
 Examples:
   wisebucket setup                               Interactive
@@ -75,21 +72,21 @@ Examples:
     /// Inspect the effective configuration
     #[command(subcommand)]
     Config(ConfigCommand),
-    /// Control the managed PostgreSQL server
-    #[command(subcommand)]
-    Db(DbCommand),
-    /// Write a backup of the Wise Bucket database (custom pg_dump format)
-    Backup {
-        /// Output file
-        file: PathBuf,
+    /// Run a read-only SQL query over the store (what your agent's `sql` tool runs)
+    #[command(after_help = "\
+Examples:
+  wisebucket sql \"SELECT recording, status FROM recordings\"
+  wisebucket sql \"SELECT stream, rows FROM streams WHERE recording = 'bags:run3.mcap'\"
+  wisebucket sql \"SELECT count(*) FROM stream('/imu')\"")]
+    Sql {
+        /// A single SELECT query (tables: recordings, streams, stream('<name>'))
+        query: String,
     },
-    /// Restore a backup made with `backup` (replaces current data)
-    Restore {
-        /// Backup file
-        file: PathBuf,
-        /// Confirm replacing the current data
-        #[arg(long)]
-        yes: bool,
+    /// Extract one recording into the store (run in the background by agent sessions)
+    #[command(hide = true)]
+    Ingest {
+        /// The recording, as `root:path`
+        recording: String,
     },
     /// Check the whole installation and explain how to fix problems
     Doctor,
@@ -154,15 +151,15 @@ pub enum RootsCommand {
     #[command(after_help = "\
 Examples:
   wisebucket roots add bags ~/robot-logs
-  wisebucket roots add field /data/field --robot rover-b --exclude '**/tmp/**'")]
+  wisebucket roots add field /data/field --hardware rover-b --exclude '**/tmp/**'")]
     Add {
         /// Short name, used in references like `name:relative/path`
         name: String,
         /// Folder path (absolute or ~/...)
         path: PathBuf,
-        /// Default robot for recordings in this folder
+        /// The hardware (robot, vehicle, test bench…) these recordings come from
         #[arg(long)]
-        robot: Option<String>,
+        hardware: Option<String>,
         /// Glob pattern of files to consider (repeatable)
         #[arg(long)]
         include: Vec<String>,
@@ -191,22 +188,8 @@ pub enum ConfigCommand {
 }
 
 #[derive(Debug, Subcommand)]
-pub enum DbCommand {
-    /// Show database mode, state and active sessions
-    Status,
-    /// Start the managed PostgreSQL server
-    Start,
-    /// Stop the managed PostgreSQL server
-    Stop {
-        /// Stop even if MCP sessions are connected
-        #[arg(long)]
-        force: bool,
-    },
-}
-
-#[derive(Debug, Subcommand)]
 pub enum DocsCommand {
-    /// Generate reference pages (errors, CLI, configuration) into docs/reference
+    /// Generate reference pages (errors, CLI, configuration, tables) into docs/reference
     Gen {
         /// Fail if the committed pages are out of date instead of writing them
         #[arg(long)]
@@ -222,7 +205,6 @@ impl GlobalArgs {
         wb_core::config::Overrides {
             config_path: self.config.clone(),
             state_dir: self.state_dir.clone(),
-            keep_running: self.keep_running.then_some(true),
         }
     }
 }

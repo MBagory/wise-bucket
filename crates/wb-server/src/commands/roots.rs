@@ -17,7 +17,7 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
         RootsCommand::Add {
             name,
             path,
-            robot,
+            hardware,
             include,
             exclude,
         } => {
@@ -26,7 +26,7 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
                 RootSpec {
                     name: name.clone(),
                     path: path.clone(),
-                    robot: robot.clone(),
+                    hardware: hardware.clone(),
                     include: include.clone(),
                     exclude: exclude.clone(),
                 },
@@ -65,9 +65,9 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
                     "{:<16} {}{}  [{}]",
                     r.name,
                     r.path.display(),
-                    r.robot
+                    r.hardware
                         .as_ref()
-                        .map(|x| format!("  robot={x}"))
+                        .map(|x| format!("  hardware={x}"))
                         .unwrap_or_default(),
                     r.origin
                 );
@@ -79,19 +79,14 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
             let set = roots::resolve(&cfg);
             let mut out = Vec::new();
             for r in &set.roots {
-                let c = roots::count_candidates(&r.path, 500_000, Duration::from_secs(30));
+                let c = roots::count_candidates(r, 500_000, Duration::from_secs(30));
                 if !global.json {
                     anstream::println!(
-                        "{} {:<16} {} · {} candidate recordings ({} MCAP, {} rosbag2 folders, {} ROS 1, {} ULog){}",
+                        "{} {:<16} {} · {}",
                         ui::glyph(ui::Status::Ok),
                         r.name,
                         r.path.display(),
-                        c.total(),
-                        c.mcap,
-                        c.rosbag2_dirs,
-                        c.ros1_bag,
-                        c.ulog,
-                        if c.truncated { ", scan truncated" } else { "" }
+                        c.summary()
                     );
                 }
                 out.push(json!({ "root": r, "candidates": c }));

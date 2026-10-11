@@ -5,6 +5,7 @@ mod commands;
 mod logging;
 mod mcp;
 mod ui;
+mod worker;
 
 use std::process::ExitCode;
 
@@ -41,9 +42,8 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Some(Command::Setup(a)) => commands::setup::run(g, a).await,
         Some(Command::Roots(c)) => commands::roots::run(g, c).await,
         Some(Command::Config(c)) => commands::config_cmd::run(g, c).await,
-        Some(Command::Db(c)) => commands::db_cmd::run(g, c).await,
-        Some(Command::Backup { file }) => commands::db_cmd::backup(g, file).await,
-        Some(Command::Restore { file, yes }) => commands::db_cmd::restore(g, file, *yes).await,
+        Some(Command::Sql { query }) => commands::sql::run(g, query).await,
+        Some(Command::Ingest { recording }) => return commands::sql::ingest(g, recording).await,
         Some(Command::Demo(a)) => commands::demo::run(g, a),
         Some(Command::Docs(cli::DocsCommand::Gen { check, out })) => {
             commands::docs::run(out, *check)
