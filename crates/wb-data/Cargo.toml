@@ -15,7 +15,7 @@ workspace = true
 wb-core = { path = "../wb-core" }
 # One Arrow version (58) is shared by DataFusion 54, Lance 13 and re_ros_msg 0.38:
 # upgrade the three together (ADR 0013).
-datafusion = { version = "54.1", default-features = false, features = ["nested_expressions", "datetime_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "parquet", "recursive_protection", "sql"] }
+datafusion = { version = "55.2", default-features = false, features = ["nested_expressions", "datetime_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "parquet", "recursive_protection", "sql"] }
 lance = { version = "13", default-features = false }
 lance-file = { version = "13", default-features = false }
 lance-index = { version = "13", default-features = false }
