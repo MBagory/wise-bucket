@@ -142,8 +142,8 @@ async fn mcap() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
 async fn ulog() {
-    let (env, _) = check("ulog", "ulog", 1);
-    let s = extracted(&env, 1).await;
+    let (env, _) = check("ulog", "ulog", 6);
+    let s = extracted(&env, 6).await;
     assert!(
         number(
             &s,

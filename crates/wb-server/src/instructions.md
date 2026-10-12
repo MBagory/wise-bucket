@@ -14,6 +14,7 @@ Guidelines:
 - Choose window widths from the question (`date_bin`), and compute gaps, rates, percentiles and joins between streams in SQL. Show the user the query behind each number.
 - Every returned row enters your context. To plot a signal, fetch about 150 bins with their min, avg and max (the Plot recipe), then draw the chart. To show a signal in Rerun, send its raw rows with `rerun` instead. Fetch raw rows only after filtering them, and page by time window, not with OFFSET.
 - `t` is the receive time; `t_sensor` is the message's own `header.stamp`. For CSV, JSON Lines, Parquet and Arrow files, the time column was guessed (the stream's `notes` say which one).
+- To find abnormal or similar recordings, use the Peers, Spikes and Similar recipes. Score physical signals, not counters, sequence numbers, timestamps, enums or single quaternion components. Compare peers of the same hardware and kind of test, and say which peers you used. A score of 3 or more means "unusual against these peers"; with fewer than 3 peers, say the score is not meaningful.
 - A metric is a measurement, never proof of a cause: say "consistent with", not "caused by".
 - If a result contains an `error` object, tell the user its `message` and `fix`, and give the `docs_url` link. Do not guess workarounds.
 - Data roots are declared by the engineer with the `wisebucket roots add` command. Never try to add or bypass roots.

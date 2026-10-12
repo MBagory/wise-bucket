@@ -205,6 +205,28 @@ wisebucket sql "SELECT date_bin(INTERVAL '1 second', t) AS w, count(*) FROM stre
 
 Queries are read-only `SELECT`s, run by [Apache DataFusion](https://datafusion.apache.org) (a dialect close to PostgreSQL). Each query is limited to 30 seconds and 1 GB of memory, and sees only the store. A result is capped at about 60 KB of rows, or `--limit N` rows; when rows are cut, a hint says how to get the rest. To go through a long stream, page by time window (`WHERE t > <last t> ORDER BY t`) or aggregate it with `date_bin` (see the [recipes](reference/tables.md#recipes)) ([ADR 0017](decisions/0017-result-size-and-paging.md)). Quote dotted and upper-case column names: `"linear_acceleration.z"`. Add `--json` for machine-readable output.
 
+### Abnormal and similar recordings
+
+Your agent compares recordings with their **peers** (the same stream and column in other recordings) using three [recipes](reference/tables.md#recipes) ([ADR 0020](decisions/0020-abnormality-and-similarity-as-sql-recipes.md)):
+
+- **Peers:** one value per recording (the 99th percentile, the rate, the longest gap, the standard deviation…), then a robust z-score across recordings: how many median absolute deviations (MAD) the value lies from the peers' median.
+- **Spikes:** the same score inside one recording, against the last 200 samples.
+- **Similar:** the 5th, 25th, 50th, 75th and 95th percentiles of a signal, compared with a reference recording's; the closest recordings come first.
+
+```sh
+wisebucket sql "WITH per AS (SELECT recording, approx_percentile_cont(0.99) WITHIN GROUP (ORDER BY \"accelerometer_m_s2[2]\") AS v FROM stream('sensor_combined') GROUP BY recording), m AS (SELECT *, median(v) OVER () AS med FROM per), d AS (SELECT *, median(abs(v - med)) OVER () AS mad FROM m) SELECT recording, v, (v - med) / (1.4826 * mad) AS score FROM d ORDER BY abs((v - med) / (1.4826 * mad)) DESC NULLS LAST"
+```
+
+Reading a score:
+
+| Score | Meaning |
+| --- | --- |
+| Below 3 (absolute value) | Within the spread of the peers |
+| 3 or more | Unusual against these peers |
+| Empty or infinite | Fewer than 3 peers, or peers that all have the same value |
+
+A score depends on the peers: compare recordings of the same hardware and the same kind of test (a join with `recordings` on `hardware`, or a `LIKE` on the recording). Scores on counters, sequence numbers, timestamps and enums are meaningless. The `ulog` demo set (`wisebucket demo ulog`) has six PX4 logs to try the recipes on.
+
 ### Opening the store yourself
 
 The store is a set of [Lance](https://github.com/lance-format/lance) datasets, readable from Python, for a notebook for example:

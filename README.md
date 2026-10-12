@@ -27,7 +27,7 @@ Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Lanc
 
 ### 🤖 Bring your own agent
 
-Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription.
+Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.
 
 ### 📈 Display data in a compatible viewer
 

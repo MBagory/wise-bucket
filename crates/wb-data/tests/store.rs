@@ -600,7 +600,7 @@ async fn documented_recipes_run() {
         let Some((_, sql_text)) = line.split_once(": ") else {
             continue;
         };
-        if !sql_text.starts_with("SELECT") {
+        if !sql_text.starts_with("SELECT") && !sql_text.starts_with("WITH") {
             continue;
         }
         // Map the recipes' example names onto the fixture.
@@ -615,4 +615,60 @@ async fn documented_recipes_run() {
             .unwrap_or_else(|e| panic!("recipe failed: {sql_text}\n→ {e}"));
         assert!(r.row_count > 0, "{sql_text}");
     }
+}
+
+/// The Peers and Similar recipes, as documented, on six CSV recordings of the same
+/// signal: `r5` is offset by 5, `r1` is a near-copy of `r0`.
+#[tokio::test(flavor = "multi_thread")]
+async fn peer_recipes_rank_the_outlier_and_the_twin() {
+    let dir = tempfile::tempdir().unwrap();
+    let runs = dir.path().join("runs");
+    std::fs::create_dir_all(&runs).unwrap();
+    // Deterministic noise in [0, 0.1).
+    let noise = |i: u64, seed: u64| ((i * 7919 + seed * 104_729) % 1000) as f64 / 10_000.0;
+    for (name, seed, offset) in [
+        ("r0", 0, 0.0),
+        ("r1", 0, 0.001),
+        ("r2", 1, 0.0),
+        ("r3", 2, 0.0),
+        ("r4", 3, 0.0),
+        ("r5", 4, 5.0),
+    ] {
+        let mut csv = String::from("time_s;signal\n");
+        for i in 0..200u64 {
+            let v = (i as f64 * 0.1 + seed as f64).sin() + noise(i, seed) + offset;
+            csv.push_str(&format!("{};{v}\n", i as f64 * 0.1));
+        }
+        std::fs::write(runs.join(format!("{name}.csv")), csv).unwrap();
+    }
+    let f = Fixture {
+        root: Root {
+            name: "peers".into(),
+            path: dunce_like(&runs),
+            hardware: None,
+            include: vec![],
+            exclude: vec![],
+            origin: Origin::Default,
+        },
+        store: Store::new(&dir.path().join("state")),
+        bags: runs,
+        _dir: dir,
+    };
+    ingest_all(&f).await;
+    let recipe = |label: &str| {
+        wb_data::tables::RECIPES
+            .lines()
+            .find(|l| l.starts_with(&format!("- {label}")))
+            .and_then(|l| l.split_once("): "))
+            .unwrap()
+            .1
+            .replace("'/imu'", "'table'")
+            .replace("\"linear_acceleration.z\"", "signal")
+            .replace("'bags:run3'", "'peers:r0.csv'")
+    };
+    let peers = q(&f, &recipe("Peers")).await;
+    assert_eq!(peers[0]["recording"], "peers:r5.csv", "{peers:?}");
+    assert!(peers[0]["score"].as_f64().unwrap() > 3.0, "{peers:?}");
+    let similar = q(&f, &recipe("Similar")).await;
+    assert_eq!(similar[0]["recording"], "peers:r1.csv", "{similar:?}");
 }

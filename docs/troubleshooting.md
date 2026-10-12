@@ -89,6 +89,14 @@ No. The store is a folder of [Lance](https://github.com/lance-format/lance) file
 
 Not in advance. Your agent writes a SQL query for each question (rates, gaps, windows, percentiles, joins between streams) and shows you the query behind each number. You can run the same queries with `wisebucket sql`. ([ADR 0010](decisions/0010-metrics-are-sql-written-by-the-agent.md))
 
+### Why is an anomaly score empty or infinite?
+
+A robust z-score divides by the peers' median absolute deviation (MAD). With fewer than 3 peers, or peers that all have the same value, the MAD is 0: the score is empty or infinite. Compare more recordings, or another column ([guide](guide.md#abnormal-and-similar-recordings)).
+
+### Why does every recording look abnormal?
+
+The column is a counter, a sequence number, a timestamp or an enum, or the peers are not comparable (different hardware, different kinds of test). Score a physical signal, and restrict the peers ([guide](guide.md#abnormal-and-similar-recordings)).
+
 ### Why is a result cut, with `truncated` and a hint?
 
 Every row your agent receives enters its context, so a result holds about 60 KB of rows. The hint says how to get the rest: aggregate with `date_bin`, filter, or fetch the next page by time. To plot a long signal, the agent fetches about 150 bins with their min, average and max. ([ADR 0017](decisions/0017-result-size-and-paging.md))

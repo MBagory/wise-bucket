@@ -136,18 +136,70 @@ pub const FORMATS: &[Format] = &[
     },
     Format {
         key: "ulog",
-        description: "PX4 ULog, 69 s bench log of a disarmed autopilot",
+        description: "PX4 ULog, six logs from pyulog's tests (peers for comparisons)",
         license: "BSD-3-Clause",
-        files: &[SampleFile {
-            path: "sample.ulg",
-            url: raw!(
-                "PX4/pyulog",
-                "ffbe3755d903e93797a89fb4fce26e0c0420a42f",
-                "test/sample.ulg"
-            ),
-            size: 4053364,
-            sha256: "81952e6059bc095717e7911c010e07f85749d6b04d332a5ffc51575a3fd0a558",
-        }],
+        files: &[
+            SampleFile {
+                path: "sample.ulg",
+                url: raw!(
+                    "PX4/pyulog",
+                    "ffbe3755d903e93797a89fb4fce26e0c0420a42f",
+                    "test/sample.ulg"
+                ),
+                size: 4053364,
+                sha256: "81952e6059bc095717e7911c010e07f85749d6b04d332a5ffc51575a3fd0a558",
+            },
+            SampleFile {
+                path: "sample_appended.ulg",
+                url: raw!(
+                    "PX4/pyulog",
+                    "ffbe3755d903e93797a89fb4fce26e0c0420a42f",
+                    "test/sample_appended.ulg"
+                ),
+                size: 4548191,
+                sha256: "029136ccf20f5af2154508b1be5ce8c3abdc0706b8015791f87743e18075c3f9",
+            },
+            SampleFile {
+                path: "sample_appended_multiple.ulg",
+                url: raw!(
+                    "PX4/pyulog",
+                    "ffbe3755d903e93797a89fb4fce26e0c0420a42f",
+                    "test/sample_appended_multiple.ulg"
+                ),
+                size: 486737,
+                sha256: "daf30f3224303e39d5c97701e048e84ba04480797e369502331f45ab2e99a2b7",
+            },
+            SampleFile {
+                path: "sample_log_small.ulg",
+                url: raw!(
+                    "PX4/pyulog",
+                    "ffbe3755d903e93797a89fb4fce26e0c0420a42f",
+                    "test/sample_log_small.ulg"
+                ),
+                size: 921631,
+                sha256: "68d1020f688109f027dba08d2950247cc0ae34aaefdcf37e4a7d60838f3e1aa3",
+            },
+            SampleFile {
+                path: "sample_logging_tagged_and_default_params.ulg",
+                url: raw!(
+                    "PX4/pyulog",
+                    "ffbe3755d903e93797a89fb4fce26e0c0420a42f",
+                    "test/sample_logging_tagged_and_default_params.ulg"
+                ),
+                size: 1942808,
+                sha256: "32f564608d46caf5a4cbb1cb0cd0dc839fb9512b06c6d1384fb96ec3d6c9173d",
+            },
+            SampleFile {
+                path: "sample_px4_events.ulg",
+                url: raw!(
+                    "PX4/pyulog",
+                    "ffbe3755d903e93797a89fb4fce26e0c0420a42f",
+                    "test/sample_px4_events.ulg"
+                ),
+                size: 1563146,
+                sha256: "4b43a23a7b7f649004facba5c7835d800bbc8cc13e71cbc96678d971451e3d7e",
+            },
+        ],
     },
     Format {
         key: "dataflash",
