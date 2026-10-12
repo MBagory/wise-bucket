@@ -6,7 +6,7 @@
 //!   <key>.lock                held while a recording is extracted; freed if the process dies
 //!   <key>/<fingerprint>/      written once in .tmp-<pid>/, then published by a rename
 //!     recording.json          the recording and its streams
-//!     data/NNNN.lance/        one Lance dataset per stream
+//!     data/NNNN.parquet       one Parquet file per stream
 //!     error.txt               instead of the above, when extraction failed
 //! ```
 //!

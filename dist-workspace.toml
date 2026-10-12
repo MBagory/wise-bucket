@@ -11,7 +11,7 @@ ci = "github"
 installers = ["shell"]
 # Target platforms to build apps for (Rust target-triple syntax).
 # Linux binaries are static musl: they run on any distro. Building needs a C
-# compiler and `protoc` (Lance); the release step must provide protoc to `dist`.
+# compiler.
 targets = ["aarch64-apple-darwin", "x86_64-apple-darwin", "aarch64-unknown-linux-musl", "x86_64-unknown-linux-musl"]
 # Path that installers should place binaries in
 install-path = "CARGO_HOME"

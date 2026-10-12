@@ -1,6 +1,6 @@
 [package]
 name = "wb-data"
-description = "Wise Bucket data: recording readers, the columnar store (Lance) and SQL (DataFusion)"
+description = "Wise Bucket data: recording readers, the columnar store (Parquet) and SQL (DataFusion)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,12 +13,10 @@ workspace = true
 
 [dependencies]
 wb-core = { path = "../wb-core" }
-# One Arrow version (58) is shared by DataFusion 54, Lance 13, re_ros_msg 0.38 and
-# rerun 0.38: upgrade them together (ADR 0013).
+# One Arrow version (58) is shared by DataFusion 54, parquet 58, re_ros_msg 0.38 and
+# rerun 0.38: upgrade them together (ADR 0021).
 datafusion = { version = "54.1", default-features = false, features = ["nested_expressions", "datetime_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "parquet", "recursive_protection", "sql"] }
-lance = { version = "13", default-features = false }
-lance-file = { version = "13", default-features = false }
-lance-index = { version = "13", default-features = false }
+parquet = { version = "58", default-features = false, features = ["arrow", "zstd"] }
 re_ros_msg = "0.38"
 rerun = { version = "0.38", default-features = false, features = ["sdk"] }
 mcap = "0.25"

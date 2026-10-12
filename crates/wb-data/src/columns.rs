@@ -1,8 +1,8 @@
 //! Column shaping shared by every reader: the time columns, nested message fields,
 //! dropped byte arrays, and the dotted names under which nested fields are queried.
 //!
-//! Streams are stored with their structs nested (Lance column names cannot contain
-//! dots); `stream()` flattens them at query time into `linear_acceleration.z`.
+//! Streams are stored with their structs nested; `stream()` flattens them at query
+//! time into `linear_acceleration.z`.
 
 use std::sync::Arc;
 

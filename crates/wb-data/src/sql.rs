@@ -15,15 +15,16 @@ use datafusion::arrow::array::{
 };
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{TableFunctionImpl, TableProvider};
-use datafusion::common::{DataFusionError, ScalarValue, plan_err};
+use datafusion::common::{ScalarValue, plan_err};
 use datafusion::datasource::MemTable;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use datafusion::functions::core::expr_fn::get_field;
 use datafusion::logical_expr::{Expr, cast, ident, lit};
-use datafusion::prelude::{DataFrame, SQLOptions, SessionConfig, SessionContext};
+use datafusion::prelude::{
+    DataFrame, ParquetReadOptions, SQLOptions, SessionConfig, SessionContext,
+};
 use futures::StreamExt;
-use lance::datafusion::LanceTableProvider;
 use serde::Serialize;
 use wb_core::error::{ErrorKind, Result, WbError, err};
 
@@ -422,7 +423,7 @@ impl TableFunctionImpl for StreamFunction {
                     .unwrap_or_default()
             );
         }
-        // Opening Lance datasets is async; planning is not.
+        // Reading Parquet footers is async; planning is not.
         tokio::task::block_in_place(|| {
             tokio::runtime::Handle::current().block_on(union_of(&name, members))
         })
@@ -436,17 +437,29 @@ async fn union_of(
     name: &str,
     members: Vec<(String, PathBuf)>,
 ) -> datafusion::common::Result<Arc<dyn TableProvider>> {
-    let mut providers = Vec::new();
+    let ctx = SessionContext::new();
+    let mut parts = Vec::new();
     let mut columns: Vec<FlatColumn> = Vec::new();
     for (rec, path) in members {
-        let ds = crate::sink::open(&path)
-            .await
-            .map_err(|e| DataFusionError::External(Box::new(e)))?;
-        let provider = Arc::new(LanceTableProvider::new(ds, false, false));
-        let own = flat_columns(&provider.schema());
+        let df = ctx
+            .read_parquet(
+                path.to_string_lossy().as_ref(),
+                ParquetReadOptions::default(),
+            )
+            .await?;
+        let own = flat_columns(df.schema().as_arrow());
         for c in &own {
-            match columns.iter().find(|x| x.name == c.name) {
+            match columns.iter_mut().find(|x| x.name == c.name) {
                 None => columns.push(c.clone()),
+                // Message definitions change between firmware versions: numbers of
+                // different types are compared as Float64.
+                Some(x)
+                    if x.data_type != c.data_type
+                        && x.data_type.is_numeric()
+                        && c.data_type.is_numeric() =>
+                {
+                    x.data_type = DataType::Float64;
+                }
                 Some(x) if x.data_type != c.data_type => {
                     return plan_err!(
                         "column {:?} of stream {name:?} has different types across recordings ({} and {}); restrict the recordings with stream({name:?}, '<recording LIKE pattern>')",
@@ -458,11 +471,10 @@ async fn union_of(
                 Some(_) => {}
             }
         }
-        providers.push((rec, provider, own));
+        parts.push((rec, df, own));
     }
-    let ctx = SessionContext::new();
     let mut union: Option<DataFrame> = None;
-    for (rec, provider, own) in providers {
+    for (rec, df, own) in parts {
         let mut exprs = vec![lit(rec).alias("recording")];
         for c in &columns {
             let e = match own.iter().find(|o| o.name == c.name) {
@@ -471,13 +483,17 @@ async fn union_of(
                     for p in &o.path[1..] {
                         e = get_field(e, p.as_str());
                     }
-                    e
+                    if o.data_type == c.data_type {
+                        e
+                    } else {
+                        cast(e, c.data_type.clone())
+                    }
                 }
                 None => cast(lit(ScalarValue::Null), c.data_type.clone()),
             };
             exprs.push(e.alias(&c.name));
         }
-        let part = ctx.read_table(provider)?.select(exprs)?;
+        let part = df.select(exprs)?;
         union = Some(match union {
             None => part,
             Some(u) => u.union(part)?,

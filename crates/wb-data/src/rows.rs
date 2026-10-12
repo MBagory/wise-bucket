@@ -88,7 +88,7 @@ impl Rows {
         let mut extraction = Extraction::default();
         for mut stream in self.streams {
             flush(&mut stream)?;
-            if let Some(meta) = stream.sink.finish(out).await? {
+            if let Some(meta) = stream.sink.finish(out)? {
                 extraction.streams.push(meta);
             }
         }

@@ -1,6 +1,6 @@
 # 0013. Lance as the store's format
 
-**Date:** 2026-10-10 · **Status:** Accepted
+**Date:** 2026-10-10 · **Status:** Superseded by [0021](0021-parquet-for-streams.md)
 
 ## Context
 

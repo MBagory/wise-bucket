@@ -450,7 +450,7 @@ async fn every_format_is_extracted_and_queryable() {
         );
     }
 
-    // Every stream with a time column has a time index.
+    // Every stream is a Parquet file with page statistics on `t`.
     let rows = f.store.rows();
     let run1 = rows
         .iter()
@@ -458,22 +458,20 @@ async fn every_format_is_extracted_and_queryable() {
         .unwrap();
     let meta = run1.meta.as_ref().unwrap();
     let sample = meta.streams.iter().find(|s| s.name == "/sample").unwrap();
-    let ds = lance::Dataset::open(
-        run1.dir
-            .as_ref()
-            .unwrap()
-            .join(&sample.dataset)
-            .to_str()
-            .unwrap(),
-    )
-    .await
-    .unwrap();
-    use lance::index::DatasetIndexExt;
-    let indices = ds.load_indices().await.unwrap();
+    let file = std::fs::File::open(run1.dir.as_ref().unwrap().join(&sample.dataset)).unwrap();
+    let reader = parquet::file::serialized_reader::SerializedFileReader::new(file).unwrap();
+    use parquet::file::reader::FileReader;
+    let md = reader.metadata();
+    let t = md
+        .file_metadata()
+        .schema_descr()
+        .columns()
+        .iter()
+        .position(|c| c.name() == "t")
+        .unwrap();
     assert!(
-        !indices.is_empty(),
-        "no index on t; notes: {:?}",
-        sample.notes
+        md.row_group(0).column(t).statistics().is_some(),
+        "no statistics on t"
     );
 }
 
@@ -618,7 +616,8 @@ async fn documented_recipes_run() {
 }
 
 /// The Peers and Similar recipes, as documented, on six CSV recordings of the same
-/// signal: `r5` is offset by 5, `r1` is a near-copy of `r0`.
+/// signal: `r5` is offset by 5, `r1` is a near-copy of `r0`, and `r4` holds integers
+/// (another type in the same column, as between firmware versions).
 #[tokio::test(flavor = "multi_thread")]
 async fn peer_recipes_rank_the_outlier_and_the_twin() {
     let dir = tempfile::tempdir().unwrap();
@@ -637,6 +636,11 @@ async fn peer_recipes_rank_the_outlier_and_the_twin() {
         let mut csv = String::from("time_s;signal\n");
         for i in 0..200u64 {
             let v = (i as f64 * 0.1 + seed as f64).sin() + noise(i, seed) + offset;
+            let v = if name == "r4" {
+                format!("{}", v.round() as i64)
+            } else {
+                format!("{v}")
+            };
             csv.push_str(&format!("{};{v}\n", i as f64 * 0.1));
         }
         std::fs::write(runs.join(format!("{name}.csv")), csv).unwrap();

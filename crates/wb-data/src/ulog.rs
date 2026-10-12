@@ -105,7 +105,7 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
         let batch = RecordBatch::try_new(Arc::new(Schema::new(fields)), arrays)
             .map_err(|e| unreadable(&e))?;
         sink.append(batch)?;
-        if let Some(meta) = sink.finish(out).await? {
+        if let Some(meta) = sink.finish(out)? {
             extraction.streams.push(meta);
         }
     }

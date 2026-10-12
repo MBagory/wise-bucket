@@ -13,9 +13,9 @@
 - Check that the entry's `command` path exists. After reinstalling or moving the binary, re-run `setup` and register the printed entry again (in Claude Code: `claude mcp remove --scope user wise-bucket` first).
 - Run the entry's command by hand. It should wait silently for input (press Ctrl-C to quit). If it prints an error instead, that error tells you what is wrong.
 
-### The build fails with `Could not find protoc` or a C compiler error
+### The build fails with a C compiler error
 
-Building from source needs a C compiler and `protoc`, the Protocol Buffers compiler: see [Install](guide.md#install). If `protoc` is installed somewhere unusual, point the build at it with `PROTOC=/path/to/protoc`.
+Building from source needs a C compiler: see [Install](guide.md#install).
 
 ### A recording stays `pending`
 
@@ -83,7 +83,7 @@ Reading a bag means decoding it, which takes seconds to minutes; querying the co
 
 ### Is there a database to install or keep running?
 
-No. The store is a folder of [Lance](https://github.com/lance-format/lance) files, and queries run inside Wise Bucket ([Apache DataFusion](https://datafusion.apache.org)). Nothing runs in the background when no agent session is open. ([ADR 0011](decisions/0011-no-database.md))
+No. The store is a folder of [Parquet](https://parquet.apache.org) files, and queries run inside Wise Bucket ([Apache DataFusion](https://datafusion.apache.org)). Nothing runs in the background when no agent session is open. ([ADR 0011](decisions/0011-no-database.md))
 
 ### Does Wise Bucket compute metrics for me?
 

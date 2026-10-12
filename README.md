@@ -23,7 +23,7 @@ Wise Bucket connects your **AI agent** to **your time-series data** (telemetry, 
 
 ### ⚡ Built for speed
 
-Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Lance](https://github.com/lance-format/lance). Each recording is decoded once into Lance datasets, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
+Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org). Each recording is decoded once into Parquet files, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
 
 ### 🤖 Bring your own agent
 
@@ -40,7 +40,7 @@ Store investigation context, and search all your recordings for similar behaviou
 ```mermaid
 flowchart TB
     subgraph wb["Wise Bucket"]
-        store[("Lance database")] --> engine["DataFusion<br/>SQL engine"] --> mcp["MCP server"]
+        store[("Parquet files")] --> engine["DataFusion<br/>SQL engine"] --> mcp["MCP server"]
     end
     rec[/"Your recordings<br/>ROS 2, MCAP, ULog, CSV…"/] -->|"decoded once"| store
     mcp -->|"SQL, in milliseconds"| agent["Your AI agent<br/>Claude Code, Codex, Cursor…"]
@@ -52,11 +52,11 @@ flowchart TB
 
 ## Getting started
 
-**1. Install** from source: you need [Rust](https://rustup.rs) 1.96+, a C compiler and `protoc`.
+**1. Install** from source: you need [Rust](https://rustup.rs) 1.96+ and a C compiler.
 
 ```sh
-xcode-select --install && brew install protobuf          # macOS
-sudo apt install build-essential protobuf-compiler      # Debian, Ubuntu
+xcode-select --install                                  # macOS
+sudo apt install build-essential                        # Debian, Ubuntu
 cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked
 ```
 
@@ -126,4 +126,4 @@ Runs on macOS and Linux; Windows through WSL2.
 
 ## License
 
-[Apache License 2.0](LICENSE). Built on [Apache DataFusion](https://datafusion.apache.org), [Lance](https://github.com/lance-format/lance), [Apache Arrow](https://arrow.apache.org), the [Rust MCP SDK](https://github.com/modelcontextprotocol/rust-sdk), [mcap](https://github.com/foxglove/mcap), Rerun's [re_ros_msg](https://github.com/rerun-io/rerun), [px4-ulog](https://github.com/PX4/px4-ulog-rs), [rust-mavlink](https://github.com/mavlink/rust-mavlink) and [SQLite](https://sqlite.org). Bundled ROS 2 message definitions come from [ros2/common_interfaces](https://github.com/ros2/common_interfaces) and related repositories (Apache-2.0, BSD-3-Clause). To cite Wise Bucket, use [CITATION.cff](CITATION.cff).
+[Apache License 2.0](LICENSE). Built on [Apache DataFusion](https://datafusion.apache.org), [Apache Parquet](https://parquet.apache.org), [Apache Arrow](https://arrow.apache.org), the [Rust MCP SDK](https://github.com/modelcontextprotocol/rust-sdk), [mcap](https://github.com/foxglove/mcap), Rerun's [re_ros_msg](https://github.com/rerun-io/rerun), [px4-ulog](https://github.com/PX4/px4-ulog-rs), [rust-mavlink](https://github.com/mavlink/rust-mavlink) and [SQLite](https://sqlite.org). Bundled ROS 2 message definitions come from [ros2/common_interfaces](https://github.com/ros2/common_interfaces) and related repositories (Apache-2.0, BSD-3-Clause). To cite Wise Bucket, use [CITATION.cff](CITATION.cff).

@@ -137,7 +137,7 @@ pub(crate) async fn read(path: &Path, kind: RecordingKind, out: &Path) -> Result
         sink.append(batch)?;
     }
     let mut extraction = Extraction::default();
-    if let Some(meta) = sink.finish(out).await? {
+    if let Some(meta) = sink.finish(out)? {
         extraction.streams.push(meta);
     }
     Ok(extraction)

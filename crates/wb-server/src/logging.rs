@@ -13,7 +13,7 @@ fn filter(verbose: u8) -> EnvFilter {
         EnvFilter::new(match verbose {
             // The Rerun SDK repeats on exit the error `rerun` already reports.
             0 => "warn,re_sdk=off,re_grpc_client=off",
-            1 => "info,lance=warn,datafusion=warn",
+            1 => "info,datafusion=warn",
             _ => "debug",
         })
     })
@@ -47,7 +47,7 @@ pub fn init_file(logs_dir: &Path) -> Option<WorkerGuard> {
         .with(fmt::layer().with_writer(writer).with_ansi(false))
         .with(
             EnvFilter::try_from_env("WB_LOG")
-                .unwrap_or_else(|_| EnvFilter::new("info,lance=warn,datafusion=warn")),
+                .unwrap_or_else(|_| EnvFilter::new("info,datafusion=warn")),
         )
         .try_init();
     Some(guard)

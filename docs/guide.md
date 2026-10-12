@@ -17,12 +17,12 @@ When something goes wrong, see [Troubleshooting and FAQ](troubleshooting.md). Ev
 
 ## Install
 
-There is no release yet: prebuilt binaries come with the first release ([ADR 0015](decisions/0015-first-release-after-m1.md)). Until then, build from source. You need [Rust](https://rustup.rs) 1.96 or newer, a C compiler, and `protoc` (the Protocol Buffers compiler, used to build the store's format library):
+There is no release yet: prebuilt binaries come with the first release ([ADR 0015](decisions/0015-first-release-after-m1.md)). Until then, build from source. You need [Rust](https://rustup.rs) 1.96 or newer and a C compiler:
 
 ```sh
-xcode-select --install && brew install protobuf                      # macOS
-sudo apt install build-essential protobuf-compiler                  # Debian, Ubuntu
-sudo dnf install gcc protobuf-compiler                              # RHEL family, Fedora
+xcode-select --install                                              # macOS
+sudo apt install build-essential                                    # Debian, Ubuntu
+sudo dnf install gcc                                                # RHEL family, Fedora
 
 cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked
 wisebucket --version
@@ -229,16 +229,20 @@ A score depends on the peers: compare recordings of the same hardware and the sa
 
 ### Opening the store yourself
 
-The store is a set of [Lance](https://github.com/lance-format/lance) datasets, readable from Python, for a notebook for example:
+The store is a set of [Parquet](https://parquet.apache.org) files, one per stream, readable from Python, MATLAB, DuckDB and most data tools. `recording.json` lists each stream's file:
 
 ```python
-import json, lance
+import json, pandas as pd
 rec = json.load(open("<state directory>/store/<key>/<version>/recording.json"))
 imu = next(s for s in rec["streams"] if s["name"] == "/imu")
-df = lance.dataset(f"<state directory>/store/<key>/<version>/{imu['dataset']}").to_table().to_pandas()
+df = pd.read_parquet(f"<state directory>/store/<key>/<version>/{imu['dataset']}")
 ```
 
-`pip install pylance` provides `lance`; `.to_table()` gives Arrow, which pandas and Polars read directly. Prefer `wisebucket sql` for anything you can express in SQL: it finds the datasets for you.
+```matlab
+T = parquetread("<state directory>/store/<key>/<version>/data/0003.parquet");
+```
+
+Nested message fields are struct columns (`linear_acceleration` holds `x`, `y`, `z`). Prefer `wisebucket sql` for anything you can express in SQL: it finds the files for you and flattens the fields into dotted columns.
 
 ## Viewers
 
@@ -290,7 +294,7 @@ wisebucket rerun --entity sensor_combined "SELECT t, \"accelerometer_m_s2[2]\" A
 <state directory>/
 ├── store/            the decoded copy of your recordings (derived; safe to delete)
 │   ├── candidates.json        the recordings found in your folders
-│   └── <key>/<version>/       one recording: recording.json, data/NNNN.lance (one dataset per stream)
+│   └── <key>/<version>/       one recording: recording.json, data/NNNN.parquet (one file per stream)
 ├── demo/             sample recordings from `wisebucket demo`
 └── logs/             server.log
 ```

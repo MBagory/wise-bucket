@@ -1,4 +1,4 @@
-//! Extracting one recording into a directory of Lance datasets.
+//! Extracting one recording into a directory of Parquet files.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -21,7 +21,7 @@ pub struct Extraction {
     pub notes: Vec<String>,
 }
 
-/// Extracts the recording at `path` into `out` (one Lance dataset per stream under `out/data`).
+/// Extracts the recording at `path` into `out` (one Parquet file per stream under `out/data`).
 pub async fn extract(path: &Path, kind: RecordingKind, out: &Path) -> Result<Extraction> {
     std::fs::create_dir_all(out.join("data")).map_err(crate::sink::io_err(out.display()))?;
     match kind {
@@ -233,7 +233,7 @@ impl Topics {
                     d.first_error.as_deref().unwrap_or("?")
                 ));
             }
-            if let Some(meta) = topic.sink.finish(out).await? {
+            if let Some(meta) = topic.sink.finish(out)? {
                 streams.push(meta);
             }
         }
