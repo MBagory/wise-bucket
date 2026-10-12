@@ -229,7 +229,20 @@ To see what your agent found, open the original recording in a viewer at the tim
 | [Lichtblick](https://github.com/lichtblick-suite/lichtblick) | MCAP, PX4 ULog | Open source (MPL-2.0) | None | [Web app](https://lichtblick-suite.github.io/lichtblick/) or [desktop releases](https://github.com/lichtblick-suite/lichtblick/releases) |
 | [PlotJuggler](https://github.com/PlotJuggler/PlotJuggler) | MCAP, ROS 2 bags, PX4 ULog, CSV, Parquet | Open source (MPL-2.0) | None | [Releases](https://github.com/PlotJuggler/PlotJuggler/releases), `sudo snap install plotjuggler`, or `sudo apt install ros-$ROS_DISTRO-plotjuggler-ros` |
 
-With a viewer's MCP server connected to the same agent, the agent can open the file and move to the right time itself. PlotJuggler's real site is its GitHub page: its README warns that `plotjuggler.com` is not theirs.
+With a viewer's MCP server connected to the same agent, the agent can open the file and move to the right time itself.
+
+### Sending query results to Rerun
+
+Wise Bucket sends the rows of any query to a running Rerun viewer (start it with `rerun`). Your agent does it with the `rerun` tool; in the terminal:
+
+```sh
+wisebucket rerun --entity sensor_combined "SELECT t, \"accelerometer_m_s2[2]\" AS az FROM stream('sensor_combined')"
+```
+
+- The query must return a timestamp column `t`. Each timestamp column (`t`, `t_sensor`) becomes a Rerun timeline with the same name. Times before 2000 count from boot (PX4 ULog, MAVLink) and are shown as durations.
+- Each numeric or boolean column becomes a scalar series at `<entity>/<column>`. Name series with SQL aliases (`AS "imu/az"`). Other columns are skipped.
+- Every row is sent, without the 60 KB cap of `sql`, to the Rerun recording `wisebucket`. Sending the same query twice adds its rows twice.
+- The viewer's address is `rerun+http://127.0.0.1:9876/proxy`; set another with `--url`. PlotJuggler's real site is its GitHub page: its README warns that `plotjuggler.com` is not theirs.
 
 ## Everyday use
 

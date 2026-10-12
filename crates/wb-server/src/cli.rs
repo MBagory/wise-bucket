@@ -27,6 +27,7 @@ Examples:
   wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
   wisebucket demo --all                    Try it on public sample recordings
   wisebucket sql \"SELECT * FROM streams\"  Query the store yourself
+  wisebucket rerun \"SELECT t, … FROM …\"  Send a query result to the Rerun viewer
   wisebucket doctor                        Check the installation"
 )]
 pub struct Cli {
@@ -85,6 +86,21 @@ Examples:
         /// Rows wanted at most (results are also capped at about 60 KB)
         #[arg(long)]
         limit: Option<usize>,
+    },
+    /// Send the rows of a query to a running Rerun viewer (what your agent's `rerun` tool runs)
+    #[command(after_help = "\
+Examples:
+  wisebucket rerun \"SELECT t, \\\"accelerometer_m_s2[2]\\\" AS az FROM stream('sensor_combined')\"
+  wisebucket rerun --entity imu \"SELECT * FROM stream('/imu', 'bags:run3%')\"")]
+    Rerun {
+        /// A single SELECT query with a timestamp column `t`
+        query: String,
+        /// Entity path prefix in Rerun (series are named `<entity>/<column>`)
+        #[arg(long)]
+        entity: Option<String>,
+        /// Address of the Rerun viewer
+        #[arg(long, default_value = wb_data::rerun::DEFAULT_URL)]
+        url: String,
     },
     /// Extract one recording into the store (run in the background by agent sessions)
     #[command(hide = true)]

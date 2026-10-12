@@ -1,5 +1,6 @@
-//! `sql`: read-only queries over the store. `ingest` (hidden): extract one recording,
-//! run by agent sessions in a child process.
+//! `sql`: read-only queries over the store. `rerun`: send a query result to the Rerun
+//! viewer. `ingest` (hidden): extract one recording, run by agent sessions in a child
+//! process.
 
 use std::process::ExitCode;
 
@@ -71,6 +72,34 @@ pub async fn run(global: &GlobalArgs, query: &str, limit: Option<usize>) -> Resu
     ui::info(format!("{} row(s)", result.row_count));
     if let Some(hint) = &result.hint {
         ui::info(hint);
+    }
+    Ok(())
+}
+
+pub async fn rerun(
+    global: &GlobalArgs,
+    query: &str,
+    entity: Option<&str>,
+    url: &str,
+) -> Result<()> {
+    let cfg = config::load(&global.overrides())?;
+    let sent = wb_data::rerun::send(&Store::for_config(&cfg), query, entity, url).await?;
+    if global.json {
+        ui::json(&json!(sent));
+        return Ok(());
+    }
+    ui::ok(format!(
+        "{} row(s) sent to {}: {} on timeline(s) {}",
+        sent.rows,
+        sent.url,
+        sent.entities.join(", "),
+        sent.timelines.join(", ")
+    ));
+    if !sent.skipped.is_empty() {
+        ui::info(format!(
+            "not sent (not numbers): {}",
+            sent.skipped.join(", ")
+        ));
     }
     Ok(())
 }

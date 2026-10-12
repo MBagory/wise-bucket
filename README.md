@@ -31,7 +31,7 @@ Use the agent you already work with (Claude Code, Codex, Cursor…), with its mo
 
 ### 📈 Display data in a compatible viewer
 
-Your agent plots any signal instantly, and works with [viewer MCP servers](docs/guide.md#viewers) (Rerun, Foxglove) to show a recording at the right time.
+Your agent plots any signal instantly, sends any query result to [Rerun](https://rerun.io), and works with [viewer MCP servers](docs/guide.md#viewers) (Rerun, Foxglove) to show a recording at the right time.
 
 ### 🔭 Tomorrow
 
@@ -46,6 +46,7 @@ flowchart TB
     mcp -->|"SQL, in milliseconds"| agent["Your AI agent<br/>Claude Code, Codex, Cursor…"]
     agent <-->|"questions, answers"| you(["You"])
     agent -->|"displays the data"| viewer["Viewer<br/>Rerun, Foxglove"]
+    mcp -->|"query results"| viewer
     you -.->|"CLI configuration"| wb
 ```
 
@@ -80,7 +81,18 @@ agent › ⏺ wise-bucket · sql
         Over 17,070 samples, the vertical acceleration averages −9.62 m/s²
         (gravity) with a standard deviation of 0.16 m/s²: that is the noise
         floor at rest.
+
+you   › Show me the three accelerometer axes in Rerun.
+
+agent › ⏺ wise-bucket · rerun  (entity: sensor_combined)
+          SELECT t, "accelerometer_m_s2[0]" AS x, "accelerometer_m_s2[1]" AS y,
+                 "accelerometer_m_s2[2]" AS z
+          FROM stream('sensor_combined')
+        Sent 17,070 rows to the Rerun viewer: sensor_combined/x, y and z,
+        on the timeline t.
 ```
+
+The Rerun viewer must be running (`rerun`). Wise Bucket sends the rows to it directly; they do not pass through your agent.
 
 ## Try it with sample data
 

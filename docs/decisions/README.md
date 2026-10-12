@@ -26,3 +26,4 @@ The principles these decisions add up to are summarized in the [README](../../RE
 | [0016](0016-formats-need-an-external-rust-decoder.md) | A format ships only when an external Rust crate decodes it | 2026-10-11 | Accepted |
 | [0017](0017-result-size-and-paging.md) | Results capped by size; paging and downsampling are the agent's SQL | 2026-10-11 | Accepted |
 | [0018](0018-extraction-on-file-events.md) | Extraction starts on file events | 2026-10-11 | Accepted |
+| [0019](0019-send-query-results-to-rerun.md) | Query results sent to the Rerun viewer | 2026-10-13 | Accepted |

@@ -18,6 +18,7 @@ This document contains the help content for the `wisebucket` command-line progra
 * [`wisebucket config show`↴](#wisebucket-config-show)
 * [`wisebucket config path`↴](#wisebucket-config-path)
 * [`wisebucket sql`↴](#wisebucket-sql)
+* [`wisebucket rerun`↴](#wisebucket-rerun)
 * [`wisebucket doctor`↴](#wisebucket-doctor)
 * [`wisebucket demo`↴](#wisebucket-demo)
 * [`wisebucket completions`↴](#wisebucket-completions)
@@ -35,6 +36,7 @@ Examples:
   wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
   wisebucket demo --all                    Try it on public sample recordings
   wisebucket sql "SELECT * FROM streams"  Query the store yourself
+  wisebucket rerun "SELECT t, … FROM …"  Send a query result to the Rerun viewer
   wisebucket doctor                        Check the installation
 
 ###### **Subcommands:**
@@ -44,6 +46,7 @@ Examples:
 * `roots` — Manage data roots (folders Wise Bucket may read)
 * `config` — Inspect the effective configuration
 * `sql` — Run a read-only SQL query over the store (what your agent's `sql` tool runs)
+* `rerun` — Send the rows of a query to a running Rerun viewer (what your agent's `rerun` tool runs)
 * `doctor` — Check the whole installation and explain how to fix problems
 * `demo` — Download public sample recordings and declare them as the `demo` data root
 * `completions` — Print a shell completion script to stdout
@@ -201,6 +204,29 @@ Examples:
 ###### **Options:**
 
 * `--limit <LIMIT>` — Rows wanted at most (results are also capped at about 60 KB)
+
+
+
+## `wisebucket rerun`
+
+Send the rows of a query to a running Rerun viewer (what your agent's `rerun` tool runs)
+
+**Usage:** `wisebucket rerun [OPTIONS] <QUERY>`
+
+Examples:
+  wisebucket rerun "SELECT t, \"accelerometer_m_s2[2]\" AS az FROM stream('sensor_combined')"
+  wisebucket rerun --entity imu "SELECT * FROM stream('/imu', 'bags:run3%')"
+
+###### **Arguments:**
+
+* `<QUERY>` — A single SELECT query with a timestamp column `t`
+
+###### **Options:**
+
+* `--entity <ENTITY>` — Entity path prefix in Rerun (series are named `<entity>/<column>`)
+* `--url <URL>` — Address of the Rerun viewer
+
+  Default value: `rerun+http://127.0.0.1:9876/proxy`
 
 
 

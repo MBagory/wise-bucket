@@ -7,6 +7,7 @@
 
 pub mod columns;
 pub mod extract;
+pub mod rerun;
 pub mod sql;
 pub mod store;
 pub mod tables;

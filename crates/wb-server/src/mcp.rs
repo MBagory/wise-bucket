@@ -53,6 +53,17 @@ pub struct SqlArgs {
     pub limit: Option<usize>,
 }
 
+/// Arguments of the `rerun` tool.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RerunArgs {
+    /// One read-only SELECT query with a timestamp column `t`.
+    pub query: String,
+    /// Entity path prefix: series are named `<entity>/<column>` (e.g. the stream name).
+    pub entity: Option<String>,
+    /// Address of the Rerun viewer (default `rerun+http://127.0.0.1:9876/proxy`).
+    pub url: Option<String>,
+}
+
 fn sql_description() -> String {
     format!(
         "Run one read-only SQL query (DataFusion dialect, close to PostgreSQL) over the store: a decoded, columnar copy of every recording in the data roots. Compute any metric with it; nothing is precomputed. Rows are arrays in the order of `columns`. Every row enters your context: aggregate or filter before fetching raw rows. A result is capped at {} KB and at `limit` rows if you set one; `truncated` and `hint` say when more exist and how to get them. Page by time window or by key (recipes), not with OFFSET: the store changes while you page. {} s per query; only SELECT is allowed. Quote dotted or upper-case column names (\"linear_acceleration.z\"). Times are nanosecond timestamps.\n\nTables:\n{}\nRecipes:\n{}",
@@ -228,6 +239,35 @@ impl WbServer {
     ) -> std::result::Result<CallToolResult, McpError> {
         let result = match self.current_config() {
             Ok(cfg) => wb_data::sql::query(&Store::for_config(&cfg), &args.query, args.limit).await,
+            Err(e) => Err(e),
+        };
+        Ok(match result {
+            Ok(r) => CallToolResult::structured(json!(r)),
+            Err(e) => CallToolResult::structured_error(json!({ "error": e.to_json() })),
+        })
+    }
+
+    /// Sends the rows of a query to a running Rerun viewer.
+    #[tool(
+        name = "rerun",
+        description = "Send every row of one read-only SELECT (same tables as `sql`) to a running Rerun viewer, with no size cap: the rows go to the viewer, not to your context, so send raw streams rather than bins. The query must return a timestamp column `t`. Each timestamp column (`t`, `t_sensor`…) becomes a Rerun timeline (times before 2000 count from boot and are shown as durations); each numeric or boolean column a scalar series named `<entity>/<column>`: name series with SQL aliases (AS \"imu/az\") and set `entity` to the stream name to keep streams apart. Other columns are skipped and listed. Every call adds to the same Rerun recording, `wisebucket`; move its time cursor with the Rerun viewer's MCP tools on the timeline `t`.",
+        annotations(read_only_hint = true, open_world_hint = false)
+    )]
+    async fn rerun(
+        &self,
+        Parameters(args): Parameters<RerunArgs>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let url = args.url.as_deref().unwrap_or(wb_data::rerun::DEFAULT_URL);
+        let result = match self.current_config() {
+            Ok(cfg) => {
+                wb_data::rerun::send(
+                    &Store::for_config(&cfg),
+                    &args.query,
+                    args.entity.as_deref(),
+                    url,
+                )
+                .await
+            }
             Err(e) => Err(e),
         };
         Ok(match result {

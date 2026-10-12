@@ -53,7 +53,7 @@ pub struct QueryResult {
     pub hint: Option<String>,
 }
 
-fn query_err(e: impl std::fmt::Display) -> WbError {
+pub(crate) fn query_err(e: impl std::fmt::Display) -> WbError {
     err(ErrorKind::QueryFailed, e.to_string())
 }
 
@@ -65,16 +65,8 @@ enum Cut {
 /// Runs one read-only query over the store, returning at most `limit` rows and
 /// [`MAX_BYTES`] of them.
 pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<QueryResult> {
-    let ctx = context(store).map_err(query_err)?;
-    let options = SQLOptions::new()
-        .with_allow_ddl(false)
-        .with_allow_dml(false)
-        .with_allow_statements(false);
     let run = async {
-        let mut df = ctx
-            .sql_with_options(sql, options)
-            .await
-            .map_err(query_err)?;
+        let mut df = dataframe(store, sql).await?;
         if let Some(n) = limit {
             // One more row tells whether more exist.
             df = df.limit(0, Some(n + 1)).map_err(query_err)?;
@@ -143,6 +135,19 @@ pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<Que
         truncated: hint.is_some(),
         hint,
     })
+}
+
+/// Plans one read-only query over the store, in a locked-down session.
+pub async fn dataframe(store: &Store, sql: &str) -> Result<DataFrame> {
+    let options = SQLOptions::new()
+        .with_allow_ddl(false)
+        .with_allow_dml(false)
+        .with_allow_statements(false);
+    context(store)
+        .map_err(query_err)?
+        .sql_with_options(sql, options)
+        .await
+        .map_err(query_err)
 }
 
 fn to_json(batches: &[RecordBatch]) -> Result<Vec<serde_json::Value>> {

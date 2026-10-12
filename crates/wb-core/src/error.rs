@@ -75,6 +75,9 @@ error_kinds! {
     QueryFailed => "query_failed",
         "A SQL query was rejected or failed",
         "Read the message: it comes from the query engine (DataFusion) and names the problem (unknown table or column, syntax, a write or DDL statement, a timeout). Only `SELECT` queries over the documented tables are allowed. See the tables reference.";
+    ViewerUnreachable => "viewer_unreachable",
+        "The Rerun viewer could not be reached",
+        "Start the viewer with `rerun` (it listens on `rerun+http://127.0.0.1:9876/proxy`), or pass the address of a running one with `--url`. Install it with `pip3 install rerun-sdk` or `cargo binstall rerun-cli`.";
     Io => "io_error",
         "A file-system operation failed",
         "Check the path, permissions and free disk space mentioned in the message.";

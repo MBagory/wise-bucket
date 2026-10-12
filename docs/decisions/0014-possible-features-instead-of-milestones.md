@@ -17,7 +17,7 @@ Beyond the current milestone (M1: the store and SQL), the roadmap is an **unorde
 - **Similarity across recordings** (the unknown unknowns known elsewhere): recurrences, counterexamples, before and after a fix, outliers and novelty, behaviour modes, and the same problem described in other words. Exact vector search already works in DataFusion (`cosine_distance`); Lance adds approximate indexes, full-text and hybrid search. Embeddings need a local model.
 - **Images and point clouds in the store** (Lance blobs), for multimodal search.
 - **More formats:** ROS 1 bags and ROS 1-encoded MCAP (no Rust crate decodes ROS 1 messages), LCM, MCAP protobuf and JSON, Rerun `.rrd`; CAN, DBC signal decoding (`can-dbc` parses DBC files but no crate decodes frames with them), ArduPilot DataFlash, MDF4, Betaflight; HDF5 and MATLAB, TDMS, WAV; PCAP; GNSS logs; Zarr, NumPy, TFRecord; plain-text logs.
-- **Export** of a query result or a stream to Parquet or CSV.
+- **Export** of a query result or a stream to Parquet, CSV or MCAP (any viewer opens MCAP). Sending to a running Rerun viewer is done ([0019](0019-send-query-results-to-rerun.md)).
 - **Vortex** for the store, if bulk scans become the bottleneck ([0013](0013-lance-as-the-store-format.md)).
 - **Time and clocks:** clock domains and mappings between clocks.
 - **Extraction without an open session:** a daemon or scheduled extraction.

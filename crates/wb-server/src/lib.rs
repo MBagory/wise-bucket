@@ -43,6 +43,9 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Some(Command::Roots(c)) => commands::roots::run(g, c).await,
         Some(Command::Config(c)) => commands::config_cmd::run(g, c).await,
         Some(Command::Sql { query, limit }) => commands::sql::run(g, query, *limit).await,
+        Some(Command::Rerun { query, entity, url }) => {
+            commands::sql::rerun(g, query, entity.as_deref(), url).await
+        }
         Some(Command::Ingest { recording }) => return commands::sql::ingest(g, recording).await,
         Some(Command::Demo(a)) => commands::demo::run(g, a),
         Some(Command::Docs(cli::DocsCommand::Gen { check, out })) => {

@@ -12,8 +12,8 @@ async fn server_info_answers_in_two_sessions() {
     let a = env.session("client-a").await;
     let tools = a.tools().await;
     let names: Vec<_> = tools.iter().map(|t| t.name.to_string()).collect();
-    assert_eq!(names.len(), 2, "{names:?}");
-    for name in ["server_info", "sql"] {
+    assert_eq!(names.len(), 3, "{names:?}");
+    for name in ["server_info", "sql", "rerun"] {
         let tool = tools.iter().find(|t| t.name == name).expect(name);
         let hints = tool.annotations.as_ref().expect("annotations");
         assert_eq!(hints.read_only_hint, Some(true), "{name}");

@@ -11,7 +11,8 @@ use tracing_subscriber::{EnvFilter, fmt};
 fn filter(verbose: u8) -> EnvFilter {
     EnvFilter::try_from_env("WB_LOG").unwrap_or_else(|_| {
         EnvFilter::new(match verbose {
-            0 => "warn",
+            // The Rerun SDK repeats on exit the error `rerun` already reports.
+            0 => "warn,re_sdk=off,re_grpc_client=off",
             1 => "info,lance=warn,datafusion=warn",
             _ => "debug",
         })
