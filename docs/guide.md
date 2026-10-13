@@ -190,6 +190,8 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 
 **Facts about a recording** go to the `properties` table: the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
 
+**Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `1 ERROR log messages (stream /rosout), first: "lost link to /dev/ttyUSB0"`. `streams.notes` flags a time that never changes.
+
 **Tables** need a time column. Wise Bucket uses the first timestamp column, else a column named `time`, `timestamp`, `t` or `stamp` (any case), whose unit comes from a `_s`, `_ms`, `_us` or `_ns` suffix (seconds by default). The stream's `notes` say which column was used. Without one, `t` is empty.
 
 ### Querying

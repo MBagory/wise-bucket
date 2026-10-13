@@ -49,6 +49,41 @@ fn cdr(stamp_ns: i64, frame: &str, values: &[f64]) -> Vec<u8> {
     out
 }
 
+const LOG_DEF: &str = "builtin_interfaces/Time stamp
+uint8 level
+string name
+string msg
+string file
+string function
+uint32 line
+================================================================================
+MSG: builtin_interfaces/Time
+int32 sec
+uint32 nanosec";
+
+/// CDR (little endian) of an `rcl_interfaces/msg/Log`.
+fn log_cdr(stamp_ns: i64, level: u8, msg: &str) -> Vec<u8> {
+    let mut body = Vec::new();
+    body.extend(((stamp_ns / 1_000_000_000) as i32).to_le_bytes());
+    body.extend(((stamp_ns % 1_000_000_000) as u32).to_le_bytes());
+    body.push(level);
+    for s in ["talker", msg, "talker.cpp", "main"] {
+        while body.len() % 4 != 0 {
+            body.push(0);
+        }
+        body.extend(((s.len() + 1) as u32).to_le_bytes());
+        body.extend(s.as_bytes());
+        body.push(0);
+    }
+    while body.len() % 4 != 0 {
+        body.push(0);
+    }
+    body.extend(42u32.to_le_bytes());
+    let mut out = vec![0x00, 0x01, 0x00, 0x00];
+    out.extend(body);
+    out
+}
+
 /// 10 Hz for 10 s with messages 31–49 missing: a 2 s gap after t = 3.0 s. `x` = index + offset.
 fn sample_messages(offset: f64) -> Vec<(i64, Vec<u8>)> {
     (0..100)
@@ -83,6 +118,12 @@ fn write_mcap(path: &Path, offset: f64) {
     let cam = w
         .add_channel(image, "/camera/image", "cdr", &BTreeMap::new())
         .unwrap();
+    let log = w
+        .add_schema("rcl_interfaces/msg/Log", "ros2msg", LOG_DEF.as_bytes())
+        .unwrap();
+    let rosout = w
+        .add_channel(log, "/rosout", "cdr", &BTreeMap::new())
+        .unwrap();
     w.write_metadata(&mcap::records::Metadata {
         name: "rig".into(),
         metadata: BTreeMap::from([("serial".into(), "R-17".into())]),
@@ -99,6 +140,16 @@ fn write_mcap(path: &Path, offset: f64) {
         .map(|(t, d)| (t, ch, d))
         .collect();
     msgs.extend((0..20).map(|i| (T0 + i * 500 * MS, cam, vec![0u8; 1000])));
+    msgs.push((
+        T0 + 1000 * MS,
+        rosout,
+        log_cdr(T0 + 1000 * MS, 20, "Publishing"),
+    ));
+    msgs.push((
+        T0 + 2000 * MS,
+        rosout,
+        log_cdr(T0 + 2000 * MS, 40, "lost link to /dev/ttyUSB0"),
+    ));
     msgs.sort_by_key(|m| m.0);
     for (seq, (t, channel_id, data)) in (1..).zip(msgs) {
         w.write_to_known_channel(
@@ -469,6 +520,23 @@ async fn every_format_is_extracted_and_queryable() {
             "{file}"
         );
     }
+
+    // Warnings and errors of a log topic are counted in the recording's notes.
+    let r = one(
+        &f,
+        "SELECT notes FROM recordings WHERE recording = 'bags:run1.mcap'",
+    )
+    .await;
+    assert_eq!(
+        r["notes"],
+        "1 ERROR log messages (stream /rosout), first: \"lost link to /dev/ttyUSB0\""
+    );
+    let r = one(
+        &f,
+        "SELECT count(*) AS n, max(level) AS worst FROM stream('/rosout', 'bags:run1%')",
+    )
+    .await;
+    assert_eq!(r, json!({"n": 2, "worst": 40}));
 
     // The publishers' QoS, in short.
     let rows = q(

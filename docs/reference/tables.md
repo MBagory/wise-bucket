@@ -22,7 +22,7 @@ Every recording found in the data roots, with its extraction status.
 | `start` | timestamp | First `t` over all streams |
 | `end` | timestamp | Last `t` over all streams |
 | `streams` | int | Number of streams extracted |
-| `notes` | text | Remarks about the extraction |
+| `notes` | text | What to look at first: warnings and errors logged (counted per level, with the first message), and remarks about the extraction |
 
 ## `streams`
 

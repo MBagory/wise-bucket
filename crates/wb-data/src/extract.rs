@@ -1,7 +1,11 @@
 //! Extracting one recording into a directory of Parquet files.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+
+use datafusion::arrow::array::{Array, AsArray};
+use datafusion::arrow::compute::cast;
+use datafusion::arrow::datatypes::{DataType, UInt8Type};
 
 use wb_core::error::{ErrorKind, Result, err};
 use wb_core::roots::RecordingKind;
@@ -83,12 +87,63 @@ pub async fn extract(path: &Path, kind: RecordingKind, out: &Path) -> Result<Ext
     }
 }
 
+/// The warnings and errors of a log stream, for a recording note that points to them.
+#[derive(Debug, Default)]
+pub(crate) struct LogTally {
+    /// `(rank, level)` → count; a lower rank is more severe.
+    counts: BTreeMap<(u8, String), u64>,
+    first_error: Option<String>,
+    first_warning: Option<String>,
+}
+
+/// Longest message quoted in a note, in characters.
+const QUOTE: usize = 100;
+
+impl LogTally {
+    /// Counts one message at a warning level or worse; `rank` orders the levels
+    /// (0 = most severe).
+    pub fn add(&mut self, rank: u8, level: &str, is_error: bool, message: &str) {
+        *self.counts.entry((rank, level.to_string())).or_default() += 1;
+        let first = if is_error {
+            &mut self.first_error
+        } else {
+            &mut self.first_warning
+        };
+        if first.is_none() {
+            let one_line = message.split_whitespace().collect::<Vec<_>>().join(" ");
+            *first = Some(match one_line.char_indices().nth(QUOTE) {
+                Some((cut, _)) => format!("{}…", &one_line[..cut]),
+                None => one_line,
+            });
+        }
+    }
+
+    /// `4 ERROR, 1 WARNING log messages (stream /rosout), first: "…"`, or nothing.
+    pub fn note(&self, stream: &str) -> Option<String> {
+        if self.counts.is_empty() {
+            return None;
+        }
+        let counts: Vec<String> = self
+            .counts
+            .iter()
+            .map(|((_, level), n)| format!("{n} {level}"))
+            .collect();
+        let mut note = format!("{} log messages (stream {stream})", counts.join(", "));
+        if let Some(first) = self.first_error.as_ref().or(self.first_warning.as_ref()) {
+            note.push_str(&format!(", first: \"{first}\""));
+        }
+        Some(note)
+    }
+}
+
 /// One topic of a message-based recording (MCAP, rosbag2).
 struct Topic {
     sink: StreamSink,
     decoder: Option<Decoder>,
     t: Vec<i64>,
     bytes: Vec<u32>,
+    /// For ROS 2 log topics (`rcl_interfaces/msg/Log`): their warnings and errors.
+    log: Option<LogTally>,
 }
 
 /// The topics of a message-based recording, decoded a batch at a time.
@@ -173,11 +228,14 @@ impl Topics {
             }
         };
         sink.meta.decoded = decoder.is_some();
+        let log = (decoder.is_some() && ros2::short_name(type_) == "rcl_interfaces/Log")
+            .then(LogTally::default);
         self.topics.push(Topic {
             sink,
             decoder,
             t: Vec::with_capacity(BATCH),
             bytes: Vec::with_capacity(BATCH),
+            log,
         });
         self.by_key.insert(key, index);
         index
@@ -227,6 +285,9 @@ impl Topics {
                 dropped.join(", ")
             ));
         }
+        if let Some(tally) = topic.log.as_mut() {
+            tally_ros_log(tally, &batch);
+        }
         topic.sink.append(batch)
     }
 
@@ -235,7 +296,15 @@ impl Topics {
             self.flush(i)?;
         }
         let mut streams = Vec::new();
+        let mut notes = Vec::new();
         for mut topic in self.topics {
+            if let Some(note) = topic
+                .log
+                .as_ref()
+                .and_then(|l| l.note(&topic.sink.meta.name))
+            {
+                notes.push(note);
+            }
             if let Some(d) = &topic.decoder
                 && d.failures > 0
             {
@@ -251,8 +320,58 @@ impl Topics {
         }
         Ok(Extraction {
             streams,
-            notes: Vec::new(),
+            notes,
             properties: self.properties,
         })
+    }
+}
+
+/// Counts the WARN, ERROR and FATAL messages of a decoded `rcl_interfaces/msg/Log` batch.
+fn tally_ros_log(tally: &mut LogTally, batch: &datafusion::arrow::array::RecordBatch) {
+    let column =
+        |name: &str, ty: &DataType| batch.column_by_name(name).and_then(|c| cast(c, ty).ok());
+    let (Some(levels), Some(msgs)) = (
+        column("level", &DataType::UInt8),
+        column("msg", &DataType::Utf8),
+    ) else {
+        return;
+    };
+    let (levels, msgs) = (levels.as_primitive::<UInt8Type>(), msgs.as_string::<i32>());
+    for i in 0..levels.len() {
+        let (rank, name) = match levels.value(i) {
+            50.. => (0, "FATAL"),
+            40.. => (1, "ERROR"),
+            30.. => (2, "WARN"),
+            _ => continue,
+        };
+        let msg = if msgs.is_null(i) { "" } else { msgs.value(i) };
+        tally.add(rank, name, rank < 2, msg);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LogTally;
+
+    #[test]
+    fn log_notes_point_to_the_worst_first() {
+        let mut t = LogTally::default();
+        assert_eq!(t.note("/rosout"), None);
+        t.add(2, "WARN", false, "battery low");
+        t.add(1, "ERROR", true, "lost\nlink");
+        t.add(1, "ERROR", true, "second error");
+        assert_eq!(
+            t.note("/rosout").unwrap(),
+            "2 ERROR, 1 WARN log messages (stream /rosout), first: \"lost link\""
+        );
+        let mut t = LogTally::default();
+        t.add(4, "WARNING", false, &"é".repeat(150));
+        assert_eq!(
+            t.note("x").unwrap(),
+            format!(
+                "1 WARNING log messages (stream x), first: \"{}…\"",
+                "é".repeat(100)
+            )
+        );
     }
 }

@@ -9,6 +9,7 @@ Tools:
 - `rerun`: sends every row of one SELECT (with a timestamp column `t`) to a running Rerun viewer, without passing through your context. Each numeric column becomes a series `<entity>/<column>`.
 
 Guidelines:
+- Read `recordings.notes` first: they count the warnings and errors a recording logged (ROS 2 `/rosout`, MAVLink `STATUSTEXT`) and quote the first one. When a recording has these log streams, no count means none were logged.
 - Start from `recordings` and `streams` to find what exists (`stream ILIKE '%imu%'`, `columns ILIKE '%current%'`), then query the streams themselves.
 - Look at `status`: only `done` (and `missing`) recordings have data. `pending` ones are being extracted while the session is open; say so rather than concluding the data is absent.
 - Choose window widths from the question (`date_bin`), and compute gaps, rates, percentiles and joins between streams in SQL. Show the user the query behind each number.
