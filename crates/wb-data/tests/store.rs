@@ -206,6 +206,8 @@ fn fixture() -> Fixture {
         "time_s;voltage\n0.0;12.5\n0.1;12.4\n0.2;11.9\n",
     )
     .unwrap();
+    // A logger that never updated its clock.
+    std::fs::write(bags.join("frozen.csv"), "time_s;v\n5;1\n5;2\n5;3\n").unwrap();
     std::fs::write(
         bags.join("log.jsonl"),
         "{\"timestamp_ms\": 1000, \"v\": 1.5}\n{\"timestamp_ms\": 2000, \"v\": 2.5}\n",
@@ -450,6 +452,20 @@ async fn every_format_is_extracted_and_queryable() {
         );
     }
 
+    // A time that never changes is flagged.
+    let r = one(
+        &f,
+        "SELECT notes FROM streams WHERE recording = 'bags:frozen.csv'",
+    )
+    .await;
+    assert!(
+        r["notes"]
+            .as_str()
+            .unwrap()
+            .contains("t is the same on every row"),
+        "{r}"
+    );
+
     // Every stream is a Parquet file with page statistics on `t`.
     let rows = f.store.rows();
     let run1 = rows
@@ -515,7 +531,7 @@ async fn sql_is_locked_down_and_capped() {
     // The hint gives the next page's condition when the result has `t`.
     let r = sql::query(
         &f.store,
-        "SELECT t FROM stream('/sample') ORDER BY t",
+        "SELECT t FROM stream('/sample', 'bags:run1%') ORDER BY t",
         Some(2),
     )
     .await
@@ -527,6 +543,19 @@ async fn sql_is_locked_down_and_capped() {
         )),
         "{:?}",
         r.hint
+    );
+    // Rows sharing one `t`: paging with `t >` would skip the rest of them.
+    let r = sql::query(
+        &f.store,
+        "SELECT t, v FROM stream('table', 'bags:frozen.csv') ORDER BY t",
+        Some(2),
+    )
+    .await
+    .unwrap();
+    let hint = r.hint.unwrap();
+    assert!(
+        hint.contains("share the same t") && !hint.contains("t > TIMESTAMP"),
+        "{hint}"
     );
     assert_eq!(
         q(

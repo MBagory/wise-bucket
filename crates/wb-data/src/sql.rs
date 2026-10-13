@@ -108,14 +108,26 @@ pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<Que
         ))
     })??;
     let hint = cut.map(|cut| {
-        // The next rows start after the last `t` returned, when the result has one.
-        let next = columns
+        // The next rows start after the last `t` returned, when the result has one,
+        // unless the last rows share it: `t > last` would skip the rest of them.
+        let last_ts: Vec<&str> = columns
             .iter()
             .position(|c| c == "t")
-            .and_then(|i| rows.last()?[i].as_str().map(str::to_string))
-            .map_or("a time window on t (ORDER BY t)".to_string(), |last| {
-                format!("WHERE t > TIMESTAMP '{last}' ORDER BY t")
-            });
+            .map(|i| {
+                rows.iter()
+                    .rev()
+                    .take(2)
+                    .filter_map(|r| r[i].as_str())
+                    .collect()
+            })
+            .unwrap_or_default();
+        let next = match last_ts.as_slice() {
+            [last, previous] if last == previous => "a filter, or ORDER BY t and another column \
+                 (line, name) with a condition on it: the last rows share the same t"
+                .to_string(),
+            [last, ..] => format!("WHERE t > TIMESTAMP '{last}' ORDER BY t"),
+            [] => "a time window on t (ORDER BY t)".to_string(),
+        };
         match cut {
             Cut::Limit(n) => format!(
                 "More rows exist beyond limit {n}: raise limit, or fetch the next rows with {next}."

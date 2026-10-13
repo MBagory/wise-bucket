@@ -125,6 +125,12 @@ impl StreamSink {
         let Some(mut writer) = self.writer.take() else {
             return Ok(None);
         };
+        if self.meta.rows > 1
+            && self.meta.start_ns.is_some()
+            && self.meta.start_ns == self.meta.end_ns
+        {
+            self.note("t is the same on every row");
+        }
         writer.finish().map_err(arrow_err)?;
         drop(writer);
         let reader = FileReader::try_new(

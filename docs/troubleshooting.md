@@ -40,6 +40,10 @@ The store's disk has less than 10 GB free. Free some space (deleting the store i
 - **A custom ROS 2 type in a Humble `.db3` bag:** the bag doesn't store the definition, and only standard types are bundled. Recording with MCAP storage (`ros2 bag record -s mcap`) stores the definitions.
 - **ROS 1, protobuf or JSON payloads in MCAP:** not decoded yet; timing and sizes are kept.
 
+### A stream's `t` never changes
+
+The stream's `notes` say `t is the same on every row`: the recorder wrote the same time on every message. Use another time column of the stream, or the row order, and page it by another column than `t`.
+
 ### The times of a CSV or Parquet file are wrong
 
 `t` comes from a guessed column, and the stream's `notes` say which one. The unit comes from a suffix (`time_ms`, `t_us`…) and defaults to seconds. Rename the column in the file, or compute the right time in your query from the original column, which is always kept.
@@ -103,7 +107,7 @@ The column is a counter, a sequence number, a timestamp or an enum, or the peers
 
 ### Why is a result cut, with `truncated` and a hint?
 
-Every row your agent receives enters its context, so a result holds about 60 KB of rows. The hint says how to get the rest: aggregate with `date_bin`, filter, or fetch the next page by time. To plot a long signal, the agent fetches about 150 bins with their min, average and max. ([ADR 0017](decisions/0017-result-size-and-paging.md))
+Every row your agent receives enters its context, so a result holds about 60 KB of rows. The hint says how to get the rest: aggregate with `date_bin`, filter, or fetch the next page by time, or by another column when the last rows share one time. To plot a long signal, the agent fetches about 150 bins with their min, average and max. ([ADR 0017](decisions/0017-result-size-and-paging.md))
 
 ### Why can't Wise Bucket read my format (CAN with DBC, MDF4, ROS 1…)?
 
