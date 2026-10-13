@@ -51,14 +51,7 @@ async fn recordings_are_extracted_and_queried() {
     bench(&bags.join("bench1.csv"), 10.0, 50);
     bench(&bags.join("bench2.csv"), 20.0, 50);
     common::write(&bags.join("corrupt.mcap"), "not an MCAP file");
-    env.ok(&[
-        "roots",
-        "add",
-        "bags",
-        &bags.to_string_lossy(),
-        "--hardware",
-        "rig-1",
-    ]);
+    env.ok(&["roots", "add", "bags", &bags.to_string_lossy()]);
 
     let s = env.session("c").await;
     s.wait_until("2 done and 1 failed", |i| {
@@ -77,16 +70,67 @@ async fn recordings_are_extracted_and_queried() {
         "{r:#}"
     );
     let r = s
-        .sql("SELECT status, hardware, error FROM recordings WHERE path = 'corrupt.mcap'")
+        .sql("SELECT status, error FROM recordings WHERE path = 'corrupt.mcap'")
         .await;
     assert_eq!(r["rows"][0]["status"], "failed", "{r:#}");
-    assert_eq!(r["rows"][0]["hardware"], "rig-1");
     assert!(
         r["rows"][0]["error"]
             .as_str()
             .unwrap()
             .contains("corrupt.mcap")
     );
+
+    // What the engineer says goes to `recordings.context`, through the `note` tool.
+    let res = s
+        .call(
+            "note",
+            json!({"target": "bags:", "context": {"hardware": "rig-1"}}),
+        )
+        .await;
+    let noted = res.structured_content.unwrap();
+    assert_eq!(
+        (&noted["target"], &noted["recordings"]),
+        (&json!("bags:"), &json!(3)),
+        "{noted:#}"
+    );
+    s.call(
+        "note",
+        json!({"target": "bags:bench2.csv", "context": {"hardware": "rig-2", "wind": "gusty"}}),
+    )
+    .await;
+    let r = s
+        .sql("SELECT recording, context FROM recordings ORDER BY recording")
+        .await;
+    assert_eq!(
+        r["rows"],
+        json!([
+            {"recording": "bags:bench1.csv", "context": {"hardware": "rig-1"}},
+            {"recording": "bags:bench2.csv", "context": {"hardware": "rig-2", "wind": "gusty"}},
+            {"recording": "bags:corrupt.mcap", "context": {"hardware": "rig-1"}},
+        ]),
+        "{r:#}"
+    );
+    let res = s
+        .call(
+            "note",
+            json!({"target": "bags:nope.csv", "context": {"x": "y"}}),
+        )
+        .await;
+    assert_eq!(res.is_error, Some(true));
+    assert_eq!(
+        res.structured_content.unwrap()["error"]["code"],
+        "target_not_found"
+    );
+    // An empty value or null removes a key.
+    s.call(
+        "note",
+        json!({"target": "bags:bench2.csv", "context": {"hardware": null, "wind": ""}}),
+    )
+    .await;
+    let r = s
+        .sql("SELECT context['hardware'] AS hw FROM recordings WHERE recording = 'bags:bench2.csv'")
+        .await;
+    assert_eq!(r["rows"][0]["hw"], "rig-1", "{r:#}");
 
     // A file added during the session is extracted without any command.
     bench(&bags.join("bench3.csv"), 30.0, 20);

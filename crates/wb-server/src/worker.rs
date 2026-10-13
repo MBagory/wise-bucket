@@ -20,7 +20,8 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 use wb_core::config::{self, Overrides};
 use wb_core::roots;
-use wb_data::store::{self, Entry, Store};
+use wb_core::roots::Candidate;
+use wb_data::store::{self, Store};
 
 /// How often the roots are walked when file events are not available.
 const DISCOVERY_EVERY: Duration = Duration::from_secs(60);
@@ -226,10 +227,10 @@ async fn pass(
         Ok(Ok(_)) => {}
     }
 
-    let is_ready = |e: &Entry| {
+    let is_ready = |c: &Candidate| {
         root_paths
-            .get(&e.candidate.root)
-            .is_some_and(|r| ready.contains(&r.join(&e.candidate.path)))
+            .get(&c.root)
+            .is_some_and(|r| ready.contains(&r.join(&c.path)))
     };
     let mut tried = HashSet::new();
     loop {
@@ -248,11 +249,11 @@ async fn pass(
             .pending(SETTLE)
             .into_iter()
             .chain(store.pending(Duration::ZERO).into_iter().filter(is_ready))
-            .find(|e| !tried.contains(&store::recording_id(&e.candidate)))
+            .find(|c| !tried.contains(&store::recording_id(c)))
         else {
             break;
         };
-        tried.insert(store::recording_id(&next.candidate));
+        tried.insert(store::recording_id(&next));
         extract(overrides, &store, &next).await;
     }
 
@@ -265,8 +266,8 @@ async fn pass(
     let fresh = store
         .pending(Duration::ZERO)
         .iter()
-        .filter(|e| !tried.contains(&store::recording_id(&e.candidate)))
-        .map(|e| (settle_ns - (now_ns - e.candidate.mtime_ns)).clamp(0, settle_ns))
+        .filter(|c| !tried.contains(&store::recording_id(c)))
+        .map(|c| (settle_ns - (now_ns - c.mtime_ns)).clamp(0, settle_ns))
         .min()
         .map(|ns| Duration::from_nanos(ns as u64) + Duration::from_millis(50));
     match (fresh, watcher.is_some()) {
@@ -288,8 +289,8 @@ fn child_args(overrides: &Overrides) -> Vec<String> {
     args
 }
 
-async fn extract(overrides: &Overrides, store: &Store, entry: &Entry) {
-    let reference = store::recording_id(&entry.candidate);
+async fn extract(overrides: &Overrides, store: &Store, candidate: &Candidate) {
+    let reference = store::recording_id(candidate);
     let Ok(exe) = std::env::current_exe() else {
         return;
     };
@@ -330,7 +331,7 @@ async fn extract(overrides: &Overrides, store: &Store, entry: &Entry) {
             let message = message.into_iter().rev().collect::<Vec<_>>().join("\n");
             // The child records ordinary failures itself; this covers crashes.
             let _ = store.record_failure(
-                &entry.candidate,
+                candidate,
                 &format!("extraction stopped ({}): {message}", out.status),
             );
         }
@@ -338,7 +339,7 @@ async fn extract(overrides: &Overrides, store: &Store, entry: &Entry) {
         Err(_) => {
             tracing::warn!(recording = %reference, "extraction timed out");
             let _ = store.record_failure(
-                &entry.candidate,
+                candidate,
                 &format!(
                     "extraction took longer than {} minutes and was stopped",
                     EXTRACTION_TIMEOUT.as_secs() / 60

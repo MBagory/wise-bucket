@@ -15,6 +15,7 @@ pub async fn run(global: &GlobalArgs, cmd: &ConfigCommand) -> Result<()> {
             if global.json {
                 ui::json(&json!({
                     "user_config": cfg.user_config_path.value,
+                    "context": wb_core::context::path(&cfg),
                     "state_dir": cfg.state_dir.value,
                 }));
             } else {
@@ -27,6 +28,7 @@ pub async fn run(global: &GlobalArgs, cmd: &ConfigCommand) -> Result<()> {
                         "  (not created yet)"
                     }
                 );
+                println!("context:        {}", wb_core::context::path(&cfg).display());
                 println!("state dir:      {}", cfg.state_dir.value.display());
             }
             Ok(())

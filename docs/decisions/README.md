@@ -15,7 +15,7 @@ The principles these decisions add up to are summarized in the [README](../../RE
 | [0005](0005-pgvector-and-embeddings-deferred.md) | pgvector and embeddings deferred | 2026-10-03 | Superseded by [0011](0011-no-database.md) |
 | [0006](0006-skills-deferred.md) | Skills deferred | 2026-10-03 | Accepted |
 | [0007](0007-no-release-before-the-mvp.md) | No release before the MVP; install from source | 2026-10-03 | Superseded by [0015](0015-first-release-after-m1.md) |
-| [0008](0008-hardware-rather-than-robot.md) | "Hardware" rather than "robot" | 2026-10-05 | Accepted |
+| [0008](0008-hardware-rather-than-robot.md) | "Hardware" rather than "robot" | 2026-10-05 | Root option superseded by [0025](0025-context-from-the-engineer.md); vocabulary kept |
 | [0009](0009-hardware-knowledge-deferred.md) | Hardware knowledge deferred, with its open problems | 2026-10-06 | Accepted |
 | [0010](0010-metrics-are-sql-written-by-the-agent.md) | Metrics are SQL written by the agent; nothing computed in advance | 2026-10-10 | Accepted |
 | [0011](0011-no-database.md) | No database: columnar files queried by DataFusion | 2026-10-10 | Accepted (supersedes [0003](0003-managed-postgresql.md) and [0005](0005-pgvector-and-embeddings-deferred.md)) |
@@ -32,3 +32,4 @@ The principles these decisions add up to are summarized in the [README](../../RE
 | [0022](0022-unreadable-formats-are-listed.md) | Unreadable formats are listed | 2026-10-13 | Accepted |
 | [0023](0023-quiet-server-logs.md) | Quiet server logs | 2026-10-13 | Accepted |
 | [0024](0024-recording-context-from-the-files.md) | Recording context from the files | 2026-10-13 | Accepted |
+| [0025](0025-context-from-the-engineer.md) | Context from the engineer: a `context` column and a `note` tool | 2026-10-13 | Accepted (supersedes [0008](0008-hardware-rather-than-robot.md) for the root option) |

@@ -13,7 +13,7 @@ use wb_core::ErrorKind;
 use wb_core::config::Origin;
 use wb_core::roots::{self, Candidate, Root};
 use wb_data::sql;
-use wb_data::store::{self, Entry, Outcome, Status, Store};
+use wb_data::store::{self, Outcome, Status, Store};
 
 /// 2023-11-14T22:13:20Z: a round number of seconds, so 1 s windows align with it.
 const T0: i64 = 1_700_000_000_000_000_000;
@@ -304,12 +304,21 @@ fn fixture() -> Fixture {
     let root = Root {
         name: "bags".into(),
         path: dunce_like(&bags),
-        hardware: Some("rover-b".into()),
         include: vec![],
         exclude: vec![],
         origin: Origin::Default,
     };
-    let store = Store::new(&dir.path().join("state"));
+    // What the engineer said: the root, a folder, a recording.
+    let context = dir.path().join("context.toml");
+    std::fs::write(
+        &context,
+        "[\"bags:\"]\nhardware = \"rover-b\"\n\n[\"bags:jazzy/\"]\nhardware = \"rover-c\"\n\n[\"bags:run2.mcap\"]\nwind = \"gusty\"\n",
+    )
+    .unwrap();
+    let store = Store {
+        context_file: Some(context),
+        ..Store::new(&dir.path().join("state"))
+    };
     Fixture {
         bags,
         root,
@@ -322,27 +331,18 @@ fn dunce_like(p: &Path) -> PathBuf {
     std::fs::canonicalize(p).unwrap()
 }
 
-fn discover(f: &Fixture) -> Vec<Entry> {
-    let entries: Vec<Entry> = roots::candidates(&f.root, 10_000, Duration::from_secs(10))
-        .candidates
-        .into_iter()
-        .map(|c| Entry {
-            candidate: c,
-            hardware: f.root.hardware.clone(),
-        })
-        .collect();
-    f.store.write_candidates(&entries).unwrap();
-    entries
+fn discover(f: &Fixture) -> Vec<Candidate> {
+    let found = roots::candidates(&f.root, 10_000, Duration::from_secs(10)).candidates;
+    f.store.write_candidates(&found).unwrap();
+    found
 }
 
 async fn ingest_all(f: &Fixture) -> BTreeMap<String, Outcome> {
     let mut out = BTreeMap::new();
-    for e in discover(f) {
-        if e.candidate.kind.supported() {
-            let o = store::ingest(&f.store, &f.root, &e.candidate)
-                .await
-                .unwrap();
-            out.insert(e.candidate.path.display().to_string(), o);
+    for c in discover(f) {
+        if c.kind.supported() {
+            let o = store::ingest(&f.store, &f.root, &c).await.unwrap();
+            out.insert(c.path.display().to_string(), o);
         }
     }
     out
@@ -395,11 +395,7 @@ async fn every_format_is_extracted_and_queryable() {
     let again = ingest_all(&f).await;
     assert!(again.values().all(|o| *o == Outcome::UpToDate), "{again:?}");
 
-    let statuses = q(
-        &f,
-        "SELECT path, status, hardware FROM recordings ORDER BY path",
-    )
-    .await;
+    let statuses = q(&f, "SELECT path, status FROM recordings ORDER BY path").await;
     let status = |p: &str| {
         statuses
             .iter()
@@ -411,7 +407,21 @@ async fn every_format_is_extracted_and_queryable() {
     assert_eq!(status("jazzy"), "done");
     assert_eq!(status("old.bag"), "unsupported");
     assert_eq!(status("corrupt.mcap"), "failed");
-    assert!(statuses.iter().all(|r| r["hardware"] == "rover-b"));
+
+    // What the engineer said: for each key, the most specific target wins.
+    let rows = q(
+        &f,
+        "SELECT recording, context FROM recordings WHERE recording IN ('bags:jazzy', 'bags:run1.mcap', 'bags:run2.mcap') ORDER BY 1",
+    )
+    .await;
+    assert_eq!(
+        rows,
+        vec![
+            json!({"recording": "bags:jazzy", "context": {"hardware": "rover-c"}}),
+            json!({"recording": "bags:run1.mcap", "context": {"hardware": "rover-b"}}),
+            json!({"recording": "bags:run2.mcap", "context": {"hardware": "rover-b", "wind": "gusty"}}),
+        ]
+    );
 
     // Values come back exactly.
     let r = one(
@@ -461,13 +471,12 @@ async fn every_format_is_extracted_and_queryable() {
         &f,
         "SELECT s.recording, max(x) AS hi FROM stream('/sample') s
          JOIN recordings r ON s.recording = r.recording
-         WHERE r.hardware = 'rover-b' GROUP BY s.recording ORDER BY s.recording",
+         WHERE r.context['hardware'] = 'rover-b' GROUP BY s.recording ORDER BY s.recording",
     )
     .await;
     assert_eq!(
         rows,
         vec![
-            json!({"recording": "bags:jazzy", "hi": 5099.0}),
             json!({"recording": "bags:run1.mcap", "hi": 99.0}),
             json!({"recording": "bags:run2.mcap", "hi": 1099.0}),
         ]
@@ -665,6 +674,13 @@ async fn sql_is_locked_down_and_capped() {
         hint.contains("share the same t") && !hint.contains("t > TIMESTAMP"),
         "{hint}"
     );
+    // A broken context file is reported with its own code and fix.
+    let context = f.store.context_file.clone().unwrap();
+    let good = std::fs::read(&context).unwrap();
+    std::fs::write(&context, "[oops\n").unwrap();
+    let e = sql::query(&f.store, "SELECT 1", None).await.unwrap_err();
+    assert_eq!(e.kind(), ErrorKind::ContextInvalid, "{e}");
+    std::fs::write(&context, good).unwrap();
     assert_eq!(
         q(
             &f,
@@ -688,15 +704,14 @@ async fn changed_and_deleted_recordings() {
     let entries = discover(&f);
     let run2: Candidate = entries
         .iter()
-        .find(|e| e.candidate.path == Path::new("run2.mcap"))
+        .find(|c| c.path == Path::new("run2.mcap"))
         .unwrap()
-        .candidate
         .clone();
     let pending: Vec<_> = f
         .store
         .pending(Duration::ZERO)
         .into_iter()
-        .map(|e| e.candidate.path)
+        .map(|c| c.path)
         .collect();
     assert_eq!(pending, vec![PathBuf::from("run2.mcap")]);
     assert!(matches!(
@@ -787,7 +802,6 @@ async fn peer_recipes_rank_the_outlier_and_the_twin() {
         root: Root {
             name: "peers".into(),
             path: dunce_like(&runs),
-            hardware: None,
             include: vec![],
             exclude: vec![],
             origin: Origin::Default,

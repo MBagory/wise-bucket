@@ -1,5 +1,6 @@
 //! The MCP server (stdio).
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -51,6 +52,16 @@ pub struct SqlArgs {
     pub query: String,
     /// Rows wanted at most (the result is also capped at about 60 KB).
     pub limit: Option<usize>,
+}
+
+/// Arguments of the `note` tool.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct NoteArgs {
+    /// A recording (`root:path`, as `recordings` lists it), a folder (`root:folder/`) or a root (`root:`).
+    pub target: String,
+    /// Keys and values to record, such as `{"hardware": "drone-2", "wind": "gusty"}`; an empty value or null removes a key.
+    #[serde(default)]
+    pub context: BTreeMap<String, Option<String>>,
 }
 
 /// Arguments of the `rerun` tool.
@@ -118,13 +129,12 @@ impl WbServer {
             .iter()
             .map(|r| {
                 let mut c = CandidateCounts::default();
-                for e in entries.iter().filter(|e| e.candidate.root == r.name) {
-                    *c.by_kind.entry(e.candidate.kind).or_default() += 1;
+                for e in entries.iter().filter(|e| e.root == r.name) {
+                    *c.by_kind.entry(e.kind).or_default() += 1;
                 }
                 json!({
                     "name": r.name,
                     "path": r.path,
-                    "hardware": r.hardware,
                     "declared_in": r.origin.to_string(),
                     "candidate_recordings": c.total(),
                     "candidates": c,
@@ -185,13 +195,9 @@ fn summary(v: &Value) -> String {
                 .iter()
                 .map(|r| {
                     format!(
-                        "{} → {}{} ({} recordings)",
+                        "{} → {} ({} recordings)",
                         r["name"].as_str().unwrap_or("?"),
                         r["path"].as_str().unwrap_or("?"),
-                        r["hardware"]
-                            .as_str()
-                            .map(|h| format!(", hardware {h}"))
-                            .unwrap_or_default(),
                         r["candidate_recordings"]
                     )
                 })
@@ -239,6 +245,31 @@ impl WbServer {
     ) -> std::result::Result<CallToolResult, McpError> {
         let result = match self.current_config() {
             Ok(cfg) => wb_data::sql::query(&Store::for_config(&cfg), &args.query, args.limit).await,
+            Err(e) => Err(e),
+        };
+        Ok(match result {
+            Ok(r) => CallToolResult::structured(json!(r)),
+            Err(e) => CallToolResult::structured_error(json!({ "error": e.to_json() })),
+        })
+    }
+
+    /// Records what the engineer said about recordings.
+    #[tool(
+        name = "note",
+        description = "Record what the engineer tells you about recordings that their files don't contain: the machine (key `hardware`), a change (`propellers`), the conditions (`wind`), the purpose of a test (`test`)… `target` is a recording (`root:path`), a folder (`root:folder/`) or a root (`root:`): choose the most general one the fact holds for. `context` maps keys to values; an empty value removes a key, and no keys returns the target's current ones. It shows at once in `recordings.context`, where the most specific target wins for each key. Kept in Wise Bucket's `context.toml`, never in the recordings.",
+        annotations(
+            read_only_hint = false,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = false
+        )
+    )]
+    async fn note(
+        &self,
+        Parameters(args): Parameters<NoteArgs>,
+    ) -> std::result::Result<CallToolResult, McpError> {
+        let result = match self.current_config() {
+            Ok(cfg) => wb_data::store::note(&cfg, &args.target, &args.context),
             Err(e) => Err(e),
         };
         Ok(match result {

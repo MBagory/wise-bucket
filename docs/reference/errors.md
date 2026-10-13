@@ -14,6 +14,8 @@ Every error reported by Wise Bucket, in the terminal or in an MCP tool result, c
 | [`outside_roots`](#outside_roots) | A path is outside every configured data root |
 | [`download_failed`](#download_failed) | A download failed |
 | [`checksum_mismatch`](#checksum_mismatch) | A downloaded file does not match its pinned checksum |
+| [`context_invalid`](#context_invalid) | The context file is invalid |
+| [`target_not_found`](#target_not_found) | A note's target matches no recording or folder |
 | [`recording_unreadable`](#recording_unreadable) | A recording could not be extracted into the store |
 | [`query_failed`](#query_failed) | A SQL query was rejected or failed |
 | [`viewer_unreachable`](#viewer_unreachable) | The Rerun viewer could not be reached |
@@ -67,6 +69,18 @@ Check your network connection or proxy, then re-run `wisebucket demo`: files alr
 **A downloaded file does not match its pinned checksum**
 
 The file was corrupted, tampered with, or changed upstream. Re-run `wisebucket demo`: files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).
+
+## context_invalid
+
+**The context file is invalid**
+
+Fix `context.toml` (its path is in the message, next to your configuration file): it holds one table per target, `["root:path"]`, `["root:folder/"]` or `["root:"]`, followed by `key = "value"` lines, as `wisebucket note` writes them.
+
+## target_not_found
+
+**A note's target matches no recording or folder**
+
+Use a recording as `recordings` lists it (`root:path`), a folder inside a root ending with `/` (`flights:2026-10/`), or a root ending with `:` (`flights:`).
 
 ## recording_unreadable
 

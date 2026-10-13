@@ -30,7 +30,7 @@ pub const TABLES: &[TableDoc] = &[
             "root" "text" "Data root name",
             "path" "text" "Path inside the root (a folder for rosbag2)",
             "kind" "text" "`rosbag2`, `mcap`, `db3`, `ulog`, `csv`, `json_lines`, `parquet`, `arrow_ipc`, `tlog`; listed but not readable yet: `ros1_bag`, `ardupilot_bin`, `can_asc`, `can_blf`, `mdf4`",
-            "hardware" "text" "Hardware declared for the root (`roots add --hardware`)",
+            "context" "map" "What the engineer said about the recording (`note` tool), key → value: `context['hardware']` is the machine. For each key, the most specific target wins: the recording, then its folders, then its root",
             "status" "text" "`done`, `pending`, `extracting`, `failed`, `paused` (low disk space), `missing` (file gone, data kept), `unsupported`",
             "error" "text" "Why extraction failed",
             "size_bytes" "bigint" "Size of the recording",
@@ -87,6 +87,7 @@ pub const RECIPES: &str = r#"- Gaps: SELECT t, (lead(t) OVER (ORDER BY t) - t) A
 - Join streams on time buckets: compute date_bin(...) in each stream, then JOIN ON the bucket and recording
 - Names: SELECT * FROM streams WHERE stream ILIKE '%imu%' OR columns ILIKE '%current%'
 - Properties: SELECT key, value FROM properties WHERE recording = 'bags:run3'
+- Context (what the engineer said): SELECT recording, context FROM recordings WHERE context['hardware'] = 'rover-b'
 - Plot (about 150 bins, width = (end - start) / 150 from streams): SELECT date_bin(INTERVAL '1 second', t) AS t, min("linear_acceleration.z") AS lo, avg("linear_acceleration.z") AS mean, max("linear_acceleration.z") AS hi FROM stream('/imu') WHERE recording = 'bags:run3' GROUP BY 1 ORDER BY 1
 - Page by time window: SELECT t, "linear_acceleration.z" FROM stream('/imu') WHERE recording = 'bags:run3' AND t >= TIMESTAMP '1970-01-01T00:00:00' AND t < TIMESTAMP '2100-01-01T00:00:00' ORDER BY t
 - Page by key, after the last row seen: SELECT recording, t, "linear_acceleration.z" FROM stream('/imu') WHERE recording > 'bags:run3' OR (recording = 'bags:run3' AND t > TIMESTAMP '1970-01-01T00:00:00') ORDER BY recording, t

@@ -127,6 +127,21 @@ A format is added only when an external Rust crate decodes it. Recognized files 
 | ROS 2 bags | `/parameter_events` | `/rosout` | `streams.qos` |
 | MAVLink tlog | `PARAM_VALUE` | `STATUSTEXT` | |
 
+### How do I say which machine a recording comes from?
+
+Tell your agent ("the flights in 2026-10 are drone-2"): it records it with its `note` tool, under the key `hardware`. From the terminal: `wisebucket note flights:2026-10/ hardware=drone-2`. It shows in `recordings.context`. See [What you know about recordings](guide.md#what-you-know-about-recordings).
+
+### `context_invalid`: my context file is rejected
+
+`context.toml` (next to your settings file, `wisebucket config path`) holds one table per target, then `key = "value"` lines:
+
+```toml
+["flights:2026-10/"]
+hardware = "drone-2"
+```
+
+Fix the line the message names, or remove it and record it again with `wisebucket note`.
+
 ### Can my agent read files outside my recording folders through Wise Bucket?
 
 No. Wise Bucket only reads inside the folders you declared, refuses symlinks that escape them, and has no tool that adds a folder. Its SQL can't read or write files: it sees only the store. Your agent's own tools, a shell for example, are outside Wise Bucket's control; restrict them in the agent if you need to.

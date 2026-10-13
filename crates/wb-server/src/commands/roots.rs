@@ -17,7 +17,6 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
         RootsCommand::Add {
             name,
             path,
-            hardware,
             include,
             exclude,
         } => {
@@ -26,7 +25,6 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
                 RootSpec {
                     name: name.clone(),
                     path: path.clone(),
-                    hardware: hardware.clone(),
                     include: include.clone(),
                     exclude: exclude.clone(),
                 },
@@ -61,16 +59,7 @@ pub async fn run(global: &GlobalArgs, cmd: &RootsCommand) -> Result<()> {
                 ui::warn("no roots declared. Add one with `wisebucket roots add <name> <path>`.");
             }
             for r in &set.roots {
-                println!(
-                    "{:<16} {}{}  [{}]",
-                    r.name,
-                    r.path.display(),
-                    r.hardware
-                        .as_ref()
-                        .map(|x| format!("  hardware={x}"))
-                        .unwrap_or_default(),
-                    r.origin
-                );
+                println!("{:<16} {}  [{}]", r.name, r.path.display(), r.origin);
             }
             print_problems(&set);
             Ok(())

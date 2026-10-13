@@ -1,6 +1,6 @@
 //! `sql`: read-only queries over the store. `rerun`: send a query result to the Rerun
-//! viewer. `ingest` (hidden): extract one recording, run by agent sessions in a child
-//! process.
+//! viewer. `note`: record what the engineer said about recordings. `ingest` (hidden):
+//! extract one recording, run by agent sessions in a child process.
 
 use std::process::ExitCode;
 
@@ -73,6 +73,42 @@ pub async fn run(global: &GlobalArgs, query: &str, limit: Option<usize>) -> Resu
     if let Some(hint) = &result.hint {
         ui::info(hint);
     }
+    Ok(())
+}
+
+/// `note <target> key=value…`: records what the engineer said about recordings.
+pub fn note(global: &GlobalArgs, target: &str, values: &[String]) -> Result<()> {
+    let cfg = config::load(&global.overrides())?;
+    let mut changes = std::collections::BTreeMap::new();
+    for kv in values {
+        let (k, v) = kv.split_once('=').ok_or_else(|| {
+            err(
+                ErrorKind::ContextInvalid,
+                format!("{kv:?}: expected key=value (an empty value removes the key)"),
+            )
+        })?;
+        changes.insert(k.trim().to_string(), Some(v.to_string()));
+    }
+    let noted = store::note(&cfg, target, &changes)?;
+    if global.json {
+        ui::json(&json!(noted));
+        return Ok(());
+    }
+    let keys: Vec<String> = noted
+        .context
+        .iter()
+        .map(|(k, v)| format!("{k}={v}"))
+        .collect();
+    ui::ok(format!(
+        "{} ({} recording(s)): {}",
+        noted.target,
+        noted.recordings,
+        if keys.is_empty() {
+            "no context".to_string()
+        } else {
+            keys.join(", ")
+        }
+    ));
     Ok(())
 }
 

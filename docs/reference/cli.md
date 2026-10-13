@@ -19,6 +19,7 @@ This document contains the help content for the `wisebucket` command-line progra
 * [`wisebucket config path`↴](#wisebucket-config-path)
 * [`wisebucket sql`↴](#wisebucket-sql)
 * [`wisebucket rerun`↴](#wisebucket-rerun)
+* [`wisebucket note`↴](#wisebucket-note)
 * [`wisebucket doctor`↴](#wisebucket-doctor)
 * [`wisebucket demo`↴](#wisebucket-demo)
 * [`wisebucket completions`↴](#wisebucket-completions)
@@ -36,6 +37,7 @@ Examples:
   wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
   wisebucket demo --all                    Try it on public sample recordings
   wisebucket sql "SELECT * FROM streams"  Query the store yourself
+  wisebucket note flights: hardware=drone-2  Tell what the files don't say
   wisebucket rerun "SELECT t, … FROM …"  Send a query result to the Rerun viewer
   wisebucket doctor                        Check the installation
 
@@ -47,6 +49,7 @@ Examples:
 * `config` — Inspect the effective configuration
 * `sql` — Run a read-only SQL query over the store (what your agent's `sql` tool runs)
 * `rerun` — Send the rows of a query to a running Rerun viewer (what your agent's `rerun` tool runs)
+* `note` — Record what you know about recordings that their files don't say (what your agent's `note` tool runs)
 * `doctor` — Check the whole installation and explain how to fix problems
 * `demo` — Download public sample recordings and declare them as the `demo` data root
 * `completions` — Print a shell completion script to stdout
@@ -109,7 +112,7 @@ Declare a folder Wise Bucket may read
 
 Examples:
   wisebucket roots add bags ~/robot-logs
-  wisebucket roots add field /data/field --hardware rover-b --exclude '**/tmp/**'
+  wisebucket roots add field /data/field --exclude '**/tmp/**'
 
 ###### **Arguments:**
 
@@ -118,7 +121,6 @@ Examples:
 
 ###### **Options:**
 
-* `--hardware <HARDWARE>` — The hardware (robot, vehicle, test bench…) these recordings come from
 * `--include <INCLUDE>` — Glob pattern of files to consider (repeatable)
 * `--exclude <EXCLUDE>` — Glob pattern of files to ignore (repeatable)
 
@@ -227,6 +229,26 @@ Examples:
 * `--url <URL>` — Address of the Rerun viewer
 
   Default value: `rerun+http://127.0.0.1:9876/proxy`
+
+
+
+## `wisebucket note`
+
+Record what you know about recordings that their files don't say (what your agent's `note` tool runs)
+
+**Usage:** `wisebucket note <TARGET> [KEY=VALUE]...`
+
+Examples:
+  wisebucket note flights: hardware=drone-2                      Every recording of a root
+  wisebucket note flights:2026-10/ propellers='9x4.5 carbon'     Every recording under a folder
+  wisebucket note flights:2026-10/flight3.ulg wind='gusts 8 m/s' One recording
+  wisebucket note flights:2026-10/flight3.ulg wind=              Remove a key
+  wisebucket note flights:2026-10/flight3.ulg                    Show its keys
+
+###### **Arguments:**
+
+* `<TARGET>` — A recording (`root:path`), a folder (`root:folder/`) or a root (`root:`)
+* `<KEY=VALUE>` — `key=value` pairs; an empty value removes the key
 
 
 

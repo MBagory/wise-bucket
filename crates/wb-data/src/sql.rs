@@ -10,8 +10,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use datafusion::arrow::array::{
-    ArrayRef, BooleanArray, Int32Array, Int64Array, RecordBatch, StringArray,
-    TimestampNanosecondArray,
+    Array, ArrayRef, BooleanArray, Int32Array, Int64Array, MapBuilder, RecordBatch, StringArray,
+    StringBuilder, TimestampNanosecondArray,
 };
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{TableFunctionImpl, TableProvider};
@@ -30,6 +30,7 @@ use wb_core::error::{ErrorKind, Result, WbError, err};
 
 use crate::columns::{FlatColumn, flat_columns, time_type};
 use crate::store::{Row, Store};
+use wb_core::context::Context;
 
 /// Bytes of rows returned at most (about 20k tokens): every row enters the agent's
 /// context, and clients cut tool results beyond about 25k tokens.
@@ -156,7 +157,8 @@ pub async fn dataframe(store: &Store, sql: &str) -> Result<DataFrame> {
         .with_allow_ddl(false)
         .with_allow_dml(false)
         .with_allow_statements(false);
-    context(store)
+    let notes = store.context()?;
+    context(store, &notes)
         .map_err(query_err)?
         .sql_with_options(sql, options)
         .await
@@ -192,8 +194,9 @@ fn shorten(v: &mut serde_json::Value) {
     }
 }
 
-/// A session over the store, locked down.
-pub fn context(store: &Store) -> datafusion::common::Result<SessionContext> {
+/// A session over the store, locked down. `notes` is what the engineer said about the
+/// recordings (`recordings.context`).
+pub fn context(store: &Store, notes: &Context) -> datafusion::common::Result<SessionContext> {
     let rows = store.rows();
     let runtime = RuntimeEnvBuilder::new()
         .with_memory_limit(MEMORY, 1.0)
@@ -203,7 +206,7 @@ pub fn context(store: &Store) -> datafusion::common::Result<SessionContext> {
         .build_arc()?;
     let config = SessionConfig::new().with_information_schema(true);
     let ctx = SessionContext::new_with_config_rt(config, runtime);
-    ctx.register_table("recordings", Arc::new(recordings_table(&rows)?))?;
+    ctx.register_table("recordings", Arc::new(recordings_table(&rows, notes)?))?;
     ctx.register_table("streams", Arc::new(streams_table(&rows)?))?;
     ctx.register_table("properties", Arc::new(properties_table(&rows)?))?;
     let mut index: HashMap<String, Vec<(String, PathBuf)>> = HashMap::new();
@@ -254,15 +257,30 @@ fn table(
     MemTable::try_new(schema, vec![vec![batch]])
 }
 
-fn recordings_table(rows: &[Row]) -> datafusion::common::Result<MemTable> {
+/// What the engineer said about each recording, as a map (null when nothing).
+fn context_map(rows: &[Row], notes: &Context) -> datafusion::common::Result<ArrayRef> {
+    let mut b = MapBuilder::new(None, StringBuilder::new(), StringBuilder::new());
+    for r in rows {
+        let keys = notes.of(&r.recording);
+        for (k, v) in &keys {
+            b.keys().append_value(k);
+            b.values().append_value(v);
+        }
+        b.append(!keys.is_empty())?;
+    }
+    Ok(Arc::new(b.finish()))
+}
+
+fn recordings_table(rows: &[Row], notes: &Context) -> datafusion::common::Result<MemTable> {
     let ts = time_type();
+    let context = context_map(rows, notes)?;
     table(
         vec![
             ("recording", DataType::Utf8),
             ("root", DataType::Utf8),
             ("path", DataType::Utf8),
             ("kind", DataType::Utf8),
-            ("hardware", DataType::Utf8),
+            ("context", context.data_type().clone()),
             ("status", DataType::Utf8),
             ("error", DataType::Utf8),
             ("size_bytes", DataType::Int64),
@@ -281,7 +299,7 @@ fn recordings_table(rows: &[Row]) -> datafusion::common::Result<MemTable> {
                     .collect(),
             ),
             text(rows.iter().map(|r| json_name(r.kind)).collect()),
-            text(rows.iter().map(|r| r.hardware.clone()).collect()),
+            context,
             text(rows.iter().map(|r| json_name(r.status)).collect()),
             text(rows.iter().map(|r| r.error.clone()).collect()),
             Arc::new(Int64Array::from(

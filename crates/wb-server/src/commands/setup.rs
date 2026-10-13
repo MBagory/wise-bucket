@@ -63,7 +63,6 @@ pub async fn run(global: &GlobalArgs, args: &SetupArgs) -> Result<()> {
             RootSpec {
                 name,
                 path,
-                hardware: None,
                 include: vec![],
                 exclude: vec![],
             },
@@ -118,15 +117,9 @@ pub async fn run(global: &GlobalArgs, args: &SetupArgs) -> Result<()> {
                 .default(default_name)
                 .interact_text()
                 .map_err(ui::prompt_err)?;
-            let hardware: String = Input::new()
-                .with_prompt("  Hardware these recordings come from (robot, vehicle…; optional)")
-                .allow_empty(true)
-                .interact_text()
-                .map_err(ui::prompt_err)?;
             let spec = RootSpec {
                 name: name.trim().to_string(),
                 path,
-                hardware: Some(hardware.trim().to_string()).filter(|r| !r.is_empty()),
                 include: vec![],
                 exclude: vec![],
             };

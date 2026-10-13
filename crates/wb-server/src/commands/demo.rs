@@ -42,7 +42,6 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
             RootSpec {
                 name: ROOT_NAME.into(),
                 path: dir.clone(),
-                hardware: None,
                 include: vec![],
                 exclude: vec![],
             },

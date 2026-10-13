@@ -1,6 +1,6 @@
 # 0008. "Hardware" rather than "robot"
 
-**Date:** 2026-10-05 · **Status:** Accepted
+**Date:** 2026-10-05 · **Status:** Root option superseded by [0025](0025-context-from-the-engineer.md); the vocabulary is kept
 
 ## Context
 

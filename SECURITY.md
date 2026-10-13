@@ -14,6 +14,7 @@ Useful details: affected version (`wisebucket --version`), platform, steps to re
 
 - **Stays on your machine:**
   - Your recordings: Wise Bucket reads them in place and never uploads, modifies or moves them.
+  - What you tell about recordings: `context.toml`, next to your settings file. The `note` tool writes only this file.
   - The store: a decoded, columnar copy of your recordings' signals, log messages, parameters and header information (images and point clouds excepted), in the state directory (`<state directory>/store`). It is derived data: delete it any time. Recordings you delete from your folders keep their data in the store until you delete it.
 - **Reaches your model provider:** only the tool results your agent sends to its own model, under your agent's terms. Wise Bucket's results are bounded: about 60 KB of rows per query, text cells cut at 1,000 characters. They contain whatever the agent's queries select from your recordings, plus folder names and paths.
 - **No model calls:** Wise Bucket never contacts an LLM.

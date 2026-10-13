@@ -92,8 +92,8 @@ A recording folder (a *data root*) is a named folder that Wise Bucket may read. 
 | `.bin` (ArduPilot DataFlash), `.asc` and `.blf` (CAN), `.mf4` (MDF4) | listed, not readable yet (`.bin` and `.asc` only when their first bytes match) |
 
 ```sh
-wisebucket roots add bags ~/robot-logs/bags --hardware rover-b
-wisebucket roots add flights /Volumes/lab-nas/px4 --hardware drone-2   # network mounts work
+wisebucket roots add bags ~/robot-logs/bags
+wisebucket roots add flights /Volumes/lab-nas/px4   # network mounts work
 wisebucket roots list
 wisebucket roots check      # readable? overlapping? how many recordings?
 wisebucket roots remove flights                                        # the folder itself is never touched
@@ -101,7 +101,6 @@ wisebucket roots remove flights                                        # the fol
 
 **Rules:**
 - **Names** are short and stable (`bags`, `lab-nas`): lowercase letters, digits, `-` and `_`, at most 32 characters. Recordings are referenced as `name:relative/path` (`bags:2026-09-24/dock_run3`), so if a mount point moves, you only update that folder's path.
-- **Hardware** (optional) names what the recordings come from (a robot, a vehicle, a test bench). It appears in the `recordings` table, so your agent can compare all recordings of one hardware.
 - **Include and exclude** (optional) are glob patterns on file paths: `--exclude '**/tmp/**'`. A rosbag2 folder is matched through its `metadata.yaml`.
 - **No overlap:** a folder inside another declared folder is refused.
 - **No escapes:** symlinks must stay inside their folder.
@@ -201,11 +200,37 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 
 **Tables** need a time column. Wise Bucket uses the first timestamp column, else a column named `time`, `timestamp`, `t` or `stamp` (any case), whose unit comes from a `_s`, `_ms`, `_us` or `_ns` suffix (seconds by default). The stream's `notes` say which column was used. Without one, `t` is empty.
 
+### What you know about recordings
+
+Some facts are not in the files: the machine, what changed, the conditions, the purpose of a test. Tell your agent: it records them with its `note` tool, and they show in `recordings.context`.
+
+```text
+you   › The flights of October are drone-2, with the new 9x4.5 carbon propellers.
+
+agent › ⏺ wise-bucket · note
+          target: flights:2026-10/
+          context: {"hardware": "drone-2", "propellers": "9x4.5 carbon"}
+```
+
+The same from the terminal:
+
+```sh
+wisebucket note flights: hardware=drone-2                       # every recording of a root
+wisebucket note flights:2026-10/ propellers='9x4.5 carbon'      # every recording under a folder
+wisebucket note flights:2026-10/flight3.ulg wind='gusts 8 m/s'  # one recording
+wisebucket note flights:2026-10/flight3.ulg wind=               # remove a key
+```
+
+- **Targets:** a recording (`root:path`, as `recordings` lists it), a folder (`root:folder/`) or a root (`root:`). For each key, the most specific target wins.
+- **`hardware`** is the key for the machine: your agent compares recordings of the same `context['hardware']`.
+- **In SQL:** `SELECT recording, context FROM recordings WHERE context['hardware'] = 'drone-2'`.
+- **Where:** `context.toml`, next to your settings file (`wisebucket config path`). You can edit it by hand: one table per target (`["flights:2026-10/"]`), then `key = "value"` lines. Your recordings are never modified.
+
 ### Querying
 
 **Nothing is computed in advance**: there are no precomputed statistics or fixed windows. Your agent writes the SQL each question needs, at the question's time scale, and shows you the query behind each number; you can run the same queries with `wisebucket sql` ([ADR 0010](decisions/0010-metrics-are-sql-written-by-the-agent.md)). There are four things to query (full list of columns: [tables reference](reference/tables.md)):
 
-- `recordings`: every recording, with its status, hardware, time range and notes (warnings and errors logged, dropouts, crash dumps)
+- `recordings`: every recording, with its status, context, time range and notes (warnings and errors logged, dropouts, crash dumps)
 - `streams`: every stream of every recording, with its row count, columns and notes
 - `properties`: short facts each recording states about itself, as `key` and `value`
 - `stream('<name>')`: the rows of one stream across all recordings, with a `recording` column; `stream('<name>', '<recording LIKE pattern>')` restricts the recordings
@@ -240,7 +265,7 @@ Reading a score:
 | 3 or more | Unusual against these peers |
 | Empty or infinite | Fewer than 3 peers, or peers that all have the same value |
 
-A score depends on the peers: compare recordings of the same hardware and the same kind of test (a join with `recordings` on `hardware`, a join with `properties` on the board `ver_hw` or the firmware `ver_sw`, or a `LIKE` on the recording). Scores on counters, sequence numbers, timestamps and enums are meaningless. The `ulog` demo set (`wisebucket demo ulog`) has six PX4 logs to try the recipes on.
+A score depends on the peers: compare recordings of the same hardware and the same kind of test (`context['hardware']` in `recordings`, a join with `properties` on the board `ver_hw` or the firmware `ver_sw`, or a `LIKE` on the recording). Scores on counters, sequence numbers, timestamps and enums are meaningless. The `ulog` demo set (`wisebucket demo ulog`) has six PX4 logs to try the recipes on.
 
 ### Opening the store yourself
 
@@ -293,6 +318,7 @@ wisebucket rerun --entity sensor_combined "SELECT t, \"accelerometer_m_s2[2]\" A
 | See what has been extracted | `wisebucket sql "SELECT status, count(*) FROM recordings GROUP BY status"` |
 | See why a recording failed | `wisebucket sql "SELECT recording, error FROM recordings WHERE status = 'failed'"` |
 | See your settings and where each one comes from | `wisebucket config show --origin` |
+| Tell what the files don't say | `wisebucket note flights: hardware=drone-2` |
 
 - **Several windows at once:** each agent window starts its own Wise Bucket process. They share the store and the extraction work.
 - **Machine-readable output:** `config`, `roots`, `sql` and `doctor` accept `--json`.
@@ -302,6 +328,7 @@ wisebucket rerun --entity sensor_combined "SELECT t, \"accelerometer_m_s2[2]\" A
 | What | Where |
 | --- | --- |
 | Your settings and recording folders | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` |
+| What you said about recordings | `context.toml`, next to your settings file |
 | How your agent starts Wise Bucket | Your agent's user-level MCP settings (e.g. `claude mcp get wise-bucket`) |
 | State directory | Linux `~/.local/share/wisebucket/`, macOS `~/Library/Application Support/wisebucket/`. To use another disk (the store grows with your recordings), set `state_dir = "…"` in your settings |
 
@@ -325,7 +352,7 @@ wisebucket config path        # shows the state directory
 rm -rf "<state directory>/store"
 ```
 
-The next agent session extracts everything again. Your recordings and settings are untouched.
+The next agent session extracts everything again. Your recordings, settings and `context.toml` are untouched.
 
 ## Uninstall
 
@@ -334,4 +361,4 @@ claude mcp remove --scope user wise-bucket    # or remove the entry from your ag
 cargo uninstall wisebucket                    # removes wisebucket and wbk
 ```
 
-Your store stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it. On macOS your settings live in the same folder, so deleting it removes them too. Your recordings are never touched.
+Your store stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it. On macOS your settings and `context.toml` live in the same folder, so deleting it removes them too. Your recordings are never touched.

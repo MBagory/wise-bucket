@@ -53,9 +53,6 @@ impl<T> Sourced<T> {
 pub struct RootSpec {
     pub name: String,
     pub path: PathBuf,
-    /// Default hardware (robot, vehicle, test bench…) the recordings in this root come from.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hardware: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub include: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -230,9 +227,6 @@ fn root_table(spec: &RootSpec) -> toml_edit::Table {
     let mut t = toml_edit::Table::new();
     t["name"] = toml_edit::value(&spec.name);
     t["path"] = toml_edit::value(spec.path.to_string_lossy().as_ref());
-    if let Some(h) = &spec.hardware {
-        t["hardware"] = toml_edit::value(h);
-    }
     let arr = |v: &Vec<String>| {
         let mut a = toml_edit::Array::new();
         for s in v {
@@ -373,14 +367,6 @@ pub const KEYS: &[KeyDoc] = &[
         description: "Folder Wise Bucket may read: absolute or `~/…`.",
     },
     KeyDoc {
-        key: "[[roots]] hardware",
-        layer: "user",
-        env: "",
-        cli: "`--hardware`",
-        default: "",
-        description: "The hardware (robot, vehicle, test bench…) the recordings in this root come from. Shown in the `recordings` table.",
-    },
-    KeyDoc {
         key: "[[roots]] include / exclude",
         layer: "user",
         env: "",
@@ -511,7 +497,6 @@ mod tests {
         let spec = RootSpec {
             name: "bags".into(),
             path: "/data/bags".into(),
-            hardware: Some("r".into()),
             include: vec![],
             exclude: vec![],
         };

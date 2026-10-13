@@ -12,13 +12,20 @@ async fn server_info_answers_in_two_sessions() {
     let a = env.session("client-a").await;
     let tools = a.tools().await;
     let names: Vec<_> = tools.iter().map(|t| t.name.to_string()).collect();
-    assert_eq!(names.len(), 3, "{names:?}");
+    assert_eq!(names.len(), 4, "{names:?}");
     for name in ["server_info", "sql", "rerun"] {
         let tool = tools.iter().find(|t| t.name == name).expect(name);
         let hints = tool.annotations.as_ref().expect("annotations");
         assert_eq!(hints.read_only_hint, Some(true), "{name}");
         assert_eq!(hints.open_world_hint, Some(false), "{name}");
     }
+    // `note` writes only Wise Bucket's context file, never the recordings.
+    let note = tools.iter().find(|t| t.name == "note").expect("note");
+    let hints = note.annotations.as_ref().expect("annotations");
+    assert_eq!(
+        (hints.read_only_hint, hints.destructive_hint),
+        (Some(false), Some(false))
+    );
     let info = a.server_info().await;
     assert_eq!(info["milestone"], "M1");
     assert_eq!(info["session"]["client"]["name"], "client-a");
@@ -57,7 +64,7 @@ async fn roots_add_check_remove_and_visible_in_server_info() {
     common::write(&bags.join("loose.mcap"), "");
     let bags_s = bags.to_string_lossy().to_string();
 
-    env.ok(&["roots", "add", "bags", &bags_s, "--hardware", "rover-b"]);
+    env.ok(&["roots", "add", "bags", &bags_s]);
     // Duplicate name and overlapping folder are refused.
     let dup = env.run(&["roots", "add", "bags", &bags_s]);
     assert!(!dup.status.success());
@@ -85,8 +92,26 @@ async fn roots_add_check_remove_and_visible_in_server_info() {
         .map(|r| r["name"].as_str().unwrap().to_string())
         .collect();
     assert_eq!(names, vec!["bags"]);
-    assert_eq!(info["roots"][0]["hardware"], "rover-b");
     assert_eq!(info["roots"][0]["candidate_recordings"], 2, "{info:#}");
+
+    // What the engineer knows, from the terminal: a root, a folder, an unknown target.
+    env.ok(&["note", "bags:", "hardware=rover-b", "site=lab"]);
+    env.ok(&["note", "bags:run1", "site=field"]);
+    let noted = env.json(&["note", "bags:run1"]);
+    assert_eq!(
+        noted["context"],
+        serde_json::json!({"site": "field"}),
+        "{noted:#}"
+    );
+    assert_eq!(noted["recordings"], 1, "{noted:#}");
+    let unknown = env.run(&["note", "bags:nope.mcap", "a=b"]);
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("target_not_found"));
+    let path = env.json(&["config", "path"]);
+    let file = std::fs::read_to_string(path["context"].as_str().unwrap()).unwrap();
+    assert!(
+        file.contains("[\"bags:\"]") && file.contains("hardware = \"rover-b\""),
+        "{file}"
+    );
 
     // A running session sees root changes without a restart.
     env.ok(&["roots", "remove", "bags"]);

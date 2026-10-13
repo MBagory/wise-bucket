@@ -46,6 +46,7 @@ async fn run(cli: Cli) -> Result<ExitCode> {
         Some(Command::Rerun { query, entity, url }) => {
             commands::sql::rerun(g, query, entity.as_deref(), url).await
         }
+        Some(Command::Note { target, values }) => commands::sql::note(g, target, values),
         Some(Command::Ingest { recording }) => return commands::sql::ingest(g, recording).await,
         Some(Command::Demo(a)) => commands::demo::run(g, a),
         Some(Command::Docs(cli::DocsCommand::Gen { check, out })) => {

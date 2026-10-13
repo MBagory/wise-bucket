@@ -9,7 +9,6 @@ Precedence, highest first: **command line** > **`WB_*` environment variables** >
 | `state_dir` | user | `WB_STATE_DIR` | `--state-dir` | Linux `~/.local/share/wisebucket`, macOS `~/Library/Application Support/wisebucket` | Where Wise Bucket keeps its store (the decoded columnar copy of your recordings) and its logs. |
 | `[[roots]] name` | user |  | `roots add <name>` |  | Short unique name used in log references (`name:relative/path`). Lowercase letters, digits, `-`, `_`; max 32. |
 | `[[roots]] path` | user |  | `roots add <name> <path>` |  | Folder Wise Bucket may read: absolute or `~/…`. |
-| `[[roots]] hardware` | user |  | `--hardware` |  | The hardware (robot, vehicle, test bench…) the recordings in this root come from. Shown in the `recordings` table. |
 | `[[roots]] include / exclude` | user |  | `--include` / `--exclude` | all supported formats | Glob patterns restricting which files are considered recordings. |
 | `(file) user config` | - | `WB_CONFIG` | `--config` | Linux `~/.config/wisebucket/config.toml`, macOS `~/Library/Application Support/wisebucket/config.toml` | Location of the user configuration file. |
 
@@ -28,7 +27,6 @@ Precedence, highest first: **command line** > **`WB_*` environment variables** >
 [[roots]]
 name = "bags"                                  # recordings are referenced as bags:2026-09-24/dock_run3
 path = "~/robot-logs/bags"
-hardware = "rover-b"                           # optional: the hardware these recordings come from
 include = ["**/*.mcap", "**/metadata.yaml"]    # optional
 exclude = ["**/tmp/**"]                        # optional
 

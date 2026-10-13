@@ -69,6 +69,12 @@ error_kinds! {
     ChecksumMismatch => "checksum_mismatch",
         "A downloaded file does not match its pinned checksum",
         "The file was corrupted, tampered with, or changed upstream. Re-run `wisebucket demo`: files with a wrong checksum are downloaded again. If it persists, report it (see SECURITY.md).";
+    ContextInvalid => "context_invalid",
+        "The context file is invalid",
+        "Fix `context.toml` (its path is in the message, next to your configuration file): it holds one table per target, `[\"root:path\"]`, `[\"root:folder/\"]` or `[\"root:\"]`, followed by `key = \"value\"` lines, as `wisebucket note` writes them.";
+    TargetNotFound => "target_not_found",
+        "A note's target matches no recording or folder",
+        "Use a recording as `recordings` lists it (`root:path`), a folder inside a root ending with `/` (`flights:2026-10/`), or a root ending with `:` (`flights:`).";
     RecordingUnreadable => "recording_unreadable",
         "A recording could not be extracted into the store",
         "The file may be truncated, corrupt, or use a feature Wise Bucket cannot read yet. The message says which. The recording itself is untouched, and it is retried automatically when the file changes. If the file opens in its own tools, please open an issue with the message.";

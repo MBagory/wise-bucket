@@ -21,6 +21,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use wb_core::config::EffectiveConfig;
+use wb_core::context::{self, Context};
 use wb_core::error::{ErrorKind, Result, err};
 use wb_core::fsutil::{self, FileLock};
 use wb_core::roots::{self, Candidate, RecordingKind, Root};
@@ -40,7 +41,6 @@ pub struct RecordingMeta {
     pub root: String,
     pub path: PathBuf,
     pub kind: RecordingKind,
-    pub hardware: Option<String>,
     pub size_bytes: u64,
     pub mtime_ns: i64,
     pub extractor_version: u32,
@@ -64,14 +64,6 @@ impl RecordingMeta {
     pub fn end_ns(&self) -> Option<i64> {
         self.streams.iter().filter_map(|s| s.end_ns).max()
     }
-}
-
-/// A recording found in a root, with the root's hardware (`candidates.json`).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Entry {
-    #[serde(flatten)]
-    pub candidate: Candidate,
-    pub hardware: Option<String>,
 }
 
 /// Where a recording stands.
@@ -99,7 +91,6 @@ pub struct Row {
     pub root: String,
     pub path: PathBuf,
     pub kind: RecordingKind,
-    pub hardware: Option<String>,
     pub status: Status,
     pub size_bytes: u64,
     pub mtime_ns: i64,
@@ -128,17 +119,30 @@ pub fn recording_id(c: &Candidate) -> String {
 #[derive(Debug, Clone)]
 pub struct Store {
     pub dir: PathBuf,
+    /// What the engineer said about recordings (`context.toml`), when known.
+    pub context_file: Option<PathBuf>,
 }
 
 impl Store {
     pub fn new(state_dir: &Path) -> Self {
         Self {
             dir: state_dir.join("store"),
+            context_file: None,
         }
     }
 
     pub fn for_config(cfg: &EffectiveConfig) -> Self {
-        Self::new(&cfg.state_dir.value)
+        Self {
+            context_file: Some(context::path(cfg)),
+            ..Self::new(&cfg.state_dir.value)
+        }
+    }
+
+    /// What the engineer said about recordings (empty without a context file).
+    pub fn context(&self) -> Result<Context> {
+        self.context_file
+            .as_deref()
+            .map_or(Ok(Context::default()), Context::load)
     }
 
     fn key(c: &Candidate) -> String {
@@ -167,14 +171,14 @@ impl Store {
     }
 
     /// Records the recordings found in the roots.
-    pub fn write_candidates(&self, entries: &[Entry]) -> Result<()> {
-        let json = serde_json::to_vec_pretty(entries)
+    pub fn write_candidates(&self, candidates: &[Candidate]) -> Result<()> {
+        let json = serde_json::to_vec_pretty(candidates)
             .map_err(|e| err(ErrorKind::Internal, e.to_string()))?;
         fsutil::write_atomic(&self.candidates_path(), &json)
     }
 
     /// The recordings found by the last discovery (empty before the first one).
-    pub fn read_candidates(&self) -> Vec<Entry> {
+    pub fn read_candidates(&self) -> Vec<Candidate> {
         std::fs::read(self.candidates_path())
             .ok()
             .and_then(|b| serde_json::from_slice(&b).ok())
@@ -199,8 +203,7 @@ impl Store {
         let paused = self.paused();
         let mut keys = HashSet::new();
         let mut rows = Vec::new();
-        for e in self.read_candidates() {
-            let c = &e.candidate;
+        for c in &self.read_candidates() {
             keys.insert(Self::key(c));
             let dir = self.current_dir(c);
             let meta = Self::read_meta(&dir);
@@ -223,7 +226,6 @@ impl Store {
                 root: c.root.clone(),
                 path: c.path.clone(),
                 kind: c.kind,
-                hardware: e.hardware.clone(),
                 status,
                 size_bytes: c.size,
                 mtime_ns: c.mtime_ns,
@@ -243,7 +245,6 @@ impl Store {
                     root: meta.root.clone(),
                     path: meta.path.clone(),
                     kind: meta.kind,
-                    hardware: meta.hardware.clone(),
                     status: Status::Missing,
                     size_bytes: meta.size_bytes,
                     mtime_ns: meta.mtime_ns,
@@ -312,16 +313,15 @@ impl Store {
 
     /// Recordings waiting for extraction, newest first. Files changed in the last few
     /// seconds are left for later: they may still be being written.
-    pub fn pending(&self, settle: Duration) -> Vec<Entry> {
+    pub fn pending(&self, settle: Duration) -> Vec<Candidate> {
         let now_ns = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos() as i64)
             .unwrap_or(0);
-        let mut out: Vec<Entry> = self
+        let mut out: Vec<Candidate> = self
             .read_candidates()
             .into_iter()
-            .filter(|e| {
-                let c = &e.candidate;
+            .filter(|c| {
                 let dir = self.current_dir(c);
                 c.kind.supported()
                     && now_ns - c.mtime_ns >= settle.as_nanos() as i64
@@ -329,7 +329,7 @@ impl Store {
                     && !FileLock::is_held(&self.lock_path(c))
             })
             .collect();
-        out.sort_by_key(|e| std::cmp::Reverse(e.candidate.mtime_ns));
+        out.sort_by_key(|c| std::cmp::Reverse(c.mtime_ns));
         out
     }
 
@@ -391,7 +391,6 @@ pub async fn ingest(store: &Store, root: &Root, candidate: &Candidate) -> Result
                 root: candidate.root.clone(),
                 path: candidate.path.clone(),
                 kind: candidate.kind,
-                hardware: root.hardware.clone(),
                 size_bytes: candidate.size,
                 mtime_ns: candidate.mtime_ns,
                 extractor_version: EXTRACTOR_VERSION,
@@ -426,21 +425,82 @@ pub async fn ingest(store: &Store, root: &Root, candidate: &Candidate) -> Result
 }
 
 /// Finds the recordings in every root and records them in the store. Returns them.
-pub fn discover(cfg: &EffectiveConfig, max_time_per_root: Duration) -> Result<Vec<Entry>> {
+pub fn discover(cfg: &EffectiveConfig, max_time_per_root: Duration) -> Result<Vec<Candidate>> {
     let set = roots::resolve(cfg);
-    let mut entries = Vec::new();
+    let mut found = Vec::new();
     for root in &set.roots {
-        for candidate in roots::candidates(root, 1_000_000, max_time_per_root).candidates {
-            entries.push(Entry {
-                candidate,
-                hardware: root.hardware.clone(),
-            });
-        }
+        found.extend(roots::candidates(root, 1_000_000, max_time_per_root).candidates);
     }
-    if let Err(e) = Store::for_config(cfg).write_candidates(&entries) {
+    if let Err(e) = Store::for_config(cfg).write_candidates(&found) {
         tracing::warn!(error = %e, "cannot record the recordings found");
     }
-    Ok(entries)
+    Ok(found)
+}
+
+/// What [`note`] recorded.
+#[derive(Debug, Clone, Serialize)]
+pub struct Noted {
+    pub target: String,
+    /// The target's own keys, after the change.
+    pub context: BTreeMap<String, String>,
+    /// How many recordings the target covers.
+    pub recordings: usize,
+    /// Where the context is kept.
+    pub file: PathBuf,
+}
+
+/// Records what the engineer said about a target: a recording (`root:path`), a folder
+/// (`root:folder/`) or a root (`root:`). Each key is set, or removed when its value is
+/// empty; no keys returns the target's current ones.
+pub fn note(
+    cfg: &EffectiveConfig,
+    target: &str,
+    changes: &BTreeMap<String, Option<String>>,
+) -> Result<Noted> {
+    let rr = roots::RootRef::parse(target)?;
+    let rel = rr.rel.display().to_string();
+    let rows = Store::for_config(cfg).rows();
+    let mut target = if rel.is_empty() {
+        format!("{}:", rr.root)
+    } else {
+        format!(
+            "{}:{}",
+            rr.root,
+            target
+                .split_once(':')
+                .map_or("", |(_, p)| p)
+                .trim_start_matches('/')
+        )
+    };
+    let on_disk = rr.resolve(&roots::resolve(cfg)).ok();
+    // A folder named without its trailing `/` is still that folder.
+    if !target.ends_with(['/', ':'])
+        && !rows.iter().any(|r| r.recording == target)
+        && on_disk.as_ref().is_some_and(|p| p.is_dir())
+    {
+        target.push('/');
+    }
+    let recordings = rows
+        .iter()
+        .filter(|r| context::covers(&target, &r.recording))
+        .count();
+    if recordings == 0 && on_disk.is_none() {
+        return Err(err(
+            ErrorKind::TargetNotFound,
+            format!(
+                "{target} is neither a recording nor a folder of the root {:?}",
+                rr.root
+            ),
+        ));
+    }
+    let file = context::path(cfg);
+    let context = context::update(&file, &target, changes)?;
+    Ok(Noted {
+        target,
+        context,
+        recordings,
+        file,
+    })
 }
 
 /// Finds the root and recording for `root:path` (for the `ingest` command). The path

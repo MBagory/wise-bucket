@@ -8,7 +8,6 @@
 [[roots]]
 name = "bags"                                  # recordings are referenced as bags:2026-09-24/dock_run3
 path = "~/robot-logs/bags"
-hardware = "rover-b"                           # optional: the hardware these recordings come from
 include = ["**/*.mcap", "**/metadata.yaml"]    # optional
 exclude = ["**/tmp/**"]                        # optional
 

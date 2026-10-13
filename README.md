@@ -114,7 +114,8 @@ Samples are fetched from their upstream projects at pinned commits, SHA-256-veri
 
 | You want to… | Run |
 | --- | --- |
-| Add a recording folder | `wisebucket roots add flights /Volumes/lab-nas/px4 --hardware drone-2` |
+| Add a recording folder | `wisebucket roots add flights /Volumes/lab-nas/px4` |
+| Tell what the files don't say | `wisebucket note flights: hardware=drone-2`, or just tell your agent |
 | Query the store as your agent does | `wisebucket sql "SELECT status, count(*) FROM recordings GROUP BY status"` |
 | Check that everything works | `wisebucket doctor` |
 

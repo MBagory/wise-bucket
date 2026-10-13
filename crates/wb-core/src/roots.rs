@@ -23,7 +23,6 @@ pub struct Root {
     pub name: String,
     /// Canonical absolute path.
     pub path: PathBuf,
-    pub hardware: Option<String>,
     pub include: Vec<String>,
     pub exclude: Vec<String>,
     pub origin: Origin,
@@ -90,7 +89,6 @@ pub fn resolve_decl(decl: &RootDecl) -> Result<Root> {
     Ok(Root {
         name: spec.name.clone(),
         path: canonical,
-        hardware: spec.hardware.clone(),
         include: spec.include.clone(),
         exclude: spec.exclude.clone(),
         origin: decl.origin.clone(),
@@ -594,7 +592,6 @@ mod tests {
             spec: RootSpec {
                 name: name.into(),
                 path: path.to_path_buf(),
-                hardware: None,
                 include: vec![],
                 exclude: vec![],
             },

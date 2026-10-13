@@ -27,6 +27,7 @@ Examples:
   wisebucket roots add bags ~/robot-logs   Let Wise Bucket read a folder
   wisebucket demo --all                    Try it on public sample recordings
   wisebucket sql \"SELECT * FROM streams\"  Query the store yourself
+  wisebucket note flights: hardware=drone-2  Tell what the files don't say
   wisebucket rerun \"SELECT t, … FROM …\"  Send a query result to the Rerun viewer
   wisebucket doctor                        Check the installation"
 )]
@@ -102,6 +103,21 @@ Examples:
         #[arg(long, default_value = wb_data::rerun::DEFAULT_URL)]
         url: String,
     },
+    /// Record what you know about recordings that their files don't say (what your agent's `note` tool runs)
+    #[command(after_help = "\
+Examples:
+  wisebucket note flights: hardware=drone-2                      Every recording of a root
+  wisebucket note flights:2026-10/ propellers='9x4.5 carbon'     Every recording under a folder
+  wisebucket note flights:2026-10/flight3.ulg wind='gusts 8 m/s' One recording
+  wisebucket note flights:2026-10/flight3.ulg wind=              Remove a key
+  wisebucket note flights:2026-10/flight3.ulg                    Show its keys")]
+    Note {
+        /// A recording (`root:path`), a folder (`root:folder/`) or a root (`root:`)
+        target: String,
+        /// `key=value` pairs; an empty value removes the key
+        #[arg(value_name = "KEY=VALUE")]
+        values: Vec<String>,
+    },
     /// Extract one recording into the store (run in the background by agent sessions)
     #[command(hide = true)]
     Ingest {
@@ -171,15 +187,12 @@ pub enum RootsCommand {
     #[command(after_help = "\
 Examples:
   wisebucket roots add bags ~/robot-logs
-  wisebucket roots add field /data/field --hardware rover-b --exclude '**/tmp/**'")]
+  wisebucket roots add field /data/field --exclude '**/tmp/**'")]
     Add {
         /// Short name, used in references like `name:relative/path`
         name: String,
         /// Folder path (absolute or ~/...)
         path: PathBuf,
-        /// The hardware (robot, vehicle, test bench…) these recordings come from
-        #[arg(long)]
-        hardware: Option<String>,
         /// Glob pattern of files to consider (repeatable)
         #[arg(long)]
         include: Vec<String>,
