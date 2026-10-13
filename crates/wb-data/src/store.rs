@@ -47,6 +47,9 @@ pub struct RecordingMeta {
     pub streams: Vec<StreamMeta>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
+    /// Short facts the recording states about itself (`key`, `value`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub properties: Vec<(String, String)>,
 }
 
 impl RecordingMeta {
@@ -389,6 +392,7 @@ pub async fn ingest(store: &Store, root: &Root, candidate: &Candidate) -> Result
                 extractor_version: EXTRACTOR_VERSION,
                 streams: x.streams,
                 notes: x.notes,
+                properties: x.properties,
             };
             let json = serde_json::to_vec_pretty(&meta)
                 .map_err(|e| err(ErrorKind::Internal, e.to_string()))?;

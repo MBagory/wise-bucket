@@ -1,7 +1,7 @@
 //! Read-only SQL over the store, run by DataFusion.
 //!
-//! The session sees only what is registered here (`recordings`, `streams` and the
-//! `stream()` table function); DDL, writes and other statements are refused, and
+//! The session sees only what is registered here (`recordings`, `streams`,
+//! `properties` and the `stream()` table function); DDL, writes and other statements are refused, and
 //! memory, time and result size are capped. Nothing outside the store is readable.
 
 use std::collections::HashMap;
@@ -205,6 +205,7 @@ pub fn context(store: &Store) -> datafusion::common::Result<SessionContext> {
     let ctx = SessionContext::new_with_config_rt(config, runtime);
     ctx.register_table("recordings", Arc::new(recordings_table(&rows)?))?;
     ctx.register_table("streams", Arc::new(streams_table(&rows)?))?;
+    ctx.register_table("properties", Arc::new(properties_table(&rows)?))?;
     let mut index: HashMap<String, Vec<(String, PathBuf)>> = HashMap::new();
     for r in &rows {
         if let (Some(meta), Some(dir)) = (&r.meta, &r.dir) {
@@ -369,6 +370,26 @@ fn streams_table(rows: &[Row]) -> datafusion::common::Result<MemTable> {
                     .map(|(_, s)| (!s.notes.is_empty()).then(|| s.notes.join("; ")))
                     .collect(),
             ),
+        ],
+    )
+}
+
+fn properties_table(rows: &[Row]) -> datafusion::common::Result<MemTable> {
+    let props: Vec<(&str, &(String, String))> = rows
+        .iter()
+        .filter_map(|r| r.meta.as_ref().map(|m| (r.recording.as_str(), m)))
+        .flat_map(|(rec, m)| m.properties.iter().map(move |p| (rec, p)))
+        .collect();
+    table(
+        vec![
+            ("recording", DataType::Utf8),
+            ("key", DataType::Utf8),
+            ("value", DataType::Utf8),
+        ],
+        vec![
+            text(props.iter().map(|(r, _)| Some(r.to_string())).collect()),
+            text(props.iter().map(|(_, (k, _))| Some(k.clone())).collect()),
+            text(props.iter().map(|(_, (_, v))| Some(v.clone())).collect()),
         ],
     )
 }

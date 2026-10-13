@@ -4,7 +4,7 @@ Every recording in the engineer's data roots is extracted in the background into
 
 Tools:
 - `server_info`: the version, the store (how many recordings are `done`, `pending`, `failed`…) and the data roots. Call it when the user asks about Wise Bucket's setup or recordings, and before relying on the store.
-- `sql`: one read-only SELECT over the tables `recordings`, `streams` and the function `stream('<name>' [, '<recording LIKE pattern>'])`. Its description lists the columns and recipes.
+- `sql`: one read-only SELECT over the tables `recordings`, `streams`, `properties` and the function `stream('<name>' [, '<recording LIKE pattern>'])`. Its description lists the columns and recipes.
 
 - `rerun`: sends every row of one SELECT (with a timestamp column `t`) to a running Rerun viewer, without passing through your context. Each numeric column becomes a series `<entity>/<column>`.
 

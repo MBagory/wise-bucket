@@ -19,6 +19,8 @@ pub struct Extraction {
     pub streams: Vec<StreamMeta>,
     /// Remarks about the whole recording (truncated file, skipped parts…).
     pub notes: Vec<String>,
+    /// Short facts the recording states about itself (`key`, `value`).
+    pub properties: Vec<(String, String)>,
 }
 
 /// Extracts the recording at `path` into `out` (one Parquet file per stream under `out/data`).
@@ -95,6 +97,8 @@ pub(crate) struct Topics {
     topics: Vec<Topic>,
     by_key: HashMap<(String, String), usize>,
     names: HashMap<String, usize>,
+    /// Facts the recording states about itself (MCAP metadata records).
+    pub properties: Vec<(String, String)>,
 }
 
 impl Topics {
@@ -104,6 +108,7 @@ impl Topics {
             topics: Vec::new(),
             by_key: HashMap::new(),
             names: HashMap::new(),
+            properties: Vec::new(),
         }
     }
 
@@ -244,6 +249,7 @@ impl Topics {
         Ok(Extraction {
             streams,
             notes: Vec::new(),
+            properties: self.properties,
         })
     }
 }

@@ -188,19 +188,23 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 
 **ROS 2 messages** are decoded from the definitions stored in the recording. ROS 2 Humble bags (`.db3`) don't store them, so standard types (`std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `diagnostic_msgs`, `trajectory_msgs`, `tf2_msgs`, `/rosout`) are decoded from definitions bundled with Wise Bucket. Other custom types in Humble bags keep their timing and sizes only.
 
+**Facts about a recording** go to the `properties` table: the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
+
 **Tables** need a time column. Wise Bucket uses the first timestamp column, else a column named `time`, `timestamp`, `t` or `stamp` (any case), whose unit comes from a `_s`, `_ms`, `_us` or `_ns` suffix (seconds by default). The stream's `notes` say which column was used. Without one, `t` is empty.
 
 ### Querying
 
-**Nothing is computed in advance**: there are no precomputed statistics or fixed windows. Your agent writes the SQL each question needs, at the question's time scale, and shows you the query behind each number; you can run the same queries with `wisebucket sql` ([ADR 0010](decisions/0010-metrics-are-sql-written-by-the-agent.md)). There are three things to query (full list of columns: [tables reference](reference/tables.md)):
+**Nothing is computed in advance**: there are no precomputed statistics or fixed windows. Your agent writes the SQL each question needs, at the question's time scale, and shows you the query behind each number; you can run the same queries with `wisebucket sql` ([ADR 0010](decisions/0010-metrics-are-sql-written-by-the-agent.md)). There are four things to query (full list of columns: [tables reference](reference/tables.md)):
 
 - `recordings`: every recording, with its status, hardware and time range
 - `streams`: every stream of every recording, with its row count, columns and notes
+- `properties`: short facts each recording states about itself, as `key` and `value`
 - `stream('<name>')`: the rows of one stream across all recordings, with a `recording` column; `stream('<name>', '<recording LIKE pattern>')` restricts the recordings
 
 ```sh
 wisebucket sql "SELECT status, count(*) FROM recordings GROUP BY status"
 wisebucket sql "SELECT recording, stream, rows FROM streams WHERE stream ILIKE '%imu%'"
+wisebucket sql "SELECT recording, key, value FROM properties"
 wisebucket sql "SELECT date_bin(INTERVAL '1 second', t) AS w, count(*) FROM stream('/scan', 'bags:run3%') GROUP BY w ORDER BY w"
 ```
 
@@ -243,7 +247,7 @@ df = pd.read_parquet(f"<state directory>/store/<key>/<version>/{imu['dataset']}"
 T = parquetread("<state directory>/store/<key>/<version>/data/0003.parquet");
 ```
 
-Nested message fields are struct columns (`linear_acceleration` holds `x`, `y`, `z`). Prefer `wisebucket sql` for anything you can express in SQL: it finds the files for you and flattens the fields into dotted columns.
+`recording.json` also holds the recording's `properties`. Nested message fields are struct columns (`linear_acceleration` holds `x`, `y`, `z`). Prefer `wisebucket sql` for anything you can express in SQL: it finds the files for you and flattens the fields into dotted columns.
 
 ## Viewers
 

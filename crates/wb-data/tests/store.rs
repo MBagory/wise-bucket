@@ -77,6 +77,17 @@ fn write_mcap(path: &Path, offset: f64) {
     let cam = w
         .add_channel(image, "/camera/image", "cdr", &BTreeMap::new())
         .unwrap();
+    w.write_metadata(&mcap::records::Metadata {
+        name: "rig".into(),
+        metadata: BTreeMap::from([("serial".into(), "R-17".into())]),
+    })
+    .unwrap();
+    // The bag summary repeats `recordings` and `streams`: left out.
+    w.write_metadata(&mcap::records::Metadata {
+        name: "rosbag2".into(),
+        metadata: BTreeMap::from([("serialized_metadata".into(), "version: 9".into())]),
+    })
+    .unwrap();
     let mut msgs: Vec<(i64, u16, Vec<u8>)> = sample_messages(offset)
         .into_iter()
         .map(|(t, d)| (t, ch, d))
@@ -452,6 +463,14 @@ async fn every_format_is_extracted_and_queryable() {
         );
     }
 
+    // Facts the recording states about itself.
+    let rows = q(
+        &f,
+        "SELECT key, value FROM properties WHERE recording = 'bags:run1.mcap'",
+    )
+    .await;
+    assert_eq!(rows, vec![json!({"key": "rig.serial", "value": "R-17"})]);
+
     // A time that never changes is flagged.
     let r = one(
         &f,
@@ -564,6 +583,7 @@ async fn sql_is_locked_down_and_capped() {
         )
         .await,
         vec![
+            json!({"table_name": "properties"}),
             json!({"table_name": "recordings"}),
             json!({"table_name": "streams"})
         ]

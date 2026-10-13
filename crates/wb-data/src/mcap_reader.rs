@@ -59,6 +59,13 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
                             );
                             channels.insert(ch.id, index);
                         }
+                        // The `rosbag2` record repeats the bag summary (topics, counts,
+                        // times) that `recordings` and `streams` already show.
+                        Record::Metadata(m) if m.name != "rosbag2" => {
+                            for (key, value) in m.metadata {
+                                topics.properties.push((format!("{}.{key}", m.name), value));
+                            }
+                        }
                         Record::Message { header, data } => {
                             if let Some(&index) = channels.get(&header.channel_id) {
                                 topics.push(index, header.log_time as i64, &data)?;

@@ -58,6 +58,15 @@ pub const TABLES: &[TableDoc] = &[
         ],
     },
     TableDoc {
+        name: "properties",
+        description: "Short facts each recording states about itself: MCAP metadata records (`<record>.<key>`).",
+        columns: cols![
+            "recording" "text" "`root:path`",
+            "key" "text" "Name of the fact",
+            "value" "text" "Its value, as text",
+        ],
+    },
+    TableDoc {
         name: "stream('<name>' [, '<recording LIKE pattern>'])",
         description: "Table function: the rows of one stream across all recordings (or those whose `recording` matches the LIKE pattern). Columns are the union over recordings; missing ones are null.",
         columns: cols![
@@ -76,6 +85,7 @@ pub const RECIPES: &str = r#"- Gaps: SELECT t, (lead(t) OVER (ORDER BY t) - t) A
 - Percentiles: SELECT approx_percentile_cont(0.99) WITHIN GROUP (ORDER BY "linear_acceleration.z") FROM stream('/imu')
 - Join streams on time buckets: compute date_bin(...) in each stream, then JOIN ON the bucket and recording
 - Names: SELECT * FROM streams WHERE stream ILIKE '%imu%' OR columns ILIKE '%current%'
+- Properties: SELECT key, value FROM properties WHERE recording = 'bags:run3'
 - Plot (about 150 bins, width = (end - start) / 150 from streams): SELECT date_bin(INTERVAL '1 second', t) AS t, min("linear_acceleration.z") AS lo, avg("linear_acceleration.z") AS mean, max("linear_acceleration.z") AS hi FROM stream('/imu') WHERE recording = 'bags:run3' GROUP BY 1 ORDER BY 1
 - Page by time window: SELECT t, "linear_acceleration.z" FROM stream('/imu') WHERE recording = 'bags:run3' AND t >= TIMESTAMP '1970-01-01T00:00:00' AND t < TIMESTAMP '2100-01-01T00:00:00' ORDER BY t
 - Page by key, after the last row seen: SELECT recording, t, "linear_acceleration.z" FROM stream('/imu') WHERE recording > 'bags:run3' OR (recording = 'bags:run3' AND t > TIMESTAMP '1970-01-01T00:00:00') ORDER BY recording, t
