@@ -181,16 +181,23 @@ Each recording has a **status**:
 
 Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MCAP file, the messages of a ULog file or a MAVLink telemetry log, or a single `table` for CSV, JSON Lines, Parquet and Arrow files. Each stream is a table with:
 
-- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970), the record time for a MAVLink telemetry log, or the time column of a table.
+- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970; a ULog recording starts at its header's time), the record time for a MAVLink telemetry log, or the time column of a table.
 - **`t_sensor`**, the message's own `header.stamp`, when a ROS 2 message has one.
 - **`message_bytes`**, the size of each message (bags and MCAP).
 - **The message fields**, nested names joined with dots (`linear_acceleration.z`). Arrays stay arrays.
 
 **ROS 2 messages** are decoded from the definitions stored in the recording. ROS 2 Humble bags (`.db3`) don't store them, so standard types (`std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `diagnostic_msgs`, `trajectory_msgs`, `tf2_msgs`, `/rosout`) are decoded from definitions bundled with Wise Bucket. Other custom types in Humble bags keep their timing and sizes only. Each topic's QoS is in `streams.qos`, in short: `reliable, volatile, depth 10` (` | ` between publishers).
 
-**Facts about a recording** go to the `properties` table: the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
+**ULog files** have one stream per message (`sensor_accel`). A second instance of a message is `sensor_accel.1`: pyulog's `sensor_accel` with multi_id 1, ulog2csv's `…_sensor_accel_1.csv`. Four more streams hold the log's own records, timed as pyulog does (records without a timestamp take the last data timestamp before them):
 
-**Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `1 ERROR log messages (stream /rosout), first: "lost link to /dev/ttyUSB0"`. `streams.notes` flags a time that never changes.
+- **`parameters`**: `name`, `value`, `initial` (true for the values at the start of the log, false for changes during it), and `system_default` and `airframe_default`, recorded only when they differ from `value` (newer logs).
+- **`logged_messages`**: `level` (`EMERGENCY`, `ALERT`, `CRITICAL`, `ERROR`, `WARNING`, `NOTICE`, `INFO`, `DEBUG`), `message`, and `tag` for tagged messages.
+- **`dropouts`**: `duration_ms` of each logger dropout.
+- **`texts`**: `name`, `line`, `text`: the boot console output, a crash dump from an earlier crash (`hardfault_plain`), performance counters, one row per line.
+
+**Facts about a recording** go to the `properties` table: the info of ULog files (`ver_hw` board, `ver_sw` firmware, `sys_name`, `time_ref_utc`…) and the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
+
+**Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ULog (`logged_messages`), ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `4 ERROR log messages (stream logged_messages), first: "[sensors] no barometer found on /dev/baro0 (2)"`. It also reports ULog logger dropouts and crash dumps. `streams.notes` flags ULog timestamps that are not set (0) and a time that never changes.
 
 **Tables** need a time column. Wise Bucket uses the first timestamp column, else a column named `time`, `timestamp`, `t` or `stamp` (any case), whose unit comes from a `_s`, `_ms`, `_us` or `_ns` suffix (seconds by default). The stream's `notes` say which column was used. Without one, `t` is empty.
 
@@ -207,6 +214,7 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 wisebucket sql "SELECT status, count(*) FROM recordings GROUP BY status"
 wisebucket sql "SELECT recording, stream, rows FROM streams WHERE stream ILIKE '%imu%'"
 wisebucket sql "SELECT recording, key, value FROM properties"
+wisebucket sql "SELECT recording, name, value, system_default FROM stream('parameters') WHERE system_default IS NOT NULL"
 wisebucket sql "SELECT date_bin(INTERVAL '1 second', t) AS w, count(*) FROM stream('/scan', 'bags:run3%') GROUP BY w ORDER BY w"
 ```
 
@@ -232,7 +240,7 @@ Reading a score:
 | 3 or more | Unusual against these peers |
 | Empty or infinite | Fewer than 3 peers, or peers that all have the same value |
 
-A score depends on the peers: compare recordings of the same hardware and the same kind of test (a join with `recordings` on `hardware`, or a `LIKE` on the recording). Scores on counters, sequence numbers, timestamps and enums are meaningless. The `ulog` demo set (`wisebucket demo ulog`) has six PX4 logs to try the recipes on.
+A score depends on the peers: compare recordings of the same hardware and the same kind of test (a join with `recordings` on `hardware`, a join with `properties` on the board `ver_hw` or the firmware `ver_sw`, or a `LIKE` on the recording). Scores on counters, sequence numbers, timestamps and enums are meaningless. The `ulog` demo set (`wisebucket demo ulog`) has six PX4 logs to try the recipes on.
 
 ### Opening the store yourself
 

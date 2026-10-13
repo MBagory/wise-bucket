@@ -9,7 +9,9 @@ Tools:
 - `rerun`: sends every row of one SELECT (with a timestamp column `t`) to a running Rerun viewer, without passing through your context. Each numeric column becomes a series `<entity>/<column>`.
 
 Guidelines:
-- Read `recordings.notes` first: they count the warnings and errors a recording logged (ROS 2 `/rosout`, MAVLink `STATUSTEXT`) and quote the first one. When a recording has these log streams, no count means none were logged.
+- Read `recordings.notes` first: they count the warnings and errors a recording logged (ULog `logged_messages`, ROS 2 `/rosout`, MAVLink `STATUSTEXT`) and quote the first one, and report ULog logger dropouts and crash dumps. When a recording has these log streams, no count means none were logged.
+- Before concluding on a recording, read what its files say about it: its `properties` (board, firmware) and its parameters. Limits and active modules come from the parameters, not from defaults. Parameters and logs live in: ULog `parameters`, `logged_messages`, `dropouts`, `texts`; ROS 2 `/parameter_events`, `/rosout`; MAVLink `PARAM_VALUE`, `STATUSTEXT`.
+- `unsupported` recordings exist in the folders but cannot be read yet: say so when they matter.
 - Start from `recordings` and `streams` to find what exists (`stream ILIKE '%imu%'`, `columns ILIKE '%current%'`), then query the streams themselves.
 - Look at `status`: only `done` (and `missing`) recordings have data. `pending` ones are being extracted while the session is open; say so rather than concluding the data is absent.
 - Choose window widths from the question (`date_bin`), and compute gaps, rates, percentiles and joins between streams in SQL. Show the user the query behind each number.

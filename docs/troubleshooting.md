@@ -40,9 +40,13 @@ The store's disk has less than 10 GB free. Free some space (deleting the store i
 - **A custom ROS 2 type in a Humble `.db3` bag:** the bag doesn't store the definition, and only standard types are bundled. Recording with MCAP storage (`ros2 bag record -s mcap`) stores the definitions.
 - **ROS 1, protobuf or JSON payloads in MCAP:** not decoded yet; timing and sizes are kept.
 
-### A stream's `t` never changes
+### A stream's `t` is 0 or never changes
 
-The stream's `notes` say `t is the same on every row`: the recorder wrote the same time on every message. Use another time column of the stream, or the row order, and page it by another column than `t`.
+The stream's `notes` say which:
+- **`timestamp 0 (not set)`** (ULog): the message's `timestamp` field was left at 0. Another time field of the message (`timestamp_sample`) may be set.
+- **`t is the same on every row`:** the recorder wrote the same time on every message.
+
+Use another time column of the stream, or the row order, and page it by another column than `t`.
 
 ### The times of a CSV or Parquet file are wrong
 
@@ -112,6 +116,16 @@ Every row your agent receives enters its context, so a result holds about 60 KB 
 ### Why can't Wise Bucket read my format (CAN with DBC, MDF4, ROS 1…)?
 
 A format is added only when an external Rust crate decodes it. Recognized files in such formats are listed with the status `unsupported`. Formats waiting for a crate, or for their turn, are on the list of [possible features](decisions/0014-possible-features-instead-of-milestones.md). ([ADR 0016](decisions/0016-formats-need-an-external-rust-decoder.md))
+
+### Where are a log's parameters and messages?
+
+`recordings.notes` says first whether warnings, errors, dropouts or crash dumps were logged. Then:
+
+| Format | Parameters | Log messages | Other |
+| --- | --- | --- | --- |
+| PX4 ULog | `parameters` (with defaults) | `logged_messages` | `dropouts`, `texts` (boot console, crash dump, performance counters); `properties` (board, firmware) |
+| ROS 2 bags | `/parameter_events` | `/rosout` | `streams.qos` |
+| MAVLink tlog | `PARAM_VALUE` | `STATUSTEXT` | |
 
 ### Can my agent read files outside my recording folders through Wise Bucket?
 

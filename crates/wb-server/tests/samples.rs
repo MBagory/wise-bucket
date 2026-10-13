@@ -152,6 +152,81 @@ async fn ulog() {
         .await
             > 10
     );
+    // Expected values from pyulog (ulog_info, ulog_params, ulog_messages).
+    let rows = |q: &'static str| {
+        let s = &s;
+        async move { s.sql(q).await["rows"].clone() }
+    };
+    assert_eq!(
+        rows("SELECT name, value FROM stream('parameters', 's:sample.ulg') WHERE initial AND name IN ('SYS_MC_EST_GROUP', 'COM_ARM_IMU_GYR') ORDER BY name").await,
+        serde_json::json!([
+            {"name": "COM_ARM_IMU_GYR", "value": 0.09},
+            {"name": "SYS_MC_EST_GROUP", "value": 1.0}
+        ])
+    );
+    assert_eq!(
+        number(
+            &s,
+            "SELECT count(*) AS n FROM stream('parameters', 's:sample.ulg') WHERE NOT initial"
+        )
+        .await,
+        6
+    );
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('logged_messages', 's:sample.ulg') WHERE level = 'ERROR' AND message LIKE '%no barometer found%'").await,
+        4
+    );
+    assert_eq!(
+        rows("SELECT value FROM properties WHERE recording = 's:sample.ulg' AND key = 'ver_hw'")
+            .await,
+        serde_json::json!([{"value": "AUAV_X21"}])
+    );
+    assert_eq!(
+        rows("SELECT CAST(start AS BIGINT) AS s, CAST(\"end\" AS BIGINT) AS e, notes FROM recordings WHERE recording = 's:sample.ulg'").await,
+        serde_json::json!([{
+            "s": 112_500_176_000_i64,
+            "e": 181_493_506_000_i64,
+            "notes": "4 ERROR log messages (stream logged_messages), first: \"[sensors] no barometer found on /dev/baro0 (2)\"; 4 logger dropouts, 119 ms in total (stream dropouts)"
+        }])
+    );
+    assert_eq!(
+        rows("SELECT stream, type, notes FROM streams WHERE recording = 's:sample.ulg' AND (type <> 'ulog' OR stream = 'ekf2_innovations') ORDER BY stream").await,
+        serde_json::json!([
+            {"stream": "dropouts", "type": "ulog dropouts", "notes": null},
+            {"stream": "ekf2_innovations", "type": "ulog", "notes": "timestamp 0 (not set) on every row"},
+            {"stream": "logged_messages", "type": "ulog logged messages", "notes": null},
+            {"stream": "parameters", "type": "ulog parameters", "notes": null}
+        ])
+    );
+    assert_eq!(
+        number(&s, "SELECT count(DISTINCT name) AS n FROM stream('parameters', 's:sample_logging_tagged_and_default_params.ulg') WHERE system_default IS NOT NULL OR airframe_default IS NOT NULL").await,
+        44
+    );
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('logged_messages', 's:sample_logging_tagged_and_default_params.ulg') WHERE tag IS NOT NULL").await,
+        3
+    );
+    assert!(number(&s, "SELECT count(*) AS n FROM stream('texts', 's:sample_log_small.ulg') WHERE name = 'boot_console_output'").await > 10);
+    assert!(number(&s, "SELECT count(*) AS n FROM stream('texts', 's:sample_appended_multiple.ulg') WHERE name = 'hardfault_plain'").await > 100);
+    let notes =
+        rows("SELECT notes FROM recordings WHERE recording = 's:sample_appended_multiple.ulg'")
+            .await;
+    assert!(
+        notes[0]["notes"]
+            .as_str()
+            .unwrap()
+            .contains("crash dump from an earlier crash (stream texts, name hardfault_plain)"),
+        "{notes:#}"
+    );
+    // Older logs number the lines of a text as info keys: they go to `texts`.
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM properties WHERE recording = 's:sample_appended.ulg' AND key LIKE 'perf_%'").await,
+        0
+    );
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('texts', 's:sample_appended.ulg') WHERE name = 'perf_counter_preflight'").await,
+        34
+    );
     s.close().await;
 }
 

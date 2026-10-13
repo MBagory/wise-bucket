@@ -50,11 +50,16 @@ pub struct RecordingMeta {
     /// Short facts the recording states about itself (`key`, `value`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub properties: Vec<(String, String)>,
+    /// When the recording says it starts (the ULog header), in nanoseconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub declared_start_ns: Option<i64>,
 }
 
 impl RecordingMeta {
+    /// The declared start, else the first `t` over all streams.
     pub fn start_ns(&self) -> Option<i64> {
-        self.streams.iter().filter_map(|s| s.start_ns).min()
+        self.declared_start_ns
+            .or_else(|| self.streams.iter().filter_map(|s| s.start_ns).min())
     }
     pub fn end_ns(&self) -> Option<i64> {
         self.streams.iter().filter_map(|s| s.end_ns).max()
@@ -393,6 +398,7 @@ pub async fn ingest(store: &Store, root: &Root, candidate: &Candidate) -> Result
                 streams: x.streams,
                 notes: x.notes,
                 properties: x.properties,
+                declared_start_ns: x.declared_start_ns,
             };
             let json = serde_json::to_vec_pretty(&meta)
                 .map_err(|e| err(ErrorKind::Internal, e.to_string()))?;

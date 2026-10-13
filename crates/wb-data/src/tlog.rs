@@ -48,7 +48,7 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     // ponytail: the whole file is read in memory (tlogs are telemetry, MBs not GBs);
     // stream it if huge tlogs show up.
     let bytes = std::fs::read(path).map_err(crate::sink::io_err(path.display()))?;
-    let mut rows = Rows::new(out);
+    let mut rows = Rows::new(out, 0);
     let mut log = LogTally::default();
     let (mut pos, mut garbage, mut undecoded, mut truncated) = (0usize, 0u64, 0u64, false);
     while pos + 8 < bytes.len() {

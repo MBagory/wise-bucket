@@ -106,7 +106,7 @@ Samples are fetched from their upstream projects at pinned commits, SHA-256-veri
 | Sample | Ask |
 | --- | --- |
 | `ros2-mcap` · `ros2-db3` | *"Is `/topic` published at a steady rate?"* |
-| `ulog` | *"When does CPU load peak, and what runs then?"* · *"Why is the barometric altitude flat?"* |
+| `ulog` | *"When does CPU load peak, and what runs then?"* · *"Why is the barometric altitude flat?"* · *"Which parameters differ from their defaults?"* |
 | `tlog` | *"What battery state was reported?"* |
 | `parquet` | *"Which column types does it hold?"* |
 

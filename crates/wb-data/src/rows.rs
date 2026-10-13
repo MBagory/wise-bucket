@@ -22,6 +22,9 @@ struct Stream {
 
 pub(crate) struct Rows {
     dir: PathBuf,
+    /// Number of the first stream's file (`data/NNNN.parquet`), after the recording's
+    /// other streams.
+    first_index: usize,
     streams: Vec<Stream>,
     by_name: HashMap<String, usize>,
 }
@@ -38,9 +41,10 @@ fn simplify(v: Value) -> Value {
 }
 
 impl Rows {
-    pub fn new(dir: &Path) -> Self {
+    pub fn new(dir: &Path, first_index: usize) -> Self {
         Self {
             dir: dir.to_path_buf(),
+            first_index,
             streams: Vec::new(),
             by_name: HashMap::new(),
         }
@@ -59,7 +63,8 @@ impl Rows {
             Some(&i) => i,
             None => {
                 let i = self.streams.len();
-                let mut sink = StreamSink::new(&self.dir, i, name, type_, encoding);
+                let mut sink =
+                    StreamSink::new(&self.dir, self.first_index + i, name, type_, encoding);
                 sink.meta.decoded = true;
                 self.streams.push(Stream {
                     sink,

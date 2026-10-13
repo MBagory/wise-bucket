@@ -19,14 +19,14 @@ Every recording found in the data roots, with its extraction status.
 | `error` | text | Why extraction failed |
 | `size_bytes` | bigint | Size of the recording |
 | `modified` | timestamp | Last modification of the file |
-| `start` | timestamp | First `t` over all streams |
+| `start` | timestamp | First `t` over all streams; for ULog, the log header's start time |
 | `end` | timestamp | Last `t` over all streams |
 | `streams` | int | Number of streams extracted |
-| `notes` | text | What to look at first: warnings and errors logged (counted per level, with the first message), and remarks about the extraction |
+| `notes` | text | What to look at first: warnings and errors logged (counted per level, with the first message), ULog logger dropouts and crash dumps, and remarks about the extraction |
 
 ## `streams`
 
-One row per stream of each extracted recording: topics (ROS 2), messages (ULog, MAVLink), or `table` (CSV, JSON Lines, Parquet, Arrow IPC).
+One row per stream of each extracted recording: topics (ROS 2), messages (ULog, MAVLink), or `table` (CSV, JSON Lines, Parquet, Arrow IPC). ULog files also have `parameters` (`name`, `value`, `initial` for the values at the start of the log; `system_default` and `airframe_default` are recorded only when they differ from `value`: `system_default IS NOT NULL` lists the parameters changed from their default), `logged_messages` (`level` EMERGENCY…DEBUG, `message`, `tag`), `dropouts` (`duration_ms`) and `texts` (`name`, `line`, `text`: boot console, crash dump, performance counters; filter with ILIKE, page by `line`). ROS 2 `/rosout` `level`: 10 DEBUG, 20 INFO, 30 WARN, 40 ERROR, 50 FATAL.
 
 | Column | Type | Description |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ One row per stream of each extracted recording: topics (ROS 2), messages (ULog, 
 
 ## `properties`
 
-Short facts each recording states about itself: MCAP metadata records (`<record>.<key>`).
+Short facts each recording states about itself: ULog info (`ver_hw` board, `ver_sw` firmware, `sys_name`, `sys_os_name`, `time_ref_utc`…) and MCAP metadata records (`<record>.<key>`).
 
 | Column | Type | Description |
 | --- | --- | --- |

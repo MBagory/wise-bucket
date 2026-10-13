@@ -129,9 +129,12 @@ impl StreamSink {
         let Some(mut writer) = self.writer.take() else {
             return Ok(None);
         };
+        // A reader may already have said why (ULog: "timestamp 0 (not set) on every row").
+        let explained = self.meta.notes.iter().any(|n| n.ends_with("on every row"));
         if self.meta.rows > 1
             && self.meta.start_ns.is_some()
             && self.meta.start_ns == self.meta.end_ns
+            && !explained
         {
             self.note("t is the same on every row");
         }

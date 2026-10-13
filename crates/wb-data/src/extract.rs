@@ -25,6 +25,8 @@ pub struct Extraction {
     pub notes: Vec<String>,
     /// Short facts the recording states about itself (`key`, `value`).
     pub properties: Vec<(String, String)>,
+    /// When the recording says it starts (the ULog header), in nanoseconds.
+    pub declared_start_ns: Option<i64>,
 }
 
 /// Extracts the recording at `path` into `out` (one Parquet file per stream under `out/data`).
@@ -322,6 +324,7 @@ impl Topics {
             streams,
             notes,
             properties: self.properties,
+            declared_start_ns: None,
         })
     }
 }
