@@ -132,8 +132,17 @@ async fn run(
     let mut watcher: Option<RecommendedWatcher> = None;
     let mut watched: Option<(Vec<PathBuf>, PathBuf)> = None;
     let mut ready: HashSet<PathBuf> = HashSet::new();
+    let mut paused = false;
     loop {
-        let wait = pass(&overrides, &tx, &mut watcher, &mut watched, &ready).await;
+        let wait = pass(
+            &overrides,
+            &tx,
+            &mut watcher,
+            &mut watched,
+            &ready,
+            &mut paused,
+        )
+        .await;
         ready.clear();
 
         let mut deadline = wait.map(|d| Instant::now() + d);
@@ -171,13 +180,14 @@ async fn run(
 
 /// Walks the roots and extracts what is ready. Returns when to look again without an
 /// event: `SETTLE`-bound for files still being written, `DISCOVERY_EVERY` when events
-/// cannot be relied on.
+/// cannot be relied on. `paused` is whether the last pass found too little disk space.
 async fn pass(
     overrides: &Overrides,
     tx: &UnboundedSender<Trigger>,
     watcher: &mut Option<RecommendedWatcher>,
     watched: &mut Option<(Vec<PathBuf>, PathBuf)>,
     ready: &HashSet<PathBuf>,
+    paused: &mut bool,
 ) -> Option<Duration> {
     let Ok(cfg) = config::load(overrides) else {
         return Some(DISCOVERY_EVERY);
@@ -223,8 +233,15 @@ async fn pass(
     };
     let mut tried = HashSet::new();
     loop {
-        if store.paused() {
-            tracing::warn!("extraction paused: little free disk space");
+        let now_paused = store.paused();
+        if now_paused != std::mem::replace(paused, now_paused) {
+            if now_paused {
+                tracing::warn!("extraction paused: little free disk space");
+            } else {
+                tracing::info!("extraction resumed");
+            }
+        }
+        if now_paused {
             return Some(DISCOVERY_EVERY);
         }
         let Some(next) = store
@@ -302,20 +319,15 @@ async fn extract(overrides: &Overrides, store: &Store, entry: &Entry) {
     };
     match tokio::time::timeout(EXTRACTION_TIMEOUT, child.wait_with_output()).await {
         Ok(Ok(out)) if out.status.success() => {
-            let stderr = String::from_utf8_lossy(&out.stderr);
-            let outcome = stderr
-                .trim()
-                .lines()
-                .last()
-                .unwrap_or("")
-                .trim_start_matches(['✔', ' ']);
+            let outcome = report(&String::from_utf8_lossy(&out.stderr), &reference);
             tracing::info!(recording = %reference, %outcome, "extraction finished");
         }
         Ok(Ok(out)) => {
             let stderr = String::from_utf8_lossy(&out.stderr);
+            let error = report(&stderr, &reference);
+            tracing::warn!(recording = %reference, %error, "extraction failed");
             let message = stderr.trim().lines().rev().take(20).collect::<Vec<_>>();
             let message = message.into_iter().rev().collect::<Vec<_>>().join("\n");
-            tracing::warn!(recording = %reference, %message, "extraction failed");
             // The child records ordinary failures itself; this covers crashes.
             let _ = store.record_failure(
                 &entry.candidate,
@@ -333,5 +345,40 @@ async fn extract(overrides: &Overrides, store: &Store, entry: &Entry) {
                 ),
             );
         }
+    }
+}
+
+/// The child's stderr for the log: without the `✔`/`✖` mark, the recording it names
+/// again, or the indented code, fix and docs lines of an error (the store keeps those).
+fn report(stderr: &str, reference: &str) -> String {
+    stderr
+        .lines()
+        .filter(|l| !l.trim().is_empty() && !l.starts_with(' '))
+        .map(|l| {
+            let l = l.trim_start_matches(['✔', '✖', ' ']);
+            l.strip_prefix(reference)
+                .and_then(|r| r.strip_prefix(": "))
+                .unwrap_or(l)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn report_keeps_the_message() {
+        let r = "demo:a.ulg";
+        assert_eq!(
+            super::report("✔ demo:a.ulg: 3 stream(s) extracted\n", r),
+            "3 stream(s) extracted"
+        );
+        let failed = "✖ demo:a.ulg: writing the store: bad\n  code: recording_unreadable\n  fix:  x\n  docs: y\n";
+        assert_eq!(super::report(failed, r), "writing the store: bad");
+        let panic = "thread 'main' panicked at src/x.rs:1:1:\nboom\n";
+        assert_eq!(
+            super::report(panic, r),
+            "thread 'main' panicked at src/x.rs:1:1:\nboom"
+        );
     }
 }

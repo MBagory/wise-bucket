@@ -4,6 +4,7 @@ use std::io::IsTerminal;
 use std::path::Path;
 
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, fmt};
@@ -32,7 +33,8 @@ pub fn init_stderr(verbose: u8) {
         .try_init();
 }
 
-/// Stderr + `<logs>/server.log` for the MCP server.
+/// `<logs>/server.log` for the MCP server, plus warnings and errors on stderr (the agent
+/// keeps every stderr line in its own MCP log, as an error).
 pub fn init_file(logs_dir: &Path) -> Option<WorkerGuard> {
     std::fs::create_dir_all(logs_dir).ok()?;
     let appender = tracing_appender::rolling::daily(logs_dir, "server.log");
@@ -40,14 +42,16 @@ pub fn init_file(logs_dir: &Path) -> Option<WorkerGuard> {
     let _ = tracing_subscriber::registry()
         .with(
             fmt::layer()
-                .with_writer(std::io::stderr)
+                .with_writer(std::io::stderr.with_max_level(tracing::Level::WARN))
                 .with_target(false)
                 .with_ansi(std::io::stderr().is_terminal()),
         )
         .with(fmt::layer().with_writer(writer).with_ansi(false))
         .with(
+            // rmcp logs each session's handshake at INFO and the errors it answers the
+            // client with at WARN: the client already reports those.
             EnvFilter::try_from_env("WB_LOG")
-                .unwrap_or_else(|_| EnvFilter::new("info,datafusion=warn")),
+                .unwrap_or_else(|_| EnvFilter::new("info,datafusion=warn,rmcp=error")),
         )
         .try_init();
     Some(guard)

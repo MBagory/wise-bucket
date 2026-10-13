@@ -30,3 +30,4 @@ The principles these decisions add up to are summarized in the [README](../../RE
 | [0020](0020-abnormality-and-similarity-as-sql-recipes.md) | Abnormal and similar recordings found with SQL recipes | 2026-10-13 | Accepted |
 | [0021](0021-parquet-for-streams.md) | Parquet for streams | 2026-10-13 | Accepted |
 | [0022](0022-unreadable-formats-are-listed.md) | Unreadable formats are listed | 2026-10-13 | Accepted |
+| [0023](0023-quiet-server-logs.md) | Quiet server logs | 2026-10-13 | Accepted |
