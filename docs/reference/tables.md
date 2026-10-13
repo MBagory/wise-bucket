@@ -40,6 +40,7 @@ One row per stream of each extracted recording: topics (ROS 2), messages (ULog, 
 | `decoded` | boolean | `false` when only timing and size were kept (images, point clouds, unknown types) |
 | `columns` | text | Comma-separated column names |
 | `notes` | text | Remarks: what was left out and why |
+| `qos` | text | ROS 2 bags: the publishers' QoS in short (`reliable, volatile, depth 10`; ` | ` between publishers) |
 
 ## `properties`
 

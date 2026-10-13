@@ -188,9 +188,82 @@ impl Decoder {
     }
 }
 
+/// A topic's offered QoS profiles (rosbag2 YAML, one profile per publisher) in short:
+/// `reliable, volatile, depth 10`. Older bags write the rmw enum values as numbers.
+pub fn compact_qos(yaml: &str) -> Option<String> {
+    // rmw enum values, as older bags write them.
+    let name = |key: &str, v: &str| -> String {
+        match (key, v) {
+            ("reliability", "1") => "reliable",
+            ("reliability", "2") => "best_effort",
+            ("durability", "1") => "transient_local",
+            ("durability", "2") => "volatile",
+            ("history", "1") => "keep_last",
+            ("history", "2") => "keep_all",
+            (_, "0") => "system_default",
+            (_, "3") => "unknown",
+            (_, "4") => "best_available",
+            _ => v,
+        }
+        .to_string()
+    };
+    let mut profiles: Vec<Vec<(String, String)>> = Vec::new();
+    for line in yaml.lines() {
+        let trimmed = line.trim_start();
+        if let Some(rest) = trimmed.strip_prefix("- ") {
+            profiles.push(Vec::new());
+            if let Some((k, v)) = rest.split_once(':') {
+                profiles
+                    .last_mut()?
+                    .push((k.trim().into(), v.trim().into()));
+            }
+        } else if let (Some(p), Some((k, v))) = (profiles.last_mut(), trimmed.split_once(':')) {
+            p.push((k.trim().into(), v.trim().into()));
+        }
+    }
+    let short: Vec<String> = profiles
+        .iter()
+        .filter_map(|p| {
+            let get = |k: &str| p.iter().find(|(key, _)| key == k).map(|(_, v)| name(k, v));
+            let mut parts = vec![get("reliability")?, get("durability")?];
+            let depth: u64 = p
+                .iter()
+                .find(|(k, _)| k == "depth")
+                .and_then(|(_, v)| v.parse().ok())
+                .unwrap_or(0);
+            if get("history").as_deref() == Some("keep_all") {
+                parts.push("keep_all".into());
+            } else if depth > 0 {
+                parts.push(format!("depth {depth}"));
+            }
+            Some(parts.join(", "))
+        })
+        .collect();
+    (!short.is_empty()).then(|| short.join(" | "))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn qos_in_short() {
+        // The demo talker bag (rmw enum values as numbers).
+        let topic = "- history: 3\n  depth: 0\n  reliability: 1\n  durability: 2\n  deadline:\n    sec: 0\n    nsec: 0\n  lifespan:\n    sec: 0\n    nsec: 0\n  liveliness: 1\n  liveliness_lease_duration:\n    sec: 0\n    nsec: 0\n  avoid_ros_namespace_conventions: false";
+        assert_eq!(compact_qos(topic).as_deref(), Some("reliable, volatile"));
+        let rosout = topic.replace("durability: 2", "durability: 1");
+        assert_eq!(
+            compact_qos(&rosout).as_deref(),
+            Some("reliable, transient_local")
+        );
+        // Newer bags write names; two publishers.
+        let named = "- history: keep_last\n  depth: 10\n  reliability: reliable\n  durability: volatile\n- history: keep_all\n  depth: 0\n  reliability: best_effort\n  durability: volatile";
+        assert_eq!(
+            compact_qos(named).as_deref(),
+            Some("reliable, volatile, depth 10 | best_effort, volatile, keep_all")
+        );
+        assert_eq!(compact_qos(""), None);
+    }
 
     #[test]
     fn bundled_definitions_resolve_and_parse() {

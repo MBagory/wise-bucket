@@ -71,8 +71,14 @@ fn write_mcap(path: &Path, offset: f64) {
     let image = w
         .add_schema("sensor_msgs/msg/Image", "ros2msg", b"uint8[] data")
         .unwrap();
+    let qos = "- history: 1\n  depth: 10\n  reliability: 2\n  durability: 2\n  deadline:\n    sec: 0\n    nsec: 0";
     let ch = w
-        .add_channel(sample, "/sample", "cdr", &BTreeMap::new())
+        .add_channel(
+            sample,
+            "/sample",
+            "cdr",
+            &BTreeMap::from([("offered_qos_profiles".into(), qos.into())]),
+        )
         .unwrap();
     let cam = w
         .add_channel(image, "/camera/image", "cdr", &BTreeMap::new())
@@ -126,7 +132,8 @@ fn write_db3(
     )
     .unwrap();
     db.execute(
-        "INSERT INTO topics VALUES (1, ?1, ?2, 'cdr', '')",
+        "INSERT INTO topics VALUES (1, ?1, ?2, 'cdr',
+            '- history: 3\n  depth: 0\n  reliability: 1\n  durability: 1')",
         rusqlite::params![topic, ty],
     )
     .unwrap();
@@ -462,6 +469,20 @@ async fn every_format_is_extracted_and_queryable() {
             "{file}"
         );
     }
+
+    // The publishers' QoS, in short.
+    let rows = q(
+        &f,
+        "SELECT recording, stream, qos FROM streams WHERE qos IS NOT NULL AND recording IN ('bags:run1.mcap', 'bags:humble.db3') ORDER BY 1, 2",
+    )
+    .await;
+    assert_eq!(
+        rows,
+        vec![
+            json!({"recording": "bags:humble.db3", "stream": "/temperature", "qos": "reliable, transient_local"}),
+            json!({"recording": "bags:run1.mcap", "stream": "/sample", "qos": "best_effort, volatile, depth 10"}),
+        ]
+    );
 
     // Facts the recording states about itself.
     let rows = q(

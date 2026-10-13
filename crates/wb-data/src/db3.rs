@@ -65,10 +65,22 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
             }
         }
 
+        // Bags since Foxy store each topic's offered QoS.
+        let has_qos: bool = db
+            .query_row(
+                "SELECT count(*) > 0 FROM pragma_table_info('topics') WHERE name = 'offered_qos_profiles'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(fail)?;
         let mut ids: HashMap<i64, usize> = HashMap::new();
         {
             let mut stmt = db
-                .prepare("SELECT id, name, type, serialization_format FROM topics")
+                .prepare(if has_qos {
+                    "SELECT id, name, type, serialization_format, offered_qos_profiles FROM topics"
+                } else {
+                    "SELECT id, name, type, serialization_format, NULL FROM topics"
+                })
                 .map_err(fail)?;
             let rows = stmt
                 .query_map([], |r| {
@@ -77,16 +89,18 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
                         r.get::<_, String>(1)?,
                         r.get::<_, String>(2)?,
                         r.get::<_, String>(3)?,
+                        r.get::<_, Option<String>>(4)?,
                     ))
                 })
                 .map_err(fail)?;
             for row in rows {
-                let (id, name, ty, format) = row.map_err(fail)?;
+                let (id, name, ty, format, qos) = row.map_err(fail)?;
                 let index = topics.topic(
                     &name,
                     &ty,
                     &format,
                     definitions.get(&ty).map(String::as_str),
+                    qos.as_deref(),
                 );
                 ids.insert(id, index);
             }

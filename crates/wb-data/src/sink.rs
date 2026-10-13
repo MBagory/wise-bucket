@@ -37,6 +37,9 @@ pub struct StreamMeta {
     pub dataset: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
+    /// The publishers' QoS in short (ROS 2 bags): `reliable, volatile, depth 10`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub qos: Option<String>,
 }
 
 pub fn io_err(what: impl std::fmt::Display) -> impl FnOnce(std::io::Error) -> WbError {
@@ -74,6 +77,7 @@ impl StreamSink {
                 columns: Vec::new(),
                 dataset: format!("data/{index:04}.parquet"),
                 notes: Vec::new(),
+                qos: None,
             },
             spill: dir.join(format!("spill-{index:04}.arrow")),
             writer: None,

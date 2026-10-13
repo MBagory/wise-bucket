@@ -56,6 +56,7 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
                                 &type_,
                                 &ch.message_encoding,
                                 definition.as_deref(),
+                                ch.metadata.get("offered_qos_profiles").map(String::as_str),
                             );
                             channels.insert(ch.id, index);
                         }

@@ -186,7 +186,7 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 - **`message_bytes`**, the size of each message (bags and MCAP).
 - **The message fields**, nested names joined with dots (`linear_acceleration.z`). Arrays stay arrays.
 
-**ROS 2 messages** are decoded from the definitions stored in the recording. ROS 2 Humble bags (`.db3`) don't store them, so standard types (`std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `diagnostic_msgs`, `trajectory_msgs`, `tf2_msgs`, `/rosout`) are decoded from definitions bundled with Wise Bucket. Other custom types in Humble bags keep their timing and sizes only.
+**ROS 2 messages** are decoded from the definitions stored in the recording. ROS 2 Humble bags (`.db3`) don't store them, so standard types (`std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `diagnostic_msgs`, `trajectory_msgs`, `tf2_msgs`, `/rosout`) are decoded from definitions bundled with Wise Bucket. Other custom types in Humble bags keep their timing and sizes only. Each topic's QoS is in `streams.qos`, in short: `reliable, volatile, depth 10` (` | ` between publishers).
 
 **Facts about a recording** go to the `properties` table: the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
 

@@ -114,13 +114,15 @@ impl Topics {
 
     /// Finds or creates the stream of `topic` with message type `type_`.
     ///
-    /// `definition` is the full `ros2msg` definition when the recording has one.
+    /// `definition` is the full `ros2msg` definition when the recording has one, and
+    /// `qos` the publishers' `offered_qos_profiles` (rosbag2 YAML).
     pub fn topic(
         &mut self,
         topic: &str,
         type_: &str,
         encoding: &str,
         definition: Option<&str>,
+        qos: Option<&str>,
     ) -> usize {
         let key = (topic.to_string(), type_.to_string());
         if let Some(&i) = self.by_key.get(&key) {
@@ -136,6 +138,7 @@ impl Topics {
         *seen += 1;
         let index = self.topics.len();
         let mut sink = StreamSink::new(&self.dir, index, &name, type_, encoding);
+        sink.meta.qos = qos.and_then(ros2::compact_qos);
         let decoder = if !encoding.eq_ignore_ascii_case("cdr") {
             sink.note(format!(
                 "payload not decoded: the {encoding} encoding is not supported yet"

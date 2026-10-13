@@ -336,6 +336,7 @@ fn streams_table(rows: &[Row]) -> datafusion::common::Result<MemTable> {
             ("decoded", DataType::Boolean),
             ("columns", DataType::Utf8),
             ("notes", DataType::Utf8),
+            ("qos", DataType::Utf8),
         ],
         vec![
             text(streams.iter().map(|(r, _)| Some(r.to_string())).collect()),
@@ -370,6 +371,7 @@ fn streams_table(rows: &[Row]) -> datafusion::common::Result<MemTable> {
                     .map(|(_, s)| (!s.notes.is_empty()).then(|| s.notes.join("; ")))
                     .collect(),
             ),
+            text(streams.iter().map(|(_, s)| s.qos.clone()).collect()),
         ],
     )
 }
