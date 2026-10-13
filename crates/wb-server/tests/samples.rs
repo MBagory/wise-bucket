@@ -201,24 +201,26 @@ async fn tlog() {
     s.close().await;
 }
 
-// The formats below have no reader yet: `roots check` counts them as `other`.
+// The formats below have no reader yet: they are listed, as `unsupported`.
 
 #[test]
 #[ignore = "network: fetches public samples"]
 fn dataflash() {
-    check("dataflash", "other", 1);
+    check("dataflash", "ardupilot_bin", 1);
 }
 
 #[test]
 #[ignore = "network: fetches public samples"]
 fn can() {
-    check("can", "other", 2);
+    let (env, _) = check("can", "can_asc", 1);
+    let c = &env.json(&["roots", "check"])["roots"][0]["candidates"];
+    assert_eq!(c["can_blf"].as_u64(), Some(1), "{c:#}");
 }
 
 #[test]
 #[ignore = "network: fetches public samples"]
 fn mdf4() {
-    check("mdf4", "other", 1);
+    check("mdf4", "mdf4", 1);
 }
 
 #[test]
