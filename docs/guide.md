@@ -205,7 +205,7 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 
 **Nothing is computed in advance**: there are no precomputed statistics or fixed windows. Your agent writes the SQL each question needs, at the question's time scale, and shows you the query behind each number; you can run the same queries with `wisebucket sql` ([ADR 0010](decisions/0010-metrics-are-sql-written-by-the-agent.md)). There are four things to query (full list of columns: [tables reference](reference/tables.md)):
 
-- `recordings`: every recording, with its status, hardware and time range
+- `recordings`: every recording, with its status, hardware, time range and notes (warnings and errors logged, dropouts, crash dumps)
 - `streams`: every stream of every recording, with its row count, columns and notes
 - `properties`: short facts each recording states about itself, as `key` and `value`
 - `stream('<name>')`: the rows of one stream across all recordings, with a `recording` column; `stream('<name>', '<recording LIKE pattern>')` restricts the recordings
