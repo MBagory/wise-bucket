@@ -296,28 +296,23 @@ pub enum RecordingKind {
     Tlog,
     /// A ROS 1 bag: recognized, not readable yet.
     Ros1Bag,
+    /// An ArduPilot DataFlash log (`.bin`): recognized, not readable yet.
+    ArdupilotBin,
+    /// A Vector CAN log in text (`.asc`): recognized, not readable yet.
+    CanAsc,
+    /// A Vector CAN log in binary (`.blf`): recognized, not readable yet.
+    CanBlf,
+    /// An ASAM MDF4 file (`.mf4`): recognized, not readable yet.
+    Mdf4,
 }
 
 impl RecordingKind {
-    /// Kind of a loose file, from its extension (case-insensitive).
-    pub fn from_extension(ext: &str) -> Option<Self> {
-        Some(match ext.to_ascii_lowercase().as_str() {
-            "mcap" => Self::Mcap,
-            "db3" => Self::Db3,
-            "ulg" => Self::Ulog,
-            "csv" => Self::Csv,
-            "jsonl" | "ndjson" => Self::JsonLines,
-            "parquet" => Self::Parquet,
-            "arrow" | "feather" | "ipc" => Self::ArrowIpc,
-            "tlog" => Self::Tlog,
-            "bag" => Self::Ros1Bag,
-            _ => return None,
-        })
-    }
-
     /// Whether Wise Bucket can extract this kind into the store.
     pub fn supported(self) -> bool {
-        self != Self::Ros1Bag
+        !matches!(
+            self,
+            Self::Ros1Bag | Self::ArdupilotBin | Self::CanAsc | Self::CanBlf | Self::Mdf4
+        )
     }
 
     /// Plural label for summaries.
@@ -333,6 +328,10 @@ impl RecordingKind {
             Self::ArrowIpc => "Arrow IPC",
             Self::Tlog => "MAVLink tlog",
             Self::Ros1Bag => "ROS 1 bags (not readable yet)",
+            Self::ArdupilotBin => "ArduPilot logs (not readable yet)",
+            Self::CanAsc => "CAN ASC logs (not readable yet)",
+            Self::CanBlf => "CAN BLF logs (not readable yet)",
+            Self::Mdf4 => "MDF4 files (not readable yet)",
         }
     }
 }
@@ -419,6 +418,40 @@ impl From<&Walk> for CandidateCounts {
     }
 }
 
+/// Kind of a loose file, from its extension (case-insensitive). The generic `.bin`
+/// and `.asc` are also checked by their first bytes, so firmware images and PGP
+/// signatures are not taken for logs.
+fn kind_of(path: &Path) -> Option<RecordingKind> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    Some(match ext.as_str() {
+        "mcap" => RecordingKind::Mcap,
+        "db3" => RecordingKind::Db3,
+        "ulg" => RecordingKind::Ulog,
+        "csv" => RecordingKind::Csv,
+        "jsonl" | "ndjson" => RecordingKind::JsonLines,
+        "parquet" => RecordingKind::Parquet,
+        "arrow" | "feather" | "ipc" => RecordingKind::ArrowIpc,
+        "tlog" => RecordingKind::Tlog,
+        "bag" => RecordingKind::Ros1Bag,
+        "blf" => RecordingKind::CanBlf,
+        "mf4" => RecordingKind::Mdf4,
+        // A DataFlash log starts with its first FMT message: A3 95 80.
+        "bin" if starts_with(path, &[0xA3, 0x95, 0x80]) => RecordingKind::ArdupilotBin,
+        "asc" if starts_with(path, b"date ") => RecordingKind::CanAsc,
+        _ => return None,
+    })
+}
+
+/// Whether the file at `path` starts with `magic` (ASCII case ignored).
+fn starts_with(path: &Path, magic: &[u8]) -> bool {
+    use std::io::Read;
+    let mut head = vec![0; magic.len()];
+    std::fs::File::open(path)
+        .and_then(|mut f| f.read_exact(&mut head))
+        .is_ok()
+        && head.eq_ignore_ascii_case(magic)
+}
+
 fn globset(patterns: &[String]) -> GlobSet {
     let mut b = GlobSetBuilder::new();
     for p in patterns {
@@ -490,10 +523,7 @@ pub fn candidates(root: &Root, max_entries: u64, max_time: Duration) -> Walk {
         }
         for (name, meta) in files {
             let rel = rel_dir.join(&name);
-            let kind = Path::new(&name)
-                .extension()
-                .and_then(|e| e.to_str())
-                .and_then(RecordingKind::from_extension);
+            let kind = kind_of(&dir.join(&name));
             match kind {
                 Some(kind) if wanted(&rel) => walk.candidates.push(Candidate {
                     root: root.name.clone(),
@@ -530,12 +560,7 @@ pub fn candidate(root: &Root, rel: &Path) -> Option<Candidate> {
             files.iter().map(mtime_ns).max().unwrap_or(0),
         )
     } else {
-        let ext = abs.extension()?.to_str()?;
-        (
-            RecordingKind::from_extension(ext)?,
-            meta.len(),
-            mtime_ns(&meta),
-        )
+        (kind_of(&abs)?, meta.len(), mtime_ns(&meta))
     };
     Some(Candidate {
         root: root.name.clone(),
@@ -728,5 +753,41 @@ mod tests {
         let c = count_candidates(&root, 10_000, Duration::from_secs(5));
         assert_eq!((c.total(), c.get(Rosbag2)), (1, 1));
         assert!(count_candidates(&root, 2, Duration::from_secs(5)).truncated);
+    }
+
+    #[test]
+    fn unreadable_formats_are_listed_by_content() {
+        let d = tempfile::tempdir().unwrap();
+        let r = d.path();
+        let files: [(&str, &[u8], Option<RecordingKind>); 8] = [
+            (
+                "flight.BIN",
+                &[0xA3, 0x95, 0x80, 0x80],
+                Some(RecordingKind::ArdupilotBin),
+            ),
+            ("firmware.bin", &[0x7F, 0x45, 0x4C, 0x46], None),
+            (
+                "bus.asc",
+                b"date Sam Sep 30 15:06:13.191 2017\n",
+                Some(RecordingKind::CanAsc),
+            ),
+            (
+                "release.tar.gz.asc",
+                b"-----BEGIN PGP SIGNATURE-----\n",
+                None,
+            ),
+            ("bus.blf", b"LOGG", Some(RecordingKind::CanBlf)),
+            ("bench.mf4", b"MDF     4.10", Some(RecordingKind::Mdf4)),
+            ("bus.dbc", b"VERSION \"\"", None),
+            ("empty.bin", b"", None),
+        ];
+        for (name, bytes, kind) in files {
+            std::fs::write(r.join(name), bytes).unwrap();
+            assert_eq!(kind_of(&r.join(name)), kind, "{name}");
+            assert!(kind.is_none_or(|k| !k.supported()), "{name}");
+        }
+        let set = resolve_decls(&[decl("logs", r, r)]);
+        let c = count_candidates(&set.roots[0], 10_000, Duration::from_secs(5));
+        assert_eq!((c.total(), c.other), (4, 4));
     }
 }

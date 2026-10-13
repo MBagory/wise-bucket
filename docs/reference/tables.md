@@ -13,7 +13,7 @@ Every recording found in the data roots, with its extraction status.
 | `recording` | text | Identifier `root:path`, used everywhere else |
 | `root` | text | Data root name |
 | `path` | text | Path inside the root (a folder for rosbag2) |
-| `kind` | text | `rosbag2`, `mcap`, `db3`, `ulog`, `csv`, `json_lines`, `parquet`, `arrow_ipc`, `tlog`, `ros1_bag` |
+| `kind` | text | `rosbag2`, `mcap`, `db3`, `ulog`, `csv`, `json_lines`, `parquet`, `arrow_ipc`, `tlog`; listed but not readable yet: `ros1_bag`, `ardupilot_bin`, `can_asc`, `can_blf`, `mdf4` |
 | `hardware` | text | Hardware declared for the root (`roots add --hardware`) |
 | `status` | text | `done`, `pending`, `extracting`, `failed`, `paused` (low disk space), `missing` (file gone, data kept), `unsupported` |
 | `error` | text | Why extraction failed |

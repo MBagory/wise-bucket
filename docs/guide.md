@@ -89,6 +89,7 @@ A recording folder (a *data root*) is a named folder that Wise Bucket may read. 
 | `.tlog` | a MAVLink telemetry log (QGroundControl, MAVProxy): one stream per message |
 | `.csv`, `.jsonl` / `.ndjson`, `.parquet`, `.arrow` / `.feather` / `.ipc` | a table |
 | `.bag` | a ROS 1 bag: listed, not readable yet |
+| `.bin` (ArduPilot DataFlash), `.asc` and `.blf` (CAN), `.mf4` (MDF4) | listed, not readable yet (`.bin` and `.asc` only when their first bytes match) |
 
 ```sh
 wisebucket roots add bags ~/robot-logs/bags --hardware rover-b
@@ -108,7 +109,7 @@ wisebucket roots remove flights                                        # the fol
 - **Your decision only:** Wise Bucket gives your agent no tool to add a folder. You add folders from the command line or a configuration file.
 - **Live:** folder changes reach a running agent session on its next call, no restart needed.
 
-**No recordings yet?** `wisebucket demo` downloads public sample files (ROS 2 bags, MCAP, ULog, MAVLink, Parquet, and formats not readable yet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data).
+**No recordings yet?** `wisebucket demo` downloads public sample files (ROS 2 bags, MCAP, ULog, MAVLink, Parquet, and formats listed as `unsupported`) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data).
 
 ## Connect your agent
 
@@ -174,7 +175,7 @@ Each recording has a **status**:
 | `failed` | Could not be read; `error` says why. Retried when the file changes |
 | `paused` | Waiting for free disk space |
 | `missing` | The file is gone; its data stays queryable |
-| `unsupported` | A format Wise Bucket cannot read yet (ROS 1 bags) |
+| `unsupported` | A format Wise Bucket cannot read yet (ROS 1 bags, ArduPilot DataFlash, CAN ASC and BLF, MDF4) |
 
 ### What gets extracted
 

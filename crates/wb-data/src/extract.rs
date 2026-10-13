@@ -70,9 +70,13 @@ pub async fn extract(path: &Path, kind: RecordingKind, out: &Path) -> Result<Ext
         | RecordingKind::Parquet
         | RecordingKind::ArrowIpc => crate::tabular::read(path, kind, out).await,
         RecordingKind::Tlog => crate::tlog::read(path, out).await,
-        RecordingKind::Ros1Bag => Err(err(
+        RecordingKind::Ros1Bag
+        | RecordingKind::ArdupilotBin
+        | RecordingKind::CanAsc
+        | RecordingKind::CanBlf
+        | RecordingKind::Mdf4 => Err(err(
             ErrorKind::RecordingUnreadable,
-            "ROS 1 bags are not readable yet",
+            format!("{}: this format is not readable yet", path.display()),
         )),
     }
 }

@@ -44,6 +44,10 @@ The store's disk has less than 10 GB free. Free some space (deleting the store i
 
 `t` comes from a guessed column, and the stream's `notes` say which one. The unit comes from a suffix (`time_ms`, `t_us`…) and defaults to seconds. Rename the column in the file, or compute the right time in your query from the original column, which is always kept.
 
+### A recording is `unsupported`
+
+Wise Bucket recognized the file (ROS 1 bag, ArduPilot DataFlash `.bin`, CAN `.asc` or `.blf`, MDF4 `.mf4`) but cannot read it yet. It stays listed in `recordings`, without streams. See [Why can't Wise Bucket read my format](#why-cant-wise-bucket-read-my-format-can-with-dbc-mdf4-ros-1).
+
 ### My query fails (`query_failed`)
 
 The message comes from the query engine and names the problem: an unknown table or column, a syntax error, a write, or a query running past 30 seconds. Remember to quote dotted and upper-case column names (`"linear_acceleration.z"`). The [tables reference](reference/tables.md) lists every column, with recipes.
@@ -103,7 +107,7 @@ Every row your agent receives enters its context, so a result holds about 60 KB 
 
 ### Why can't Wise Bucket read my format (CAN with DBC, MDF4, ROS 1…)?
 
-A format is added only when an external Rust crate decodes it. Formats waiting for a crate, or for their turn, are on the list of [possible features](decisions/0014-possible-features-instead-of-milestones.md). ([ADR 0016](decisions/0016-formats-need-an-external-rust-decoder.md))
+A format is added only when an external Rust crate decodes it. Recognized files in such formats are listed with the status `unsupported`. Formats waiting for a crate, or for their turn, are on the list of [possible features](decisions/0014-possible-features-instead-of-milestones.md). ([ADR 0016](decisions/0016-formats-need-an-external-rust-decoder.md))
 
 ### Can my agent read files outside my recording folders through Wise Bucket?
 
