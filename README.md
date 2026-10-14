@@ -16,10 +16,12 @@
 
 ## Overview
 
-Wise Bucket connects your **AI agent** to **your time-series data** (telemetry, logs, measurements, etc.) on your machine. It reads ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, CSV, JSON Lines, Parquet and Arrow IPC.
-
 > [!WARNING]
 > **Early alpha, no release yet.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
+
+### ⏱️ Built for time series
+
+Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, CSV, JSON Lines, Parquet and Arrow IPC.
 
 ### ⚡ Built for speed
 
@@ -29,13 +31,13 @@ Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apac
 
 Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.
 
-### 📈 Display data in a compatible viewer
+### 📈 Instant display in your viewer
 
-Your agent plots any signal instantly, sends any query result to [Rerun](https://rerun.io), and works with [viewer MCP servers](docs/guide.md#viewers) (Rerun, Foxglove) to show a recording at the right time.
+Your agent opens the original recording at the right time in the viewer you already use, through the viewer's MCP server ([Rerun, Foxglove…](docs/guide.md#viewers)). It also sends any query result straight to Rerun, at full resolution.
 
-### 🔭 Tomorrow
+### 📝 Feed with long-term context
 
-Store investigation context, and search all your recordings for similar behaviour and anomalies.
+[Tell your agent](docs/guide.md#what-you-know-about-recordings) what the files don't say, for one recording or a whole folder: the machine, what changed, the conditions, the purpose of a test. Wise Bucket keeps it for every later session, and your agent compares recordings of the same machine.
 
 ```mermaid
 flowchart TB
