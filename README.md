@@ -39,15 +39,15 @@ Store investigation context, and search all your recordings for similar behaviou
 
 ```mermaid
 flowchart TB
+    rec[/"Your recordings<br/>ROS 2, MCAP, ULog, CSV…"/] -->|"decoded once"| store
     subgraph wb["Wise Bucket"]
         store[("Parquet files")] --> engine["DataFusion<br/>SQL engine"] --> mcp["MCP server"]
     end
-    rec[/"Your recordings<br/>ROS 2, MCAP, ULog, CSV…"/] -->|"decoded once"| store
+    you(["You"]) -.->|"CLI configuration"| wb
     mcp -->|"SQL, in milliseconds"| agent["Your AI agent<br/>Claude Code, Codex, Cursor…"]
-    agent <-->|"questions, answers"| you(["You"])
-    agent -->|"displays the data"| viewer["Viewer<br/>Rerun, Foxglove"]
-    mcp -->|"query results"| viewer
-    you -.->|"CLI configuration"| wb
+    mcp -->|"query results"| viewer["Viewer<br/>Rerun, Foxglove"]
+    agent -->|"displays the data"| viewer
+    agent <-->|"questions, answers"| you
 ```
 
 ## Getting started
