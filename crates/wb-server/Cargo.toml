@@ -48,3 +48,7 @@ clap_complete = "4"
 [dev-dependencies]
 rmcp = { version = "3.4.1", features = ["client", "transport-child-process"] }
 tempfile = "3"
+
+# The static Linux binaries allocate with mimalloc: musl's allocator serializes threads (ADR 0027)
+[target.'cfg(target_env = "musl")'.dependencies]
+mimalloc = "0.1.52"
