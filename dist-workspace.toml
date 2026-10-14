@@ -19,6 +19,9 @@ install-path = "CARGO_HOME"
 hosting = "github"
 # Whether to install an updater program
 install-updater = false
+# Dry run: build the release artifacts on pull requests, without publishing
+pr-run-mode = "upload"
+cache-builds = false
 
 # Build aarch64 Linux natively instead of cross-compiling
 [dist.github-custom-runners]
