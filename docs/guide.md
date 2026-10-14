@@ -17,7 +17,22 @@ When something goes wrong, see [Troubleshooting and FAQ](troubleshooting.md). Ev
 
 ## Install
 
-There is no release yet: prebuilt binaries come with the first release ([ADR 0015](decisions/0015-first-release-after-m1.md)). Until then, build from source. You need [Rust](https://rustup.rs) 1.96 or newer and a C compiler:
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh
+```
+
+The installer puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin` and adds that directory to your `PATH`. Then restart your shell, or run `source ~/.cargo/env` (`source ~/.cargo/env.fish` in fish), and `wisebucket --version` prints the version. To update, run the installer again. You also need an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
+
+| | Requirement |
+| --- | --- |
+| macOS | Apple Silicon or Intel |
+| Linux | x86_64 or arm64, any distribution |
+| Windows | through [WSL2](#windows-wsl2) |
+| Disk | room for the store: a decoded copy of your recordings' signals (see [The store and SQL](#the-store-and-sql)) |
+
+### Build from source
+
+You need [Rust](https://rustup.rs) 1.96 or newer and a C compiler:
 
 ```sh
 xcode-select --install                                              # macOS
@@ -25,17 +40,9 @@ sudo apt install build-essential                                    # Debian, Ub
 sudo dnf install gcc                                                # RHEL family, Fedora
 
 cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked
-wisebucket --version
 ```
 
-The build takes several minutes. It puts `wisebucket` and its short alias `wbk` in `~/.cargo/bin`, which rustup already added to your `PATH`. To update, run it again. You also need an MCP-capable agent: Claude Code, OpenAI Codex, Cursor, Kilo Code, Cline…
-
-| | Requirement |
-| --- | --- |
-| macOS | Apple Silicon or Intel |
-| Linux | x86_64 or arm64 |
-| Windows | through [WSL2](#windows-wsl2) |
-| Disk | room for the store: a decoded copy of your recordings' signals (see [The store and SQL](#the-store-and-sql)) |
+The build takes several minutes. It puts `wisebucket` and `wbk` in `~/.cargo/bin` too, which rustup already added to your `PATH`. To update, run it again.
 
 ### Windows: WSL2
 
@@ -359,7 +366,7 @@ The next agent session extracts everything again. Your recordings, settings and 
 
 ```sh
 claude mcp remove --scope user wise-bucket    # or remove the entry from your agent's MCP settings
-cargo uninstall wisebucket                    # removes wisebucket and wbk
+rm ~/.cargo/bin/wisebucket ~/.cargo/bin/wbk   # built from source: cargo uninstall wisebucket
 ```
 
 Your store stays in the state directory (`wisebucket config path` shows where). Delete it yourself if you no longer need it; Wise Bucket never deletes it. On macOS your settings and `context.toml` live in the same folder, so deleting it removes them too. Your recordings are never touched.

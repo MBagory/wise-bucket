@@ -15,7 +15,7 @@
 
 ### The build fails with a C compiler error
 
-Building from source needs a C compiler: see [Install](guide.md#install).
+Building from source needs a C compiler: see [Build from source](guide.md#build-from-source).
 
 ### A recording stays `pending`
 

@@ -26,7 +26,7 @@ This document contains the help content for the `wisebucket` command-line progra
 
 ## `wisebucket`
 
-Wise Bucket: evidence-backed, iterative hardware investigations for your AI coding agent.
+Wise Bucket: an open-source MCP server that gives R&D teams long-term context and insights on their time-series data.
 
 Without a subcommand, `serve` runs the MCP server on stdin/stdout.
 
