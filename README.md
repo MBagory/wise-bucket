@@ -17,7 +17,7 @@
 ## Overview
 
 > [!WARNING]
-> **Early alpha, no release yet.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
+> **Early alpha.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
 
 ### ⏱️ Built for time series
 
@@ -58,13 +58,13 @@ flowchart TB
 
 ## Getting started
 
-**1. Install** from source: you need [Rust](https://rustup.rs) 1.96+ and a C compiler.
+**1. Install** on macOS or Linux:
 
 ```sh
-xcode-select --install                                  # macOS
-sudo apt install build-essential                        # Debian, Ubuntu
-cargo install --git https://github.com/MBagory/wise-bucket wisebucket --locked
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh
 ```
+
+Then open a new terminal. To update, run it again. To build from source instead, see the [guide](docs/guide.md#build-from-source).
 
 **2. Set up** (once): `wisebucket setup` asks which folders hold your recordings.
 
