@@ -33,3 +33,4 @@ The principles these decisions add up to are summarized in the [README](../../RE
 | [0023](0023-quiet-server-logs.md) | Quiet server logs | 2026-10-13 | Accepted |
 | [0024](0024-recording-context-from-the-files.md) | Recording context from the files | 2026-10-13 | Accepted |
 | [0025](0025-context-from-the-engineer.md) | Context from the engineer: a `context` column and a `note` tool | 2026-10-13 | Accepted (supersedes [0008](0008-hardware-rather-than-robot.md) for the root option) |
+| [0026](0026-column-types-and-ulog-formats.md) | Column types in results, and the formats of a ULog file | 2026-10-14 | Accepted |

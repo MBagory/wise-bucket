@@ -497,6 +497,15 @@ async fn every_format_is_extracted_and_queryable() {
     )
     .await;
     assert_eq!(r, json!({"b": 1000, "n": 20}));
+    // Each column comes with its type, even without rows.
+    let r = sql::query(
+        &f.store,
+        "SELECT recording, t, message_bytes, message_bytes > 0 AS sent FROM stream('/camera/image') LIMIT 0",
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(r.types, ["Utf8", "Timestamp(ns)", "UInt32", "Boolean"]);
     // Humble bag: decoded with the bundled sensor_msgs/Temperature.
     let r = one(
         &f,

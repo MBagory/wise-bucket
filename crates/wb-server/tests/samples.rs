@@ -194,9 +194,20 @@ async fn ulog() {
         serde_json::json!([
             {"stream": "dropouts", "type": "ulog dropouts", "notes": null},
             {"stream": "ekf2_innovations", "type": "ulog", "notes": "timestamp 0 (not set) on every row"},
+            {"stream": "formats", "type": "ulog formats", "notes": null},
             {"stream": "logged_messages", "type": "ulog logged messages", "notes": null},
             {"stream": "parameters", "type": "ulog parameters", "notes": null}
         ])
+    );
+    // pyulog's message_formats: 103 defined, 15 with data; the barometer never logged.
+    assert_eq!(
+        rows("SELECT count(*) AS n, count(*) FILTER (WHERE NOT logged) AS unlogged, bool_or(name = 'sensor_baro' AND NOT logged) AS baro FROM stream('formats', 's:sample.ulg')").await,
+        serde_json::json!([{"n": 103, "unlogged": 88, "baro": true}])
+    );
+    assert_eq!(
+        s.sql("SELECT * FROM stream('parameters', 's:sample.ulg') LIMIT 0")
+            .await["types"],
+        serde_json::json!(["Utf8", "Timestamp(ns)", "Utf8View", "Float64", "Boolean"])
     );
     assert_eq!(
         number(&s, "SELECT count(DISTINCT name) AS n FROM stream('parameters', 's:sample_logging_tagged_and_default_params.ulg') WHERE system_default IS NOT NULL OR airframe_default IS NOT NULL").await,

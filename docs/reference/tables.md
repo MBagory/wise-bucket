@@ -22,11 +22,11 @@ Every recording found in the data roots, with its extraction status.
 | `start` | timestamp | First `t` over all streams; for ULog, the log header's start time |
 | `end` | timestamp | Last `t` over all streams |
 | `streams` | int | Number of streams extracted |
-| `notes` | text | What to look at first: warnings and errors logged (counted per level, with the first message), ULog logger dropouts and crash dumps, and remarks about the extraction |
+| `notes` | text | What to look at first: warnings and errors logged (counted per level, with the first message), ULog logger dropouts and crash dumps, and remarks about the extraction (a file cut or damaged). No note means none of these |
 
 ## `streams`
 
-One row per stream of each extracted recording: topics (ROS 2), messages (ULog, MAVLink), or `table` (CSV, JSON Lines, Parquet, Arrow IPC). ULog files also have `parameters` (`name`, `value`, `initial` for the values at the start of the log; `system_default` and `airframe_default` are recorded only when they differ from `value`: `system_default IS NOT NULL` lists the parameters changed from their default), `logged_messages` (`level` EMERGENCY…DEBUG, `message`, `tag`), `dropouts` (`duration_ms`) and `texts` (`name`, `line`, `text`: boot console, crash dump, performance counters; filter with ILIKE, page by `line`). ROS 2 `/rosout` `level`: 10 DEBUG, 20 INFO, 30 WARN, 40 ERROR, 50 FATAL.
+One row per stream of each extracted recording: topics (ROS 2), messages (ULog, MAVLink), or `table` (CSV, JSON Lines, Parquet, Arrow IPC). ULog files also have `parameters` (`name`, `value`, `initial`: true for the values at the start of the log, false for changes during it; `system_default` and `airframe_default` are recorded only when they differ from `value`: `system_default IS NOT NULL` lists the parameters changed from their default), `logged_messages` (`level` EMERGENCY…DEBUG, `message`, `tag`), `dropouts` (`duration_ms`) and `texts` (`name`, `line`, `text`: boot console, crash dump, performance counters; filter with ILIKE, page by `line`) and `formats` (`name`, `fields` as the file declares them, `logged`: false for message types defined but never logged). ROS 2 `/rosout` `level`: 10 DEBUG, 20 INFO, 30 WARN, 40 ERROR, 50 FATAL.
 
 | Column | Type | Description |
 | --- | --- | --- |
@@ -59,7 +59,7 @@ Table function: the rows of one stream across all recordings (or those whose `re
 | Column | Type | Description |
 | --- | --- | --- |
 | `recording` | text | `root:path` of the row's recording |
-| `t` | timestamp | Receive time (MCAP log time, bag timestamp), ULog `timestamp` (time since boot, shown near 1970), the tlog record time, or the table's time column. Nanoseconds |
+| `t` | timestamp | Receive time (MCAP log time, bag timestamp), ULog `timestamp` (time since boot, shown near 1970; seconds: `date_part('epoch', t)`), the tlog record time, or the table's time column. Nanoseconds |
 | `t_sensor` | timestamp | ROS `header.stamp`, when the message has one |
 | `message_bytes` | int | Size of each message on the wire (bags and MCAP) |
 | `<field>` | any | Message fields, nested names flattened with dots: quote them, `"linear_acceleration.z"`. Arrays stay arrays (`unnest`). Table files keep their own columns |

@@ -18,6 +18,9 @@ use wb_core::error::{ErrorKind, Result, WbError, err};
 
 use crate::columns::T;
 
+/// Stream note for a time that never changes.
+pub const FROZEN_T: &str = "t is the same on every row";
+
 /// What the store knows about one extracted stream.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StreamMeta {
@@ -136,7 +139,7 @@ impl StreamSink {
             && self.meta.start_ns == self.meta.end_ns
             && !explained
         {
-            self.note("t is the same on every row");
+            self.note(FROZEN_T);
         }
         writer.finish().map_err(arrow_err)?;
         drop(writer);

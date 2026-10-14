@@ -1,10 +1,11 @@
 //! PX4 ULog files: one stream per topic instance (`sensor_accel`, `sensor_accel.1`…),
 //! plus the log's own records, named and timed as pyulog reads them: `parameters`,
 //! `logged_messages`, `dropouts`, and `texts` (boot console, crash dump, performance
-//! counters). Info messages become `properties`.
+//! counters) and `formats` (every message type the file defines). Info messages become
+//! `properties`.
 
-use std::collections::HashMap;
-use std::io::Read;
+use std::collections::{HashMap, HashSet};
+use std::io::{BufReader, Read};
 use std::path::Path;
 use std::sync::Arc;
 
@@ -26,7 +27,7 @@ use wb_core::error::{ErrorKind, Result, err};
 use crate::columns::{T, time_type};
 use crate::extract::{Extraction, LogTally};
 use crate::rows::Rows;
-use crate::sink::StreamSink;
+use crate::sink::{FROZEN_T, StreamSink};
 
 fn array(v: SomeVec) -> Option<ArrayRef> {
     Some(match v {
@@ -107,6 +108,30 @@ fn text_of(entries: &[Vec<String>]) -> String {
         .join("\n")
 }
 
+/// The header's start time (µs) and the message formats of the definitions section,
+/// `(name, fields)` in file order: px4_ulog keeps them to itself.
+fn definitions(mut r: impl Read) -> std::io::Result<(u64, Vec<(String, String)>)> {
+    let mut header = [0u8; 16];
+    r.read_exact(&mut header)?;
+    let start = u64::from_le_bytes(header[8..16].try_into().expect("8 bytes"));
+    let mut formats = Vec::new();
+    // Each message: size (u16), type, data. The first `A`, `D`, `L`… starts the data.
+    let mut head = [0u8; 3];
+    while r.read_exact(&mut head).is_ok() && b"BFIMPQ".contains(&head[2]) {
+        let mut data = vec![0; usize::from(u16::from_le_bytes([head[0], head[1]]))];
+        if r.read_exact(&mut data).is_err() {
+            break;
+        }
+        if head[2] == b'F'
+            && let Some((name, fields)) = String::from_utf8_lossy(&data).split_once(':')
+        {
+            let fields = fields.trim_end_matches(['\0', ';']);
+            formats.push((name.to_string(), fields.to_string()));
+        }
+    }
+    Ok((start, formats))
+}
+
 /// The log's own records, in file order.
 #[derive(Default)]
 struct Records {
@@ -126,6 +151,8 @@ struct Records {
     /// Texts split into numbered info keys: `(name, line, text, t)`.
     text_lines: Vec<(String, usize, String, u64)>,
     properties: Vec<(String, String)>,
+    /// `(t, name, fields, logged)`.
+    formats: Vec<(u64, String, String, bool)>,
     /// Multi-part info that is not text (`metadata_events`).
     binary: Vec<String>,
 }
@@ -240,6 +267,8 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
             "a damaged record stopped the reading ({m}): the part before it was extracted"
         )),
     }
+    // full_parser keeps only the message types that have data.
+    let logged: HashSet<String> = parsed.messages.keys().cloned().collect();
     let mut streams: Vec<(String, std::collections::HashMap<String, SomeVec>)> = Vec::new();
     for (topic, instances) in parsed.messages {
         for (multi_id, fields) in instances {
@@ -301,13 +330,18 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     // The log's own records. ponytail: a second pass over the file, because
     // full_parser keeps only the data; one LogParser with both callbacks if large logs
     // make this slow.
-    let mut header = [0u8; 16];
-    std::fs::File::open(path)
-        .and_then(|mut f| f.read_exact(&mut header))
+    let (start, formats) = std::fs::File::open(path)
+        .and_then(|f| definitions(BufReader::new(f)))
         .map_err(|e| unreadable(&e))?;
-    let start = u64::from_le_bytes(header[8..16].try_into().expect("8 bytes"));
     let mut records = Records {
         last: start,
+        formats: formats
+            .into_iter()
+            .map(|(name, fields)| {
+                let is_logged = logged.contains(&name);
+                (start, name, fields, is_logged)
+            })
+            .collect(),
         ..Default::default()
     };
     read_file_with_simple_callback(&path.to_string_lossy(), &mut |m: &Message| {
@@ -354,7 +388,7 @@ fn notes(r: &Records) -> Vec<String> {
     notes
 }
 
-/// The `parameters`, `logged_messages`, `dropouts` and `texts` streams.
+/// The `parameters`, `logged_messages`, `dropouts`, `texts` and `formats` streams.
 async fn record_streams(r: Records, out: &Path, first_index: usize) -> Result<Extraction> {
     let mut rows = Rows::new(out, first_index);
     for (t, name, value, initial) in r.parameters {
@@ -404,7 +438,21 @@ async fn record_streams(r: Records, out: &Path, first_index: usize) -> Result<Ex
         ]);
         rows.push("texts", "ulog texts", "ulog", ns(t), f)?;
     }
-    rows.finish(out).await
+    for (t, name, fields, logged) in r.formats {
+        let f = Map::from_iter([
+            ("name".to_string(), Value::from(name)),
+            ("fields".to_string(), Value::from(fields)),
+            ("logged".to_string(), Value::from(logged)),
+        ]);
+        rows.push("formats", "ulog formats", "ulog", ns(t), f)?;
+    }
+    let mut records = rows.finish(out).await?;
+    // Records without a timestamp share one time by design (formats, texts, initial
+    // parameters): not a frozen clock.
+    for s in &mut records.streams {
+        s.notes.retain(|n| n != FROZEN_T);
+    }
+    Ok(records)
 }
 
 #[cfg(test)]
@@ -443,5 +491,34 @@ mod tests {
             "gps: 1 events".to_string(),
         ]];
         assert_eq!(text_of(&counters), "imu: 3 events\ngps: 1 events");
+    }
+
+    #[test]
+    fn formats_of_the_definitions_section() {
+        let msg = |kind: u8, data: &[u8]| {
+            let mut m = (data.len() as u16).to_le_bytes().to_vec();
+            m.push(kind);
+            m.extend_from_slice(data);
+            m
+        };
+        let mut file = b"ULog\x01\x12\x35\x01".to_vec();
+        file.extend_from_slice(&112_500_176u64.to_le_bytes());
+        file.extend(msg(b'B', &[0; 40]));
+        file.extend(msg(b'F', b"esc_report:int32_t esc_rpm;"));
+        file.extend(msg(b'F', b"sensor_baro:uint64_t timestamp;float pressure;"));
+        file.extend(msg(b'A', b"\x00\x00\x00sensor_baro"));
+        file.extend(msg(b'F', b"late:uint64_t timestamp;"));
+        let (start, formats) = definitions(file.as_slice()).unwrap();
+        assert_eq!(start, 112_500_176);
+        assert_eq!(
+            formats,
+            [
+                ("esc_report".into(), "int32_t esc_rpm".into()),
+                (
+                    "sensor_baro".into(),
+                    "uint64_t timestamp;float pressure".into()
+                )
+            ]
+        );
     }
 }

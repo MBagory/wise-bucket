@@ -46,6 +46,8 @@ const MEMORY: usize = 1 << 30;
 #[derive(Debug, Clone, Serialize)]
 pub struct QueryResult {
     pub columns: Vec<String>,
+    /// The type of each column (`Float64`, `Boolean`, `Timestamp(ns)`…).
+    pub types: Vec<String>,
     /// One array per row, in the order of `columns`.
     pub rows: Vec<Vec<serde_json::Value>>,
     pub row_count: usize,
@@ -73,19 +75,16 @@ pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<Que
             // One more row tells whether more exist.
             df = df.limit(0, Some(n + 1)).map_err(query_err)?;
         }
-        let columns: Vec<String> = df
-            .schema()
-            .fields()
-            .iter()
-            .map(|f| f.name().clone())
-            .collect();
+        let fields = df.schema().fields();
+        let columns: Vec<String> = fields.iter().map(|f| f.name().clone()).collect();
+        let types: Vec<String> = fields.iter().map(|f| f.data_type().to_string()).collect();
         let mut stream = df.execute_stream().await.map_err(query_err)?;
         let mut rows = Vec::new();
         let mut bytes = 0;
         while let Some(batch) = stream.next().await {
             for mut obj in to_json(&[batch.map_err(query_err)?])? {
                 if let Some(n) = limit.filter(|&n| rows.len() == n) {
-                    return Ok((columns, rows, Some(Cut::Limit(n))));
+                    return Ok((columns, types, rows, Some(Cut::Limit(n))));
                 }
                 shorten(&mut obj);
                 let row: Vec<serde_json::Value> = columns
@@ -95,19 +94,20 @@ pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<Que
                     .collect();
                 bytes += serde_json::to_vec(&row).map_err(query_err)?.len() + 1;
                 if bytes > MAX_BYTES {
-                    return Ok((columns, rows, Some(Cut::Size)));
+                    return Ok((columns, types, rows, Some(Cut::Size)));
                 }
                 rows.push(row);
             }
         }
-        Ok::<_, WbError>((columns, rows, None))
+        Ok::<_, WbError>((columns, types, rows, None))
     };
-    let (columns, rows, cut) = tokio::time::timeout(TIMEOUT, run).await.map_err(|_| {
-        query_err(format!(
-            "the query ran for more than {} s and was stopped",
-            TIMEOUT.as_secs()
-        ))
-    })??;
+    let (columns, types, rows, cut) =
+        tokio::time::timeout(TIMEOUT, run).await.map_err(|_| {
+            query_err(format!(
+                "the query ran for more than {} s and was stopped",
+                TIMEOUT.as_secs()
+            ))
+        })??;
     let hint = cut.map(|cut| {
         // The next rows start after the last `t` returned, when the result has one,
         // unless the last rows share it: `t > last` would skip the rest of them.
@@ -144,6 +144,7 @@ pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<Que
     });
     Ok(QueryResult {
         columns,
+        types,
         row_count: rows.len(),
         rows,
         truncated: hint.is_some(),
@@ -470,7 +471,7 @@ impl TableFunctionImpl for StreamFunction {
             .collect();
         if members.is_empty() {
             return plan_err!(
-                "no extracted stream named {name:?}{}. List them with: SELECT recording, stream FROM streams",
+                "no extracted stream named {name:?}{}. List them with: SELECT recording, stream FROM streams. ULog message types defined but never logged are in stream('formats')",
                 pattern
                     .map(|p| format!(" in recordings matching {p:?}"))
                     .unwrap_or_default()

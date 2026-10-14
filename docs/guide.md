@@ -180,23 +180,24 @@ Each recording has a **status**:
 
 Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MCAP file, the messages of a ULog file or a MAVLink telemetry log, or a single `table` for CSV, JSON Lines, Parquet and Arrow files. Each stream is a table with:
 
-- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970; a ULog recording starts at its header's time), the record time for a MAVLink telemetry log, or the time column of a table.
+- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970; in seconds: `date_part('epoch', t)`; a ULog recording starts at its header's time), the record time for a MAVLink telemetry log, or the time column of a table.
 - **`t_sensor`**, the message's own `header.stamp`, when a ROS 2 message has one.
 - **`message_bytes`**, the size of each message (bags and MCAP).
 - **The message fields**, nested names joined with dots (`linear_acceleration.z`). Arrays stay arrays.
 
 **ROS 2 messages** are decoded from the definitions stored in the recording. ROS 2 Humble bags (`.db3`) don't store them, so standard types (`std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `diagnostic_msgs`, `trajectory_msgs`, `tf2_msgs`, `/rosout`) are decoded from definitions bundled with Wise Bucket. Other custom types in Humble bags keep their timing and sizes only. Each topic's QoS is in `streams.qos`, in short: `reliable, volatile, depth 10` (` | ` between publishers).
 
-**ULog files** have one stream per message (`sensor_accel`). A second instance of a message is `sensor_accel.1`: pyulog's `sensor_accel` with multi_id 1, ulog2csv's `…_sensor_accel_1.csv`. Four more streams hold the log's own records, timed as pyulog does (records without a timestamp take the last data timestamp before them):
+**ULog files** have one stream per message (`sensor_accel`). A second instance of a message is `sensor_accel.1`: pyulog's `sensor_accel` with multi_id 1, ulog2csv's `…_sensor_accel_1.csv`. Five more streams hold the log's own records, timed as pyulog does (records without a timestamp take the last data timestamp before them):
 
 - **`parameters`**: `name`, `value`, `initial` (true for the values at the start of the log, false for changes during it), and `system_default` and `airframe_default`, recorded only when they differ from `value` (newer logs).
 - **`logged_messages`**: `level` (`EMERGENCY`, `ALERT`, `CRITICAL`, `ERROR`, `WARNING`, `NOTICE`, `INFO`, `DEBUG`), `message`, and `tag` for tagged messages.
 - **`dropouts`**: `duration_ms` of each logger dropout.
 - **`texts`**: `name`, `line`, `text`: the boot console output, a crash dump from an earlier crash (`hardfault_plain`), performance counters, one row per line.
+- **`formats`**: `name`, `fields` as the file declares them (`uint64_t timestamp;float pressure`), and `logged`, false for the message types the file defines but never logged.
 
 **Facts about a recording** go to the `properties` table: the info of ULog files (`ver_hw` board, `ver_sw` firmware, `sys_name`, `time_ref_utc`…) and the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
 
-**Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ULog (`logged_messages`), ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `4 ERROR log messages (stream logged_messages), first: "[sensors] no barometer found on /dev/baro0 (2)"`. It also reports ULog logger dropouts and crash dumps. `streams.notes` flags ULog timestamps that are not set (0) and a time that never changes.
+**Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ULog (`logged_messages`), ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `4 ERROR log messages (stream logged_messages), first: "[sensors] no barometer found on /dev/baro0 (2)"`. It also reports ULog logger dropouts, crash dumps, and a file cut or damaged; no note means none of these. `streams.notes` flags ULog timestamps that are not set (0) and a time that never changes in a message stream.
 
 **Tables** need a time column. Wise Bucket uses the first timestamp column, else a column named `time`, `timestamp`, `t` or `stamp` (any case), whose unit comes from a `_s`, `_ms`, `_us` or `_ns` suffix (seconds by default). The stream's `notes` say which column was used. Without one, `t` is empty.
 
@@ -243,7 +244,7 @@ wisebucket sql "SELECT recording, name, value, system_default FROM stream('param
 wisebucket sql "SELECT date_bin(INTERVAL '1 second', t) AS w, count(*) FROM stream('/scan', 'bags:run3%') GROUP BY w ORDER BY w"
 ```
 
-Queries are read-only `SELECT`s, run by [Apache DataFusion](https://datafusion.apache.org) (a dialect close to PostgreSQL). Each query is limited to 30 seconds and 1 GB of memory, and sees only the store. A result is capped at about 60 KB of rows, or `--limit N` rows; when rows are cut, a hint says how to get the rest. To go through a long stream, page by time window (`WHERE t > <last t> ORDER BY t`; when the last rows share one `t`, the hint pages by another column) or aggregate it with `date_bin` (see the [recipes](reference/tables.md#recipes)) ([ADR 0017](decisions/0017-result-size-and-paging.md)). Quote dotted and upper-case column names: `"linear_acceleration.z"`. Add `--json` for machine-readable output.
+Queries are read-only `SELECT`s, run by [Apache DataFusion](https://datafusion.apache.org) (a dialect close to PostgreSQL). Each query is limited to 30 seconds and 1 GB of memory, and sees only the store. A result is capped at about 60 KB of rows, or `--limit N` rows; when rows are cut, a hint says how to get the rest. To go through a long stream, page by time window (`WHERE t > <last t> ORDER BY t`; when the last rows share one `t`, the hint pages by another column) or aggregate it with `date_bin` (see the [recipes](reference/tables.md#recipes)) ([ADR 0017](decisions/0017-result-size-and-paging.md)). Quote dotted and upper-case column names: `"linear_acceleration.z"`. Add `--json` for machine-readable output: `columns`, their `types` (`Float64`, `Boolean`, `Timestamp(ns)`…) and `rows`, as the agent's `sql` tool returns them.
 
 ### Abnormal and similar recordings
 
