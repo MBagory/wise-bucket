@@ -13,6 +13,11 @@ use clap::{CommandFactory, Parser};
 use cli::{Cli, Command};
 use wb_core::Result;
 
+// musl's allocator serializes DataFusion's threads: a query ran 10× slower in the static Linux binaries (ADR 0027).
+#[cfg(target_env = "musl")]
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 #[tokio::main]
 pub async fn main() -> ExitCode {
     let cli = Cli::parse();
