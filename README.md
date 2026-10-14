@@ -23,13 +23,17 @@
 
 Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, CSV, JSON Lines, Parquet and Arrow IPC.
 
-### ⚡ Built for speed
-
-Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org). Each recording is decoded once into Parquet files, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
-
 ### 🤖 Bring your own agent
 
 Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.
+
+### 🪶 Frugal with tokens
+
+Everything your agent reads fills its context window, and a fuller window makes it slower, costlier and less accurate. So your agent's SQL runs on your machine and only the answer comes back, while full-resolution signals go straight to your viewer.
+
+### ⚡ Built for speed
+
+Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org). Each recording is decoded once into Parquet files, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
 
 ### 📈 Instant display in your viewer
 
