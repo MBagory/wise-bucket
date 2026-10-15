@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-16
+
+### Changed
+
+- The release archives are `.tar.gz`, so the installer works on Linux systems without `xz`, such as minimal and container images ([ADR 0028](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0028-release-archives.md)).
+- `wbk` is installed as a link to `wisebucket`: the download holds one binary, and the installation takes half the space.
+
 ## [0.1.0] - 2026-10-15
 
 ### Added
@@ -30,5 +37,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Documentation as plain Markdown: the README with Wise Bucket's principles, the user guide (with compatible [viewers](https://github.com/MBagory/wise-bucket/blob/main/docs/guide.md#viewers)), troubleshooting and FAQ, generated references (CLI, configuration, errors, tables), [decision records](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/README.md) with the list of possible features that replaces a roadmap, and privacy notes in `SECURITY.md`.
 - Tests: acceptance tests drive the real binary through a real MCP client; format tests check exact values on generated fixtures; per-format sample tests (`cargo test -p wisebucket --test samples -- --ignored`) run in a dedicated CI job per format.
 
-[Unreleased]: https://github.com/MBagory/wise-bucket/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/MBagory/wise-bucket/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/MBagory/wise-bucket/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/MBagory/wise-bucket/releases/tag/v0.1.0

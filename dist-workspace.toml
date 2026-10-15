@@ -19,6 +19,15 @@ install-path = "CARGO_HOME"
 hosting = "github"
 # Whether to install an updater program
 install-updater = false
+# Archives are .tar.gz: every Linux has gzip, minimal images lack xz (ADR 0028)
+unix-archive = ".tar.gz"
+
+# Archives hold `wisebucket` only; the installer links `wbk` to it (ADR 0028)
+[dist.binaries]
+"*" = ["wisebucket"]
+
+[dist.bin-aliases]
+wisebucket = ["wbk"]
 
 # Build aarch64 Linux natively instead of cross-compiling
 [dist.github-custom-runners]
