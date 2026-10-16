@@ -20,6 +20,8 @@ parquet = { version = "58", default-features = false, features = ["arrow", "zstd
 re_ros_msg = "0.38"
 rerun = { version = "0.38", default-features = false, features = ["sdk"] }
 mcap = "0.25"
+nmea = { version = "0.8", features = ["serde"] }
+chrono = { version = "0.4", default-features = false }
 prost-reflect = { version = "0.16", features = ["serde"] }
 px4-ulog = "0.6"
 rusqlite = { version = "0.40", features = ["bundled"] }

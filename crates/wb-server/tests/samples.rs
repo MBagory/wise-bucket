@@ -31,6 +31,7 @@ const SIGNATURES: &[(&str, &[u8])] = &[
     (".BIN", b"\xa3\x95"),
     (".asc", b"date "),
     (".blf", b"LOGG"),
+    (".nmea", b"# Name: "),
     (".mf4", b"MDF     4."),
     (".parquet", b"PAR1"),
 ];
@@ -523,6 +524,60 @@ async fn dataflash() {
     s.close().await;
 }
 
+/// Expected values from pynmea2 1.19 (positions, times), and the sentences it reads.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn nmea0183() {
+    let (env, _) = check("nmea0183", "nmea0183", 1);
+    let s = extracted(&env, 1).await;
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('sentences')").await,
+        92
+    );
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('RMC')").await,
+        7
+    );
+    let r = s
+        .sql("SELECT CAST(t AS BIGINT) AS t, lat, lon, speed_over_ground, true_course FROM stream('RMC') ORDER BY t LIMIT 1")
+        .await;
+    let row = &r["rows"][0];
+    assert_eq!(row["t"], 991_867_988_000_000_000_i64, "{r:#}"); // 2001-06-06T22:53:08Z
+    assert_eq!(
+        (&row["lat"], &row["lon"]),
+        (&(-45.457633333333334).into(), &167.15275.into()),
+        "{r:#}"
+    );
+    assert_eq!(
+        (&row["speed_over_ground"], &row["true_course"]),
+        (&0.0.into(), &94.5.into()),
+        "{r:#}"
+    );
+    let r = s
+        .sql("SELECT altitude, fix_satellites, hdop, talker FROM stream('GGA') ORDER BY t LIMIT 1")
+        .await;
+    let row = &r["rows"][0];
+    assert_eq!(
+        (&row["altitude"], &row["fix_satellites"], &row["hdop"]),
+        (&14.7.into(), &5.into(), &2.1.into()),
+        "{r:#}"
+    );
+    assert_eq!(row["talker"], "GP", "{r:#}");
+    // Garmin's proprietary sentences stay in `sentences`, fields split in SQL.
+    let r = s
+        .sql("SELECT split_part(text, ',', 2) AS horizontal FROM stream('sentences') WHERE type = 'PGRME' ORDER BY t LIMIT 1")
+        .await;
+    assert_eq!(r["rows"][0]["horizontal"], "9.1", "{r:#}");
+    let r = s.sql("SELECT notes FROM recordings").await;
+    let notes = r["rows"][0]["notes"].as_str().unwrap();
+    assert!(
+        notes.contains("not decoded, kept in stream sentences"),
+        "{r:#}"
+    );
+    assert!(notes.contains("PGRME (7)"), "{r:#}");
+    s.close().await;
+}
+
 // The formats below have no reader yet: they are listed, as `unsupported`.
 
 #[test]
@@ -541,6 +596,7 @@ fn every_format_has_a_test() {
         "dataflash",
         "tlog",
         "can",
+        "nmea0183",
         "mdf4",
         "parquet",
     ];

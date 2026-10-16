@@ -259,6 +259,17 @@ pub const FORMATS: &[Format] = &[
         ],
     },
     Format {
+        key: "nmea0183",
+        description: "NMEA 0183 log (Garmin 48 handheld, with proprietary sentences)",
+        license: "BSD-2-Clause",
+        files: &[SampleFile {
+            path: "garmin48.nmea",
+            url: "https://gitlab.com/gpsd/gpsd/-/raw/a184c8a4c028dae94b7599ba01688fb3ddeddd97/test/daemon/garmin48.log",
+            size: 4436,
+            sha256: "095734eb084ee6946affff2a203fd0bec1719ede991f4b3ad01c0699d6dde720",
+        }],
+    },
+    Format {
         key: "mdf4",
         description: "ASAM MDF 4.10 measurement file",
         license: "LGPL-3.0",

@@ -292,6 +292,8 @@ pub enum RecordingKind {
     ArrowIpc,
     /// A MAVLink telemetry log (`.tlog`): timestamped MAVLink 1/2 frames.
     Tlog,
+    /// An NMEA 0183 log (`.nmea`): one sentence per line.
+    Nmea0183,
     /// A ROS 1 bag: recognized, not readable yet.
     Ros1Bag,
     /// An ArduPilot DataFlash log (`.bin`).
@@ -322,6 +324,7 @@ impl RecordingKind {
             Self::Parquet => "Parquet",
             Self::ArrowIpc => "Arrow IPC",
             Self::Tlog => "MAVLink tlog",
+            Self::Nmea0183 => "NMEA 0183 logs",
             Self::Ros1Bag => "ROS 1 bags (not readable yet)",
             Self::ArdupilotBin => "ArduPilot logs",
             Self::CanAsc => "CAN ASC logs",
@@ -562,6 +565,7 @@ fn kind_of(path: &Path) -> Option<RecordingKind> {
         "parquet" => RecordingKind::Parquet,
         "arrow" | "feather" | "ipc" => RecordingKind::ArrowIpc,
         "tlog" => RecordingKind::Tlog,
+        "nmea" => RecordingKind::Nmea0183,
         "bag" => RecordingKind::Ros1Bag,
         "blf" => RecordingKind::CanBlf,
         "mf4" => RecordingKind::Mdf4,

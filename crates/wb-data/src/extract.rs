@@ -89,6 +89,7 @@ pub async fn extract(
             crate::can::read(path, kind, dbc, out).await
         }
         RecordingKind::ArdupilotBin => crate::dataflash::read(path, out).await,
+        RecordingKind::Nmea0183 => crate::nmea0183::read(path, out).await,
         RecordingKind::Ros1Bag | RecordingKind::Mdf4 => Err(err(
             ErrorKind::RecordingUnreadable,
             format!("{}: this format is not readable yet", path.display()),
