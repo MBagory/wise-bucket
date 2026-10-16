@@ -21,4 +21,4 @@ Crates added for this rule: `mavlink` (MAVLink telemetry logs, `ardupilotmega` d
 
 - Fewer formats, each backed by a crate that others test too.
 - A young crate can still be wrong: each format keeps tests with exact expected values on its demo file.
-- ROS 1 bags, ROS 1-encoded MCAP and DBC decoding wait for a crate.
+- ROS 1 bags and ROS 1-encoded MCAP wait for a crate.
