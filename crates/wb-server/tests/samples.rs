@@ -456,13 +456,74 @@ async fn can_dbc() {
     s.close().await;
 }
 
-// The formats below have no reader yet: they are listed, as `unsupported`.
-
-#[test]
+/// Expected values from pymavlink 2.4.50 (`DFReader_binary`).
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
-fn dataflash() {
-    check("dataflash", "ardupilot_bin", 1);
+async fn dataflash() {
+    let (env, _) = check("dataflash", "ardupilot_bin", 1);
+    let s = extracted(&env, 1).await;
+    assert_eq!(number(&s, "SELECT count(*) AS n FROM streams").await, 47);
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('ATT')").await,
+        24
+    );
+    let r = s
+        .sql("SELECT CAST(t AS BIGINT) AS t, \"Roll\", \"Pitch\" FROM stream('ATT') ORDER BY t LIMIT 1")
+        .await;
+    let row = &r["rows"][0];
+    assert_eq!(row["t"], 81_795_644_000_i64, "{r:#}");
+    assert_eq!(
+        (&row["Roll"], &row["Pitch"]),
+        (&(-7.18).into(), &2.58.into()),
+        "{r:#}"
+    );
+    // Latitude and longitude in degrees (`L` fields).
+    let r = s
+        .sql("SELECT \"Lat\", \"Lng\", \"Alt\" FROM stream('GPS') ORDER BY t LIMIT 1")
+        .await;
+    let row = &r["rows"][0];
+    assert_eq!(
+        (&row["Lat"], &row["Lng"]),
+        (&(-35.3626277).into(), &149.1653034.into()),
+        "{r:#}"
+    );
+    assert_eq!(row["Alt"], 588.82, "{r:#}");
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('PARM')").await,
+        809
+    );
+    let r = s
+        .sql("SELECT \"Name\", \"Value\" FROM stream('PARM') ORDER BY t LIMIT 1")
+        .await;
+    assert_eq!(
+        (&r["rows"][0]["Name"], &r["rows"][0]["Value"]),
+        (&"FORMAT_VERSION".into(), &13.0.into()),
+        "{r:#}"
+    );
+    let r = s
+        .sql("SELECT value FROM properties WHERE key = 'firmware'")
+        .await;
+    assert_eq!(
+        r["rows"][0]["value"], "ArduPlane V3.8.2-dev (8178ab40)",
+        "{r:#}"
+    );
+    // The sample is the first 64 KiB of a longer log. It starts at the UTC time of boot
+    // that its GPS gives (pymavlink: 2017-10-29T01:45:48.1445Z, to the GPS millisecond).
+    let r = s
+        .sql("SELECT notes, CAST(start AS BIGINT) AS start FROM recordings")
+        .await;
+    assert!(
+        r["rows"][0]["notes"].as_str().unwrap().contains("cut"),
+        "{r:#}"
+    );
+    assert_eq!(
+        r["rows"][0]["start"], 1_509_241_548_145_000_000_i64,
+        "{r:#}"
+    );
+    s.close().await;
 }
+
+// The formats below have no reader yet: they are listed, as `unsupported`.
 
 #[test]
 #[ignore = "network: fetches public samples"]

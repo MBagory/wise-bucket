@@ -1896,6 +1896,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7cd812cc2bc1d69d4764bd80df88b4317eaef9e773c75226407d9bc0876b211c"
 
 [[package]]
+name = "dflog"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84778bfff62e92190d25e4ea0f43fed9993ac4243e8129845c61762ffb233455"
+
+[[package]]
 name = "dialoguer"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6511,6 +6517,7 @@ version = "0.1.1"
 dependencies = [
  "blf_asc",
  "datafusion",
+ "dflog",
  "falcon_mdf",
  "futures",
  "hex",
