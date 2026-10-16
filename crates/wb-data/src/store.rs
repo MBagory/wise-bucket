@@ -150,11 +150,19 @@ impl Store {
     }
 
     fn fingerprint(c: &Candidate) -> String {
-        short_hash(&[
-            &c.size.to_le_bytes(),
-            &c.mtime_ns.to_le_bytes(),
-            &EXTRACTOR_VERSION.to_le_bytes(),
-        ])
+        let (size, mtime, version) = (
+            c.size.to_le_bytes(),
+            c.mtime_ns.to_le_bytes(),
+            EXTRACTOR_VERSION.to_le_bytes(),
+        );
+        let mut parts: Vec<&[u8]> = vec![&size, &mtime, &version];
+        // A CAN log is extracted again when its DBC choice changes.
+        let dbc = c
+            .dbc
+            .as_ref()
+            .map(|d| serde_json::to_vec(d).unwrap_or_default());
+        parts.extend(dbc.as_deref());
+        short_hash(&parts)
     }
 
     fn lock_path(&self, c: &Candidate) -> PathBuf {
@@ -384,7 +392,9 @@ pub async fn ingest(store: &Store, root: &Root, candidate: &Candidate) -> Result
     std::fs::create_dir_all(&tmp).map_err(io_err(tmp.display()))?;
 
     let source = root.path.join(&candidate.path);
-    let outcome = match extract::extract(&source, candidate.kind, &tmp).await {
+    let outcome = match extract::extract(&source, candidate.kind, candidate.dbc.as_ref(), &tmp)
+        .await
+    {
         Ok(x) => {
             let meta = RecordingMeta {
                 recording: recording_id(candidate),
@@ -427,14 +437,32 @@ pub async fn ingest(store: &Store, root: &Root, candidate: &Candidate) -> Result
 /// Finds the recordings in every root and records them in the store. Returns them.
 pub fn discover(cfg: &EffectiveConfig, max_time_per_root: Duration) -> Result<Vec<Candidate>> {
     let set = roots::resolve(cfg);
+    let context = dbc_context(cfg);
     let mut found = Vec::new();
     for root in &set.roots {
-        found.extend(roots::candidates(root, 1_000_000, max_time_per_root).candidates);
+        found.extend(
+            roots::candidates(root, 1_000_000, max_time_per_root)
+                .candidates
+                .into_iter()
+                .map(|c| with_dbc(&set, root, c, &context)),
+        );
     }
     if let Err(e) = Store::for_config(cfg).write_candidates(&found) {
         tracing::warn!(error = %e, "cannot record the recordings found");
     }
     Ok(found)
+}
+
+/// The context, for the DBC choice of CAN logs. An invalid file is reported by queries;
+/// discovery goes on without it.
+fn dbc_context(cfg: &EffectiveConfig) -> Context {
+    Context::load(&context::path(cfg)).unwrap_or_default()
+}
+
+/// A recording with its DBC choice, from the context key `dbc` (CAN logs only).
+fn with_dbc(set: &roots::RootSet, root: &Root, c: Candidate, context: &Context) -> Candidate {
+    let dbc = context.of(&recording_id(&c)).remove("dbc");
+    roots::with_dbc(set, root, c, dbc.as_deref())
 }
 
 /// What [`note`] recorded.
@@ -521,6 +549,7 @@ pub fn locate(cfg: &EffectiveConfig, reference: &str) -> Result<(Root, Candidate
             format!("{reference} is not a recording Wise Bucket recognizes"),
         )
     })?;
+    let candidate = with_dbc(&set, &root, candidate, &dbc_context(cfg));
     Ok((root, candidate))
 }
 
@@ -536,6 +565,7 @@ mod tests {
             kind: RecordingKind::Mcap,
             size: 10,
             mtime_ns: 5,
+            dbc: None,
         };
         let s = Store::new(Path::new("/state"));
         let d1 = s.current_dir(&c);
@@ -548,5 +578,27 @@ mod tests {
         assert_eq!(d1.parent(), d2.parent(), "same recording, same key");
         assert_ne!(d1, d2, "a changed file gets a new fingerprint");
         assert_eq!(recording_id(&c), "bags:run1/a.mcap");
+
+        // Only a CAN log's fingerprint holds its DBC choice: changing it extracts the log
+        // again, and other recordings keep the fingerprint they had.
+        let (size, mtime, version) = (
+            10u64.to_le_bytes(),
+            5i64.to_le_bytes(),
+            EXTRACTOR_VERSION.to_le_bytes(),
+        );
+        assert_eq!(
+            Store::fingerprint(&c),
+            short_hash(&[&size, &mtime, &version])
+        );
+        let can = Candidate {
+            kind: RecordingKind::CanBlf,
+            dbc: Some(roots::DbcChoice::Nearby(vec![])),
+            ..c.clone()
+        };
+        let confirmed = Candidate {
+            dbc: Some(roots::DbcChoice::Confirmed(vec![])),
+            ..can.clone()
+        };
+        assert_ne!(s.current_dir(&can), s.current_dir(&confirmed));
     }
 }

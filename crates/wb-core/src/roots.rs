@@ -343,6 +343,141 @@ pub struct Candidate {
     pub size: u64,
     /// Latest modification time, in nanoseconds since the Unix epoch.
     pub mtime_ns: i64,
+    /// The DBC files of a CAN log (`None` for other recordings).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dbc: Option<DbcChoice>,
+}
+
+/// A DBC file for a CAN log.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DbcFile {
+    pub path: PathBuf,
+    /// As notes show it: `root:path` inside a root, else the absolute path.
+    pub shown: String,
+    /// The channel it decodes, as the log numbers it; every channel when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub channel: Option<u16>,
+}
+
+/// Which DBC files decode a CAN log.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DbcChoice {
+    /// What the engineer confirmed (context key `dbc`); empty for `none`.
+    Confirmed(Vec<DbcFile>),
+    /// Not confirmed yet: the `.dbc` files next to the log, else in its nearest parent
+    /// folder inside the root.
+    Nearby(Vec<DbcFile>),
+}
+
+impl DbcChoice {
+    pub fn files(&self) -> &[DbcFile] {
+        match self {
+            Self::Confirmed(f) | Self::Nearby(f) => f,
+        }
+    }
+}
+
+/// How a note shows `path`: `root:path` when a root holds it.
+fn shown(set: &RootSet, path: &Path) -> String {
+    set.roots
+        .iter()
+        .find_map(|r| {
+            let rel = path.strip_prefix(&r.path).ok()?;
+            Some(format!("{}:{}", r.name, rel.display()))
+        })
+        .unwrap_or_else(|| path.display().to_string())
+}
+
+/// The DBC files of the CAN log `c`. `dbc` is the context key: `none`, or files separated
+/// by `;`, each `[<channel>=]<root:path or absolute path>`. Without it, the `.dbc` files
+/// next to the log, else in its nearest parent folder inside the root.
+pub fn dbc_choice(set: &RootSet, root: &Root, c: &Candidate, dbc: Option<&str>) -> DbcChoice {
+    if let Some(value) = dbc {
+        if value.trim().eq_ignore_ascii_case("none") {
+            return DbcChoice::Confirmed(Vec::new());
+        }
+        let files = value
+            .split(';')
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(|item| {
+                let (channel, spec) = match item.split_once('=') {
+                    Some((ch, spec)) if ch.trim().parse::<u16>().is_ok() => {
+                        (ch.trim().parse().ok(), spec.trim())
+                    }
+                    _ => (None, item),
+                };
+                let path = if Path::new(spec).is_absolute() {
+                    // Roots are stored resolved (`/var` is `/private/var` on macOS).
+                    std::fs::canonicalize(spec).unwrap_or_else(|_| PathBuf::from(spec))
+                } else {
+                    match RootRef::parse(spec) {
+                        Ok(rr) => set
+                            .get(&rr.root)
+                            .map_or(root.path.join(spec), |r| r.path.join(&rr.rel)),
+                        Err(_) => root.path.join(spec),
+                    }
+                };
+                DbcFile {
+                    shown: shown(set, &path),
+                    path,
+                    channel,
+                }
+            })
+            .collect();
+        return DbcChoice::Confirmed(files);
+    }
+    let log = root.path.join(&c.path);
+    let mut dir = log.parent();
+    while let Some(d) = dir {
+        let mut found: Vec<PathBuf> = std::fs::read_dir(d)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| {
+                p.is_file()
+                    && p.extension()
+                        .is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case("dbc"))
+            })
+            .collect();
+        if !found.is_empty() {
+            found.sort();
+            return DbcChoice::Nearby(
+                found
+                    .into_iter()
+                    .map(|path| DbcFile {
+                        shown: shown(set, &path),
+                        path,
+                        channel: None,
+                    })
+                    .collect(),
+            );
+        }
+        if d == root.path {
+            break;
+        }
+        dir = d.parent();
+    }
+    DbcChoice::Nearby(Vec::new())
+}
+
+/// Attaches its DBC choice to a CAN log: the DBC files count in its size and time, so
+/// editing one extracts the log again.
+pub fn with_dbc(set: &RootSet, root: &Root, mut c: Candidate, dbc: Option<&str>) -> Candidate {
+    if !matches!(c.kind, RecordingKind::CanAsc | RecordingKind::CanBlf) {
+        return c;
+    }
+    let choice = dbc_choice(set, root, &c, dbc);
+    for f in choice.files() {
+        if let Ok(meta) = std::fs::metadata(&f.path) {
+            c.size += meta.len();
+            c.mtime_ns = c.mtime_ns.max(mtime_ns(&meta));
+        }
+    }
+    c.dbc = Some(choice);
+    c
 }
 
 /// The recordings found in a root.
@@ -512,6 +647,7 @@ pub fn candidates(root: &Root, max_entries: u64, max_time: Duration) -> Walk {
                     kind: RecordingKind::Rosbag2,
                     size: files.iter().map(|(_, m)| m.len()).sum(),
                     mtime_ns: files.iter().map(|(_, m)| mtime_ns(m)).max().unwrap_or(0),
+                    dbc: None,
                 });
             }
             continue;
@@ -526,6 +662,7 @@ pub fn candidates(root: &Root, max_entries: u64, max_time: Duration) -> Walk {
                     kind,
                     size: meta.len(),
                     mtime_ns: mtime_ns(&meta),
+                    dbc: None,
                 }),
                 Some(_) => {}
                 None => walk.other += 1,
@@ -563,6 +700,7 @@ pub fn candidate(root: &Root, rel: &Path) -> Option<Candidate> {
         kind,
         size,
         mtime_ns: mtime,
+        dbc: None,
     })
 }
 
@@ -747,6 +885,68 @@ mod tests {
         let c = count_candidates(&root, 10_000, Duration::from_secs(5));
         assert_eq!((c.total(), c.get(Rosbag2)), (1, 1));
         assert!(count_candidates(&root, 2, Duration::from_secs(5)).truncated);
+    }
+
+    #[test]
+    fn dbc_choice_of_a_can_log() {
+        let d = tempfile::tempdir().unwrap();
+        let (logs, other) = (d.path().join("logs"), d.path().join("other"));
+        for dir in [logs.join("run1/a"), logs.join("run2"), other.clone()] {
+            std::fs::create_dir_all(dir).unwrap();
+        }
+        for f in ["run1/a/bus.asc", "run2/bus.blf"] {
+            std::fs::write(logs.join(f), "date x\n").unwrap();
+        }
+        for f in ["run1/body.dbc", "run1/powertrain.DBC", "run2/notes.txt"] {
+            std::fs::write(logs.join(f), "").unwrap();
+        }
+        std::fs::write(other.join("vehicle.dbc"), "VERSION").unwrap();
+        let set = resolve_decls(&[decl("logs", &logs, &logs), decl("other", &other, &other)]);
+        let root = set.get("logs").unwrap().clone();
+        let log = |rel: &str| candidate(&root, Path::new(rel)).unwrap();
+        let shown = |c: &DbcChoice| -> Vec<(Option<u16>, String)> {
+            c.files()
+                .iter()
+                .map(|f| (f.channel, f.shown.clone()))
+                .collect()
+        };
+
+        // Not confirmed: the nearest folder with DBC files, up to the root.
+        let c = dbc_choice(&set, &root, &log("run1/a/bus.asc"), None);
+        assert!(matches!(c, DbcChoice::Nearby(_)));
+        assert_eq!(
+            shown(&c),
+            [
+                (None, "logs:run1/body.dbc".into()),
+                (None, "logs:run1/powertrain.DBC".into())
+            ]
+        );
+        assert_eq!(
+            dbc_choice(&set, &root, &log("run2/bus.blf"), None),
+            DbcChoice::Nearby(vec![])
+        );
+
+        // Confirmed: root:path or absolute, bound to a channel or not; or none.
+        let abs = other.join("vehicle.dbc");
+        let value = format!("1=logs:run1/body.dbc; 2 = {}", abs.display());
+        let c = dbc_choice(&set, &root, &log("run2/bus.blf"), Some(&value));
+        assert!(matches!(c, DbcChoice::Confirmed(_)));
+        assert_eq!(
+            shown(&c),
+            [
+                (Some(1), "logs:run1/body.dbc".into()),
+                (Some(2), "other:vehicle.dbc".into())
+            ]
+        );
+        assert_eq!(c.files()[1].path, abs.canonicalize().unwrap());
+        let c = dbc_choice(&set, &root, &log("run2/bus.blf"), Some("NONE"));
+        assert_eq!(c, DbcChoice::Confirmed(vec![]));
+
+        // Only CAN logs get a choice; its DBC files count in the log's size.
+        let c = with_dbc(&set, &root, log("run2/bus.blf"), Some(&value));
+        assert_eq!(c.size, 7 + 7);
+        std::fs::write(logs.join("run2/data.csv"), "t\n").unwrap();
+        assert_eq!(with_dbc(&set, &root, log("run2/data.csv"), None).dbc, None);
     }
 
     #[test]

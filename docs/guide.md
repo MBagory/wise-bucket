@@ -205,6 +205,8 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 
 **CAN logs** (`.asc`, `.blf`) have one stream, `frames`: `channel` as the log numbers it (CAN 1 is 1), `id` (empty for error frames), `extended`, `fd`, `remote`, `error`, `rx`, `dlc` and `data`, the payload as an array of bytes (`data[1]` is the first). In an ASC log, `t` counts from the start of the measurement, and the `date` it started, as written in the log, is in `properties`. In a BLF log, `t` is the start time in the file header, read as UTC, plus each frame's offset, to the microsecond. Lines that are not frames (statistics, J1939 transport) are counted in `recordings.notes`, and so are error frames. Remote frames written without a length (`2.510001 2 100 Tx r`) are not read.
 
+**CAN signals** come from DBC files. The first time a CAN log is queried, your agent asks you which DBC decodes it: the `.dbc` file next to the log (else in its nearest parent folder), one of several, or where it is. It records your answer with `note` on the folder or root, as the key `dbc`: `root:path` or an absolute path, separated by `;`, each one optionally for a single channel (`2=vehicle:dbc/chassis.dbc`), or `none`. Each DBC message then gets a stream `<dbc>/<message>`: `channel`, one column per signal (physical value, units in `streams.notes`) and `<signal>_label` for signals with a value table (`Gear_label = 'Drive'`). `frames` stays, and `recordings.notes` counts the frames whose ID no DBC defines. Editing a DBC or the key `dbc` extracts the log again.
+
 **Facts about a recording** go to the `properties` table: the info of ULog files (`ver_hw` board, `ver_sw` firmware, `sys_name`, `time_ref_utc`…) and the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
 
 **Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ULog (`logged_messages`), ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `4 ERROR log messages (stream logged_messages), first: "[sensors] no barometer found on /dev/baro0 (2)"`. It also reports ULog logger dropouts, crash dumps, CAN error frames, and a file cut or damaged; no note means none of these. `streams.notes` flags ULog timestamps that are not set (0) and a time that never changes in a message stream.
@@ -234,6 +236,7 @@ wisebucket note flights:2026-10/flight3.ulg wind=               # remove a key
 
 - **Targets:** a recording (`root:path`, as `recordings` lists it), a folder (`root:folder/`) or a root (`root:`). For each key, the most specific target wins.
 - **`hardware`** is the key for the machine: your agent compares recordings of the same `context['hardware']`.
+- **`dbc`** names the DBC files of CAN logs (see [CAN signals](#what-gets-extracted)).
 - **In SQL:** `SELECT recording, context FROM recordings WHERE context['hardware'] = 'drone-2'`.
 - **Where:** `context.toml`, next to your settings file (`wisebucket config path`). You can edit it by hand: one table per target (`["flights:2026-10/"]`), then `key = "value"` lines. Your recordings are never modified.
 

@@ -9,6 +9,9 @@ yanked = "deny"
 ignore = [
   # paste: archived compile-time macro crate used by mcap, parquet and rerun; unmaintained, not a vulnerability, no fix upstream.
   { id = "RUSTSEC-2024-0436", reason = "paste is archived; pulled in by mcap, parquet and rerun, no alternative upstream" },
+  # quick-xml 0.37, pinned by falcon_mdf 0.7 (DBC decoding, MDF4); fixed in 0.41. Revisit when falcon_mdf moves to quick-xml >= 0.41.
+  { id = "RUSTSEC-2026-0194", reason = "quadratic attribute check: reached only by MDF4 XML metadata, in the low-priority extraction process stopped after an hour; never by DBC decoding" },
+  { id = "RUSTSEC-2026-0195", reason = "NsReader namespace allocation: falcon_mdf uses the plain Reader, never NsReader" },
 ]
 
 [licenses]

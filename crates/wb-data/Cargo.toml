@@ -30,6 +30,8 @@ sha2 = "0.11.0"
 tokio = { version = "1.53", features = ["full"] }
 tracing = "0.1.44"
 blf_asc = "0.2"
+# DBC decoding only (can-dbc parses); not its arrow/parquet features (Arrow 59, ADR 0021).
+falcon_mdf = { version = "0.7", default-features = false, features = ["dbc"] }
 mavlink = { version = "0.19.1", default-features = false, features = ["std", "serde", "dialect-ardupilotmega"] }
 
 [dev-dependencies]

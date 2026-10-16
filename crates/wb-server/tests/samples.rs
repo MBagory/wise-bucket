@@ -390,6 +390,72 @@ async fn can() {
     s.close().await;
 }
 
+/// The agent's flow for a CAN log and a DBC next to it: the note asks for confirmation, the
+/// engineer's answer (recorded with `note`) decodes the log, and editing the DBC decodes it
+/// again.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn can_dbc() {
+    let env = TestEnv::new();
+    env.setup();
+    let root = env.root.join("can-dbc");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::copy(fetched("can").join("logfile.asc"), root.join("logfile.asc")).unwrap();
+    // 0x6F9 on channel 1 carries 05 0C 00…: Speed = 0x0C05 × factor.
+    let dbc = |factor: &str| {
+        format!(
+            "VERSION \"\"\n\nNS_ :\n\nBS_:\n\nBU_: ECU\n\nBO_ 1785 Status: 8 ECU\n SG_ Speed : 0|16@1+ ({factor},0) [0|65535] \"km/h\" Vector__XXX\n"
+        )
+    };
+    common::write(&root.join("vehicle.dbc"), &dbc("0.5"));
+    env.ok(&["roots", "add", "s", &root.to_string_lossy()]);
+    let s = extracted(&env, 1).await;
+    let r = s.sql("SELECT notes FROM recordings").await;
+    assert!(
+        r["rows"][0]["notes"]
+            .as_str()
+            .unwrap()
+            .contains("DBC not confirmed: ask the engineer whether s:vehicle.dbc decodes this log"),
+        "{r:#}"
+    );
+
+    // The engineer confirms; the agent records it for the whole root.
+    s.call(
+        "note",
+        serde_json::json!({"target": "s:", "context": {"dbc": "s:vehicle.dbc"}}),
+    )
+    .await;
+    let speed = |expected: f64| {
+        let s = &s;
+        async move {
+            let start = std::time::Instant::now();
+            loop {
+                let r = s
+                    .sql("SELECT \"Speed\" FROM stream('vehicle/Status') LIMIT 1")
+                    .await;
+                if r["rows"][0]["Speed"].as_f64() == Some(expected) {
+                    return;
+                }
+                assert!(
+                    start.elapsed() < std::time::Duration::from_secs(60),
+                    "Speed is not {expected}: {r:#}"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            }
+        }
+    };
+    speed(1538.5).await;
+    // The raw frames stay.
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('frames')").await,
+        19
+    );
+    // Editing the DBC decodes the log again.
+    common::write(&root.join("vehicle.dbc"), &dbc("0.25"));
+    speed(769.25).await;
+    s.close().await;
+}
+
 // The formats below have no reader yet: they are listed, as `unsupported`.
 
 #[test]
