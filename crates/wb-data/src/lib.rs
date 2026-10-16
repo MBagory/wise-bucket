@@ -16,6 +16,7 @@ mod can;
 mod dataflash;
 mod db3;
 mod mcap_reader;
+mod mdf4;
 mod nmea0183;
 mod nmea2000;
 mod payload;

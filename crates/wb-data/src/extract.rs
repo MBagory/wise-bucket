@@ -91,7 +91,8 @@ pub async fn extract(
         RecordingKind::ArdupilotBin => crate::dataflash::read(path, out).await,
         RecordingKind::Nmea0183 => crate::nmea0183::read(path, out).await,
         RecordingKind::Nmea2000 => crate::nmea2000::read(path, out).await,
-        RecordingKind::Ros1Bag | RecordingKind::Mdf4 => Err(err(
+        RecordingKind::Mdf4 => crate::mdf4::read(path, out).await,
+        RecordingKind::Ros1Bag => Err(err(
             ErrorKind::RecordingUnreadable,
             format!("{}: this format is not readable yet", path.display()),
         )),

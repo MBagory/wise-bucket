@@ -100,7 +100,7 @@ A recording folder (a *data root*) is a named folder that Wise Bucket may read. 
 | `.raw` | an NMEA 2000 capture in canboat's PLAIN format: every frame, and one stream per PGN decoded (only when its first line is such a frame) |
 | `.csv`, `.jsonl` / `.ndjson`, `.parquet`, `.arrow` / `.feather` / `.ipc` | a table |
 | `.bag` | a ROS 1 bag: listed, not readable yet |
-| `.mf4` (MDF4) | listed, not readable yet |
+| `.mf4` | an ASAM MDF4 measurement file (CANape, INCA, test benches, data loggers): one stream per channel group |
 
 ```sh
 wisebucket roots add bags ~/robot-logs/bags
@@ -119,7 +119,7 @@ wisebucket roots remove flights                                        # the fol
 - **Your decision only:** Wise Bucket gives your agent no tool to add a folder. You add folders from the command line or a configuration file.
 - **Live:** folder changes reach a running agent session on its next call, no restart needed.
 
-**No recordings yet?** `wisebucket demo` downloads public sample files (ROS 2 bags, MCAP, ULog, MAVLink, ArduPilot, CAN, Parquet, and formats listed as `unsupported`) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data).
+**No recordings yet?** `wisebucket demo` downloads public sample files (ROS 2 bags, MCAP, ULog, MAVLink, ArduPilot, CAN, NMEA, MDF4, Parquet) and declares them as the `demo` folder. See [Try it with sample data](../README.md#try-it-with-sample-data).
 
 ## Connect your agent
 
@@ -185,13 +185,13 @@ Each recording has a **status**:
 | `failed` | Could not be read; `error` says why. Retried when the file changes |
 | `paused` | Waiting for free disk space |
 | `missing` | The file is gone; its data stays queryable |
-| `unsupported` | A format Wise Bucket cannot read yet (ROS 1 bags, MDF4) |
+| `unsupported` | A format Wise Bucket cannot read yet (ROS 1 bags) |
 
 ### What gets extracted
 
 Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MCAP file, the messages of a ULog file, a MAVLink telemetry log or an ArduPilot log, or a single `table` for CSV, JSON Lines, Parquet and Arrow files. Each stream is a table with:
 
-- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970; in seconds: `date_part('epoch', t)`; a ULog recording starts at its header's time), the record time for a MAVLink telemetry log, `TimeUS` for an ArduPilot log (time since boot, shown near 1970; a log with a GPS fix starts at the UTC time it gives), the frame time for a CAN log, or the time column of a table.
+- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970; in seconds: `date_part('epoch', t)`; a ULog recording starts at its header's time), the record time for a MAVLink telemetry log, `TimeUS` for an ArduPilot log (time since boot, shown near 1970; a log with a GPS fix starts at the UTC time it gives), the frame time for a CAN log, the start time plus the time master for an MDF4 file, or the time column of a table.
 - **`t_sensor`**, the message's own `header.stamp`, when a ROS 2 message has one.
 - **`message_bytes`**, the size of each message (bags and MCAP).
 - **The message fields**, nested names joined with dots (`linear_acceleration.z`). Arrays stay arrays.
@@ -213,6 +213,8 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 **NMEA 0183 logs** (`.nmea`) have a stream `sentences` with every sentence as written: `talker` (`GP`, `GN`…; empty for proprietary `$P…` sentences), `type` (`RMC`, `GGA`, `PGRME`…), `text` and `valid`, whether its checksum matches. Fields of sentences not decoded can be split in SQL (`split_part(text, ',', 2)`). The sentence types the `nmea` crate decodes (`GGA`, `RMC`, `GSV`, `VTG`, `MWV`, `PGRMZ`…) also get one stream each: positions in degrees, one column per field. `t` is the sentence's UTC time on the date of the latest `RMC` or `ZDA` (the first date for the sentences before it); the day moves on at midnight, and a sentence without a time takes the time before it. Without any date, `t` is the time of day on 1970-01-01. `recordings.notes` counts bad checksums and the sentence types not decoded.
 
 **NMEA 2000 captures** (`.raw`, canboat's PLAIN format) have a stream `frames` with every frame as captured (`pgn`, `src`, `dst`, `prio`, `data`), and one stream per message decoded with the CANboat PGN database, fast-packet messages reassembled: named as canboat names it (`windData`, `vesselHeading`…), with the PGN as its type (`PGN 130306`), one column per field named by its canboat id (`windSpeed`), values in SI units (angles in radians, speeds in m/s, temperatures in kelvin; each stream's units are in `streams.notes`), lookups by name, and repeating sets as `list`. `recordings.notes` lists the PGNs whose frames were not decoded.
+
+**MDF4 files** (`.mf4`) have one stream per channel group, named by its acquisition name (else `group_1`, `group_2`…), with one column per channel: physical values after the file's conversions, text for value-to-text conversions, and a second channel of the same name as `<name> (2)`. `t` is the file's start time plus the group's time master; with an angle or distance master, the master is a column and `t` is empty. Units are in `streams.notes`; the header's comment and properties are in `properties` (`HD.<tree>/<name>`). Byte channels (bus frames) are left out, named in the stream notes.
 
 **CAN logs** (`.asc`, `.blf`) have one stream, `frames`: `channel` as the log numbers it (CAN 1 is 1), `id` (empty for error frames), `extended`, `fd`, `remote`, `error`, `rx`, `dlc` and `data`, the payload as an array of bytes (`data[1]` is the first). In an ASC log, `t` counts from the start of the measurement, and the `date` it started, as written in the log, is in `properties`. In a BLF log, `t` is the start time in the file header, read as UTC, plus each frame's offset, to the microsecond. Lines that are not frames (statistics, J1939 transport) are counted in `recordings.notes`, and so are error frames. Remote frames written without a length (`2.510001 2 100 Tx r`) are not read.
 

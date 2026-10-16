@@ -70,7 +70,7 @@ pub fn run(global: &GlobalArgs, a: &DemoArgs) -> Result<()> {
         }));
     } else {
         ui::info(
-            "An open agent session extracts the readable formats (ROS 2 bags and MCAP, ULog, MAVLink, ArduPilot, CAN, NMEA 0183 and 2000, Parquet) into the store as soon as each download finishes (on a first run, from its next `server_info` call); the others are listed as not readable yet.",
+            "An open agent session extracts the samples into the store as soon as each download finishes (on a first run, from its next `server_info` call).",
         );
         ui::info("Ask your agent: \"Which recordings does Wise Bucket have in the demo root?\"");
         ui::info(format!(
