@@ -294,6 +294,8 @@ pub enum RecordingKind {
     Tlog,
     /// An NMEA 0183 log (`.nmea`): one sentence per line.
     Nmea0183,
+    /// An NMEA 2000 capture in canboat's PLAIN/FAST text format (`.raw`).
+    Nmea2000,
     /// A ROS 1 bag: recognized, not readable yet.
     Ros1Bag,
     /// An ArduPilot DataFlash log (`.bin`).
@@ -325,6 +327,7 @@ impl RecordingKind {
             Self::ArrowIpc => "Arrow IPC",
             Self::Tlog => "MAVLink tlog",
             Self::Nmea0183 => "NMEA 0183 logs",
+            Self::Nmea2000 => "NMEA 2000 captures",
             Self::Ros1Bag => "ROS 1 bags (not readable yet)",
             Self::ArdupilotBin => "ArduPilot logs",
             Self::CanAsc => "CAN ASC logs",
@@ -566,6 +569,7 @@ fn kind_of(path: &Path) -> Option<RecordingKind> {
         "arrow" | "feather" | "ipc" => RecordingKind::ArrowIpc,
         "tlog" => RecordingKind::Tlog,
         "nmea" => RecordingKind::Nmea0183,
+        "raw" if canboat_plain(path) => RecordingKind::Nmea2000,
         "bag" => RecordingKind::Ros1Bag,
         "blf" => RecordingKind::CanBlf,
         "mf4" => RecordingKind::Mdf4,
@@ -574,6 +578,36 @@ fn kind_of(path: &Path) -> Option<RecordingKind> {
         "asc" if starts_with(path, b"date ") => RecordingKind::CanAsc,
         _ => return None,
     })
+}
+
+/// Whether the first line of the file at `path` that is not a comment is a frame in
+/// canboat's PLAIN format: `<date>T<time>,<prio>,<pgn>,<src>,<dst>,<length>,<bytes>…`.
+fn canboat_plain(path: &Path) -> bool {
+    use std::io::Read;
+    let mut head = Vec::new();
+    if std::fs::File::open(path)
+        .and_then(|f| f.take(4096).read_to_end(&mut head))
+        .is_err()
+    {
+        return false;
+    }
+    let text = String::from_utf8_lossy(&head);
+    let Some(line) = text
+        .lines()
+        .map(str::trim)
+        .find(|l| !l.is_empty() && !l.starts_with('#'))
+    else {
+        return false;
+    };
+    let parts: Vec<&str> = line.split(',').collect();
+    let date = parts[0].as_bytes();
+    parts.len() >= 7
+        && date.len() >= 10
+        && date[..4].iter().all(u8::is_ascii_digit)
+        && date[4] == b'-'
+        && parts[1..6]
+            .iter()
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// Whether the file at `path` starts with `magic` (ASCII case ignored).
@@ -957,7 +991,7 @@ mod tests {
     fn formats_are_recognized_by_content() {
         let d = tempfile::tempdir().unwrap();
         let r = d.path();
-        let files: [(&str, &[u8], Option<RecordingKind>); 8] = [
+        let files: [(&str, &[u8], Option<RecordingKind>); 10] = [
             (
                 "flight.BIN",
                 &[0xA3, 0x95, 0x80, 0x80],
@@ -977,6 +1011,12 @@ mod tests {
             ("bus.blf", b"LOGG", Some(RecordingKind::CanBlf)),
             ("bench.mf4", b"MDF     4.10", Some(RecordingKind::Mdf4)),
             ("bus.dbc", b"VERSION \"\"", None),
+            (
+                "boat.raw",
+                b"# PLAIN\n2020-08-22T13:52:36.950Z,2,130306,33,255,8,b7,3a,04,28,9e,fa,ff,ff\n",
+                Some(RecordingKind::Nmea2000),
+            ),
+            ("image.raw", &[0, 0, 1, 0, 0xFF, 0xFF], None),
             ("empty.bin", b"", None),
         ];
         for (name, bytes, kind) in files {
@@ -985,6 +1025,6 @@ mod tests {
         }
         let set = resolve_decls(&[decl("logs", r, r)]);
         let c = count_candidates(&set.roots[0], 10_000, Duration::from_secs(5));
-        assert_eq!((c.total(), c.other), (4, 4));
+        assert_eq!((c.total(), c.other), (5, 5));
     }
 }

@@ -274,7 +274,7 @@ Examples:
 
 * `<FORMAT>` — Formats to download (default: choose interactively, or all without a terminal)
 
-  Possible values: `ros2-mcap`, `ros2-db3`, `mcap`, `ulog`, `dataflash`, `tlog`, `can`, `nmea0183`, `mdf4`, `parquet`
+  Possible values: `ros2-mcap`, `ros2-db3`, `mcap`, `ulog`, `dataflash`, `tlog`, `can`, `nmea0183`, `nmea2000`, `mdf4`, `parquet`
 
 
 ###### **Options:**

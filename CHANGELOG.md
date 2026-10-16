@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **ArduPilot DataFlash logs** (`.bin`): one stream per message type (`ATT`, `IMU`, `GPS`…), scaled as pymavlink reads them, with the log's units in `streams.notes`; `PARM` (parameters), `MSG`, `ERR` and `EV`; the firmware and the `VER` record in `properties`; error codes counted in `recordings.notes`; and the start time in UTC when the log has a GPS fix.
 - **MCAP protobuf and JSON messages** are decoded: protobuf with the schema the file stores, JSON as it is; one column per field, nested messages as structs, enums by name, and `bytes` fields as their length, so images and point clouds keep their sizes only.
 - **NMEA 0183 logs** (`.nmea`): every sentence in the stream `sentences`, as written, with its talker, type and checksum validity, so proprietary sentences stay queryable; the sentence types the `nmea` crate decodes also get one stream each (`GGA`, `RMC`, `GSV`…). Times are the sentences' UTC times on the date of the latest `RMC` or `ZDA`. Bad checksums and the sentence types not decoded are counted in `recordings.notes`.
+- **NMEA 2000 captures** (`.raw`, canboat's PLAIN format): every frame in the stream `frames`, and one stream per message decoded with the CANboat PGN database (`windData`, `vesselHeading`…), fast-packet messages reassembled, values in SI units with each stream's units in its notes. The PGNs whose frames were not decoded are listed in `recordings.notes`.
 
 ### Changed
 

@@ -32,6 +32,7 @@ const SIGNATURES: &[(&str, &[u8])] = &[
     (".asc", b"date "),
     (".blf", b"LOGG"),
     (".nmea", b"# Name: "),
+    (".raw", b"# \n# Capture"),
     (".mf4", b"MDF     4."),
     (".parquet", b"PAR1"),
 ];
@@ -578,6 +579,63 @@ async fn nmea0183() {
     s.close().await;
 }
 
+/// Expected values from canboat's C analyzer (`analyzer -json -si -camel`), at the
+/// sample's commit.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn nmea2000() {
+    let (env, _) = check("nmea2000", "nmea2000", 1);
+    let s = extracted(&env, 1).await;
+    // 6104 lines; two are cut short (`cannot find sixth comma` for the analyzer too).
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('frames')").await,
+        6102
+    );
+    let r = s.sql("SELECT notes FROM recordings").await;
+    let notes = r["rows"][0]["notes"].as_str().unwrap();
+    assert!(notes.contains("2 line(s) not read as frames"), "{r:#}");
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('windData')").await,
+        506
+    );
+    assert_eq!(
+        number(
+            &s,
+            "SELECT count(*) AS n FROM stream('positionRapidUpdate')"
+        )
+        .await,
+        244
+    );
+    let r = s
+        .sql("SELECT CAST(t AS BIGINT) AS t, src, \"windSpeed\", \"windAngle\", reference FROM stream('windData') ORDER BY t LIMIT 1")
+        .await;
+    let row = &r["rows"][0];
+    assert_eq!(row["t"], 1_598_104_356_950_000_000_i64, "{r:#}"); // 2020-08-22T13:52:36.950Z
+    assert_eq!(
+        (&row["src"], &row["reference"]),
+        (&33.into(), &"Apparent".into()),
+        "{r:#}"
+    );
+    let close = |v: &serde_json::Value, x: f64| (v.as_f64().unwrap() - x).abs() < 1e-9;
+    assert!(
+        close(&row["windSpeed"], 10.82) && close(&row["windAngle"], 4.0488),
+        "{r:#}"
+    );
+    let r = s
+        .sql("SELECT latitude, longitude FROM stream('positionRapidUpdate') ORDER BY t LIMIT 1")
+        .await;
+    let row = &r["rows"][0];
+    assert!(
+        close(&row["latitude"], 53.1750601) && close(&row["longitude"], 5.4340946),
+        "{r:#}"
+    );
+    let r = s
+        .sql("SELECT heading, reference FROM stream('vesselHeading') ORDER BY t LIMIT 1")
+        .await;
+    assert!(close(&r["rows"][0]["heading"], 5.9782), "{r:#}");
+    s.close().await;
+}
+
 // The formats below have no reader yet: they are listed, as `unsupported`.
 
 #[test]
@@ -597,6 +655,7 @@ fn every_format_has_a_test() {
         "tlog",
         "can",
         "nmea0183",
+        "nmea2000",
         "mdf4",
         "parquet",
     ];
