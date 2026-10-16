@@ -21,6 +21,9 @@ hosting = "github"
 install-updater = false
 # Archives are .tar.gz: every Linux has gzip, minimal images lack xz (ADR 0028)
 unix-archive = ".tar.gz"
+# Dry run: build the release artifacts on pull requests, without publishing
+pr-run-mode = "upload"
+cache-builds = false
 
 # Archives hold `wisebucket` only; the installer links `wbk` to it (ADR 0028)
 [dist.binaries]
