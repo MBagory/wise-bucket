@@ -8,7 +8,7 @@ use datafusion::arrow::compute::cast;
 use datafusion::arrow::datatypes::{DataType, UInt8Type};
 
 use wb_core::error::{ErrorKind, Result, err};
-use wb_core::roots::RecordingKind;
+use wb_core::roots::{DbcChoice, RecordingKind};
 
 use crate::columns;
 use crate::ros2::{self, Decoder};
@@ -30,7 +30,13 @@ pub struct Extraction {
 }
 
 /// Extracts the recording at `path` into `out` (one Parquet file per stream under `out/data`).
-pub async fn extract(path: &Path, kind: RecordingKind, out: &Path) -> Result<Extraction> {
+/// `dbc` is the DBC choice of a CAN log.
+pub async fn extract(
+    path: &Path,
+    kind: RecordingKind,
+    dbc: Option<&DbcChoice>,
+    out: &Path,
+) -> Result<Extraction> {
     std::fs::create_dir_all(out.join("data")).map_err(crate::sink::io_err(out.display()))?;
     match kind {
         RecordingKind::Mcap => {
@@ -78,7 +84,9 @@ pub async fn extract(path: &Path, kind: RecordingKind, out: &Path) -> Result<Ext
         | RecordingKind::Parquet
         | RecordingKind::ArrowIpc => crate::tabular::read(path, kind, out).await,
         RecordingKind::Tlog => crate::tlog::read(path, out).await,
-        RecordingKind::CanAsc | RecordingKind::CanBlf => crate::can::read(path, kind, out).await,
+        RecordingKind::CanAsc | RecordingKind::CanBlf => {
+            crate::can::read(path, kind, dbc, out).await
+        }
         RecordingKind::Ros1Bag | RecordingKind::ArdupilotBin | RecordingKind::Mdf4 => Err(err(
             ErrorKind::RecordingUnreadable,
             format!("{}: this format is not readable yet", path.display()),

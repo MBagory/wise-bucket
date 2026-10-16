@@ -127,15 +127,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "ar_archive_writer"
-version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73cd58deff2140a0a8eae87e417bd01db68a33e148aa93d1e8cd837e55e312b6"
-dependencies = [
- "object 0.39.1",
-]
-
-[[package]]
 name = "array-init"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -497,7 +488,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "miniz_oxide 0.8.9",
- "object 0.37.3",
+ "object",
  "rustc-demangle",
  "windows-link",
 ]
@@ -678,6 +669,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbbad30e4b4c14a39e3cc8aed085a12a327257c316619c93581e017bc52be591"
 dependencies = [
  "serde_core",
+]
+
+[[package]]
+name = "can-dbc"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e39bde77280df32da397aaabc992cd252639af9cec2dff19f293668a9c0c162f"
+dependencies = [
+ "can-dbc-pest",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "can-dbc-pest"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3345d10c9b3676319c8865ce7622d03fff3c75fc21e1f7156afa629006618cf5"
+dependencies = [
+ "encoding_rs",
+ "pest",
+ "pest_derive",
 ]
 
 [[package]]
@@ -955,6 +968,12 @@ name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
+
+[[package]]
+name = "core_detect"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
 
 [[package]]
 name = "cpufeatures"
@@ -1997,6 +2016,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
+name = "encoding_rs"
+version = "0.8.42"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e985e0451871ad22fb8d2b6b076e2028a502a0d3950998c2c5c0a4f9b5d9679"
+dependencies = [
+ "cfg-if",
+ "core_detect",
+ "multiversion_no_op",
+ "rustversion",
+ "scopeguard",
+ "simdutf8",
+]
+
+[[package]]
 name = "enumset"
 version = "1.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2051,6 +2084,20 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "falcon_mdf"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "924fce015ae3f28c97f55209b113d2f8af40360c8319010a927d4bf70f8ffd4e"
+dependencies = [
+ "byteorder",
+ "can-dbc",
+ "flate2",
+ "log",
+ "quick-xml 0.37.5",
+ "thiserror",
 ]
 
 [[package]]
@@ -3104,7 +3151,7 @@ checksum = "0059289d3f5daf95a46e151c57113e95fa0ee80e8ebacb3cc5a305e7280fa020"
 dependencies = [
  "crc-any",
  "proc-macro2",
- "quick-xml",
+ "quick-xml 0.41.0",
  "quote",
  "regex",
  "thiserror",
@@ -3214,6 +3261,12 @@ dependencies = [
  "wasi",
  "windows-sys 0.61.2",
 ]
+
+[[package]]
+name = "multiversion_no_op"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "natord"
@@ -3399,15 +3452,6 @@ name = "object"
 version = "0.37.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
-dependencies = [
- "memchr",
-]
-
-[[package]]
-name = "object"
-version = "0.39.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
 dependencies = [
  "memchr",
 ]
@@ -3627,6 +3671,50 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "pest"
+version = "2.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b568374ba38b33a6c627141f891faf16902b08d2db26b8ede1bcb0a15b1919fa"
+dependencies = [
+ "memchr",
+ "psm",
+ "stacker",
+ "ucd-trie",
+]
+
+[[package]]
+name = "pest_derive"
+version = "2.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b66e184b924cebaaff20ab2256ca52f12332d528a39aa76553b5d96f92aacf7f"
+dependencies = [
+ "pest",
+ "pest_generator",
+]
+
+[[package]]
+name = "pest_generator"
+version = "2.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a87478d267e4de54a626af9754f2f0f58e927aac6ed0575fe89bc05ad6851694"
+dependencies = [
+ "pest",
+ "pest_meta",
+ "proc-macro2",
+ "quote",
+ "syn 3.0.6",
+]
+
+[[package]]
+name = "pest_meta"
+version = "2.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f986f248b4241ac359b831f6139aaa34e03b08a37b6caf7e201a33f95c869e1"
+dependencies = [
+ "pest",
+]
 
 [[package]]
 name = "petgraph"
@@ -3873,11 +3961,10 @@ dependencies = [
 
 [[package]]
 name = "psm"
-version = "0.1.32"
+version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dcd034599e63b970727f70d79e02d62390a4a84f7c6b827c27c46d5ac3fa622"
+checksum = "200b9ff220857e53e184257720a14553b2f4aa02577d2ed9842d45d4b9654810"
 dependencies = [
- "ar_archive_writer",
  "cc",
 ]
 
@@ -3901,6 +3988,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d31986c7f5754792e62c15b93cc5e9c5affdd867a33cb868b84e7dea0d8e70e5"
 dependencies = [
  "byteorder",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.37.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]
@@ -6136,6 +6232,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 
 [[package]]
+name = "ucd-trie"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2896d95c02a80c6d6a5d6e953d479f5ddf2dfdb6a244441010e373ac0fb88971"
+
+[[package]]
 name = "unicase"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6409,6 +6511,7 @@ version = "0.1.1"
 dependencies = [
  "blf_asc",
  "datafusion",
+ "falcon_mdf",
  "futures",
  "hex",
  "mavlink",

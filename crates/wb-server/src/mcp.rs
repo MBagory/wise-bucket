@@ -272,6 +272,10 @@ impl WbServer {
             Ok(cfg) => wb_data::store::note(&cfg, &args.target, &args.context),
             Err(e) => Err(e),
         };
+        // The key `dbc` changes how CAN logs are decoded: look for them again now.
+        if let (Ok(_), Some(w)) = (&result, &self.state.worker) {
+            w.wake();
+        }
         Ok(match result {
             Ok(r) => CallToolResult::structured(json!(r)),
             Err(e) => CallToolResult::structured_error(json!({ "error": e.to_json() })),
