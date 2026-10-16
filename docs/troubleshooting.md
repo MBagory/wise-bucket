@@ -54,7 +54,7 @@ Use another time column of the stream, or the row order, and page it by another 
 
 ### A recording is `unsupported`
 
-Wise Bucket recognized the file (ROS 1 bag, MDF4 `.mf4`) but cannot read it yet. It stays listed in `recordings`, without streams. See [Why can't Wise Bucket read my format](#why-cant-wise-bucket-read-my-format).
+Wise Bucket recognized the file (a ROS 1 bag) but cannot read it yet. It stays listed in `recordings`, without streams. See [Why can't Wise Bucket read my format](#why-cant-wise-bucket-read-my-format).
 
 ### My query fails (`query_failed`)
 

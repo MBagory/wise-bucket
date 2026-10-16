@@ -304,14 +304,14 @@ pub enum RecordingKind {
     CanAsc,
     /// A Vector CAN log in binary (`.blf`).
     CanBlf,
-    /// An ASAM MDF4 file (`.mf4`): recognized, not readable yet.
+    /// An ASAM MDF4 file (`.mf4`).
     Mdf4,
 }
 
 impl RecordingKind {
     /// Whether Wise Bucket can extract this kind into the store.
     pub fn supported(self) -> bool {
-        !matches!(self, Self::Ros1Bag | Self::Mdf4)
+        !matches!(self, Self::Ros1Bag)
     }
 
     /// Plural label for summaries.
@@ -332,7 +332,7 @@ impl RecordingKind {
             Self::ArdupilotBin => "ArduPilot logs",
             Self::CanAsc => "CAN ASC logs",
             Self::CanBlf => "CAN BLF logs",
-            Self::Mdf4 => "MDF4 files (not readable yet)",
+            Self::Mdf4 => "MDF4 files",
         }
     }
 }

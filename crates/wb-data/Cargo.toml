@@ -37,7 +37,8 @@ blf_asc = "0.2"
 canboat = { version = "8", default-features = false, features = ["decode"] }
 # Without its memory map: a log may still be being written.
 dflog = { version = "0.2", default-features = false }
-# DBC decoding only (can-dbc parses); not its arrow/parquet features (Arrow 59, ADR 0021).
+# MDF4 files and DBC decoding (can-dbc parses); not its arrow/parquet features (Arrow 59,
+# ADR 0021), nor its memory map (a logger may still be writing the file).
 falcon_mdf = { version = "0.7", default-features = false, features = ["dbc"] }
 mavlink = { version = "0.19.1", default-features = false, features = ["std", "serde", "dialect-ardupilotmega"] }
 

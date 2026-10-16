@@ -636,12 +636,38 @@ async fn nmea2000() {
     s.close().await;
 }
 
-// The formats below have no reader yet: they are listed, as `unsupported`.
-
-#[test]
+/// Expected values from asammdf 8.8 (`MDF.get`): one channel group of 1051 samples, a
+/// time master in seconds and three float channels (the file's names are scrambled).
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
-fn mdf4() {
-    check("mdf4", "mdf4", 1);
+async fn mdf4() {
+    let (env, _) = check("mdf4", "mdf4", 1);
+    let s = extracted(&env, 1).await;
+    assert_eq!(
+        number(&s, "SELECT count(*) AS n FROM stream('group_1')").await,
+        1051
+    );
+    let r = s
+        .sql("SELECT CAST(t AS BIGINT) AS t, \"BNXJPMAPAVZXPSX\" AS a, \"XMFJPKJRIVXIQNR\" AS b FROM stream('group_1') ORDER BY t LIMIT 2")
+        .await;
+    // Started 2018-03-13T19:24:42Z; the master steps by 0.01 s.
+    assert_eq!(r["rows"][0]["t"], 1_520_969_082_000_000_000_i64, "{r:#}");
+    assert_eq!(r["rows"][1]["t"], 1_520_969_082_010_000_000_i64, "{r:#}");
+    // The channels are f32: equal to asammdf's values at single precision.
+    let close = |v: &serde_json::Value, x: f64| (v.as_f64().unwrap() - x).abs() <= x.abs() * 1e-7;
+    assert!(close(&r["rows"][0]["a"], 0.013000048696994781), "{r:#}");
+    assert!(close(&r["rows"][1]["b"], -2.004493126150919e-06), "{r:#}");
+    let r = s
+        .sql("SELECT notes FROM streams WHERE stream = 'group_1'")
+        .await;
+    assert!(
+        r["rows"][0]["notes"]
+            .as_str()
+            .unwrap()
+            .contains("BNXJPMAPAVZXPSX [HBUNLOS]"),
+        "{r:#}"
+    );
+    s.close().await;
 }
 
 #[test]
