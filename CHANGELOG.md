@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **CAN logs:** Vector ASC and BLF logs (CANoe, CANalyzer) are extracted into one stream, `frames`: the channel as the log numbers it, the identifier, the extended, CAN FD, remote and error flags, the direction, the DLC and the payload bytes. ASC times count from the start of the measurement, whose date is in `properties`; BLF times start at the file's start time, read as UTC. Error frames and lines that are not frames (statistics, J1939 transport) are counted in `recordings.notes`, and a BLF file cut while logging keeps its valid part.
+
 ## [0.1.1] - 2026-10-16
 
 ### Changed

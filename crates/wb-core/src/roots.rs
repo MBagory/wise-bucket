@@ -296,9 +296,9 @@ pub enum RecordingKind {
     Ros1Bag,
     /// An ArduPilot DataFlash log (`.bin`): recognized, not readable yet.
     ArdupilotBin,
-    /// A Vector CAN log in text (`.asc`): recognized, not readable yet.
+    /// A Vector CAN log in text (`.asc`).
     CanAsc,
-    /// A Vector CAN log in binary (`.blf`): recognized, not readable yet.
+    /// A Vector CAN log in binary (`.blf`).
     CanBlf,
     /// An ASAM MDF4 file (`.mf4`): recognized, not readable yet.
     Mdf4,
@@ -307,10 +307,7 @@ pub enum RecordingKind {
 impl RecordingKind {
     /// Whether Wise Bucket can extract this kind into the store.
     pub fn supported(self) -> bool {
-        !matches!(
-            self,
-            Self::Ros1Bag | Self::ArdupilotBin | Self::CanAsc | Self::CanBlf | Self::Mdf4
-        )
+        !matches!(self, Self::Ros1Bag | Self::ArdupilotBin | Self::Mdf4)
     }
 
     /// Plural label for summaries.
@@ -327,8 +324,8 @@ impl RecordingKind {
             Self::Tlog => "MAVLink tlog",
             Self::Ros1Bag => "ROS 1 bags (not readable yet)",
             Self::ArdupilotBin => "ArduPilot logs (not readable yet)",
-            Self::CanAsc => "CAN ASC logs (not readable yet)",
-            Self::CanBlf => "CAN BLF logs (not readable yet)",
+            Self::CanAsc => "CAN ASC logs",
+            Self::CanBlf => "CAN BLF logs",
             Self::Mdf4 => "MDF4 files (not readable yet)",
         }
     }
@@ -753,7 +750,7 @@ mod tests {
     }
 
     #[test]
-    fn unreadable_formats_are_listed_by_content() {
+    fn formats_are_recognized_by_content() {
         let d = tempfile::tempdir().unwrap();
         let r = d.path();
         let files: [(&str, &[u8], Option<RecordingKind>); 8] = [
@@ -781,7 +778,6 @@ mod tests {
         for (name, bytes, kind) in files {
             std::fs::write(r.join(name), bytes).unwrap();
             assert_eq!(kind_of(&r.join(name)), kind, "{name}");
-            assert!(kind.is_none_or(|k| !k.supported()), "{name}");
         }
         let set = resolve_decls(&[decl("logs", r, r)]);
         let c = count_candidates(&set.roots[0], 10_000, Duration::from_secs(5));

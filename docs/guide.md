@@ -94,9 +94,10 @@ A recording folder (a *data root*) is a named folder that Wise Bucket may read. 
 | `.db3` | a rosbag2 SQLite file |
 | `.ulg` | PX4 ULog |
 | `.tlog` | a MAVLink telemetry log (QGroundControl, MAVProxy): one stream per message |
+| `.asc` and `.blf` | a Vector CAN log (CANoe, CANalyzer): every frame in one stream (`.asc` only when its first bytes match) |
 | `.csv`, `.jsonl` / `.ndjson`, `.parquet`, `.arrow` / `.feather` / `.ipc` | a table |
 | `.bag` | a ROS 1 bag: listed, not readable yet |
-| `.bin` (ArduPilot DataFlash), `.asc` and `.blf` (CAN), `.mf4` (MDF4) | listed, not readable yet (`.bin` and `.asc` only when their first bytes match) |
+| `.bin` (ArduPilot DataFlash), `.mf4` (MDF4) | listed, not readable yet (`.bin` only when its first bytes match) |
 
 ```sh
 wisebucket roots add bags ~/robot-logs/bags
@@ -181,13 +182,13 @@ Each recording has a **status**:
 | `failed` | Could not be read; `error` says why. Retried when the file changes |
 | `paused` | Waiting for free disk space |
 | `missing` | The file is gone; its data stays queryable |
-| `unsupported` | A format Wise Bucket cannot read yet (ROS 1 bags, ArduPilot DataFlash, CAN ASC and BLF, MDF4) |
+| `unsupported` | A format Wise Bucket cannot read yet (ROS 1 bags, ArduPilot DataFlash, MDF4) |
 
 ### What gets extracted
 
 Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MCAP file, the messages of a ULog file or a MAVLink telemetry log, or a single `table` for CSV, JSON Lines, Parquet and Arrow files. Each stream is a table with:
 
-- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970; in seconds: `date_part('epoch', t)`; a ULog recording starts at its header's time), the record time for a MAVLink telemetry log, or the time column of a table.
+- **`t`**, a nanosecond timestamp: the receive time for bags and MCAP, `timestamp` for ULog (time since boot, so it shows as a date near 1970; in seconds: `date_part('epoch', t)`; a ULog recording starts at its header's time), the record time for a MAVLink telemetry log, the frame time for a CAN log, or the time column of a table.
 - **`t_sensor`**, the message's own `header.stamp`, when a ROS 2 message has one.
 - **`message_bytes`**, the size of each message (bags and MCAP).
 - **The message fields**, nested names joined with dots (`linear_acceleration.z`). Arrays stay arrays.
@@ -202,9 +203,11 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 - **`texts`**: `name`, `line`, `text`: the boot console output, a crash dump from an earlier crash (`hardfault_plain`), performance counters, one row per line.
 - **`formats`**: `name`, `fields` as the file declares them (`uint64_t timestamp;float pressure`), and `logged`, false for the message types the file defines but never logged.
 
+**CAN logs** (`.asc`, `.blf`) have one stream, `frames`: `channel` as the log numbers it (CAN 1 is 1), `id` (empty for error frames), `extended`, `fd`, `remote`, `error`, `rx`, `dlc` and `data`, the payload as an array of bytes (`data[1]` is the first). In an ASC log, `t` counts from the start of the measurement, and the `date` it started, as written in the log, is in `properties`. In a BLF log, `t` is the start time in the file header, read as UTC, plus each frame's offset, to the microsecond. Lines that are not frames (statistics, J1939 transport) are counted in `recordings.notes`, and so are error frames. Remote frames written without a length (`2.510001 2 100 Tx r`) are not read.
+
 **Facts about a recording** go to the `properties` table: the info of ULog files (`ver_hw` board, `ver_sw` firmware, `sys_name`, `time_ref_utc`…) and the metadata records of MCAP files, as `<record>.<key>`. The `rosbag2` summary record is left out.
 
-**Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ULog (`logged_messages`), ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `4 ERROR log messages (stream logged_messages), first: "[sensors] no barometer found on /dev/baro0 (2)"`. It also reports ULog logger dropouts, crash dumps, and a file cut or damaged; no note means none of these. `streams.notes` flags ULog timestamps that are not set (0) and a time that never changes in a message stream.
+**Notes** point to what to look at. `recordings.notes` counts the warnings and errors logged by ULog (`logged_messages`), ROS 2 `/rosout` (WARN or worse) and MAVLink `STATUSTEXT` (WARNING or worse), and quotes the first error, or the first warning when there is none: `4 ERROR log messages (stream logged_messages), first: "[sensors] no barometer found on /dev/baro0 (2)"`. It also reports ULog logger dropouts, crash dumps, CAN error frames, and a file cut or damaged; no note means none of these. `streams.notes` flags ULog timestamps that are not set (0) and a time that never changes in a message stream.
 
 **Tables** need a time column. Wise Bucket uses the first timestamp column, else a column named `time`, `timestamp`, `t` or `stamp` (any case), whose unit comes from a `_s`, `_ms`, `_us` or `_ns` suffix (seconds by default). The stream's `notes` say which column was used. Without one, `t` is empty.
 

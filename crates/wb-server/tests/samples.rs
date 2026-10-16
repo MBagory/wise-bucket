@@ -287,20 +287,115 @@ async fn tlog() {
     s.close().await;
 }
 
+/// Expected values from python-can 4.6.1 (`ASCReader`, `BLFReader`), with channels as the
+/// log numbers them (python-can counts from 0).
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "network: fetches public samples"]
+async fn can() {
+    let (env, _) = check("can", "can_asc", 1);
+    let c = &env.json(&["roots", "check"])["roots"][0]["candidates"];
+    assert_eq!(c["can_blf"].as_u64(), Some(1), "{c:#}");
+    let s = extracted(&env, 2).await;
+    let asc = "stream('frames', 's:logfile.asc')";
+
+    // python-can reads 20 frames: blf_asc 0.2 skips the remote frame written without a
+    // length (`2.510001 2 100 Tx r`).
+    assert_eq!(
+        number(&s, &format!("SELECT count(*) AS n FROM {asc}")).await,
+        19
+    );
+    assert_eq!(
+        number(&s, &format!("SELECT count(*) AS n FROM {asc} WHERE error")).await,
+        4
+    );
+    let r = s
+        .sql(&format!(
+            "SELECT CAST(t AS BIGINT) AS t, channel, id, extended, fd, remote, rx, dlc, data \
+             FROM {asc} WHERE id = 418119424 ORDER BY t LIMIT 1"
+        ))
+        .await;
+    let row = &r["rows"][0];
+    assert_eq!(row["t"], 3_098_426_000_i64, "{r:#}");
+    assert_eq!(row["channel"], 1, "{r:#}");
+    assert_eq!(row["extended"], true, "{r:#}");
+    assert_eq!(row["dlc"], 8, "{r:#}");
+    assert_eq!(
+        row["data"],
+        serde_json::json!([0x01, 0xA0, 0x0F, 0xA6, 0x60, 0x3B, 0xD1, 0x40]),
+        "{r:#}"
+    );
+    // The 64-byte CAN FD frame.
+    let r = s
+        .sql(&format!(
+            "SELECT CAST(t AS BIGINT) AS t, channel, id, fd, cardinality(data) AS len, \
+             data[1] AS first, data[64] AS last FROM {asc} WHERE dlc = 64"
+        ))
+        .await;
+    let row = &r["rows"][0];
+    assert_eq!(row["t"], 30_506_898_000_i64, "{r:#}");
+    assert_eq!(
+        (&row["channel"], &row["id"]),
+        (&4.into(), &0x4EE.into()),
+        "{r:#}"
+    );
+    assert_eq!(
+        (&row["fd"], &row["len"]),
+        (&true.into(), &64.into()),
+        "{r:#}"
+    );
+    assert_eq!(
+        (&row["first"], &row["last"]),
+        (&1.into(), &0x64.into()),
+        "{r:#}"
+    );
+    let r = s
+        .sql("SELECT notes FROM recordings WHERE recording = 's:logfile.asc'")
+        .await;
+    let notes = r["rows"][0]["notes"].as_str().unwrap();
+    assert!(notes.contains("4 error frames"), "{r:#}");
+    assert!(notes.contains("8 line(s) not read as frames"), "{r:#}");
+    let r = s
+        .sql("SELECT value FROM properties WHERE recording = 's:logfile.asc' AND key = 'date'")
+        .await;
+    assert_eq!(
+        r["rows"][0]["value"], "Sam Sep 30 15:06:13.191 2017",
+        "{r:#}"
+    );
+
+    // BLF: python-can's two (synthetic) frames, times to the microsecond.
+    let r = s
+        .sql(
+            "SELECT CAST(t AS BIGINT) AS t, channel, id, extended, dlc, data \
+             FROM stream('frames', 's:test_CanMessage.blf')",
+        )
+        .await;
+    assert_eq!(r["row_count"], 2, "{r:#}");
+    let row = &r["rows"][0];
+    assert_eq!(row["t"], 2_459_565_876_494_607_000_i64, "{r:#}");
+    assert_eq!(
+        (&row["channel"], &row["id"]),
+        (&4369.into(), &0x4444444.into()),
+        "{r:#}"
+    );
+    assert_eq!(
+        (&row["extended"], &row["dlc"]),
+        (&false.into(), &51.into()),
+        "{r:#}"
+    );
+    assert_eq!(
+        row["data"],
+        serde_json::json!([0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC]),
+        "{r:#}"
+    );
+    s.close().await;
+}
+
 // The formats below have no reader yet: they are listed, as `unsupported`.
 
 #[test]
 #[ignore = "network: fetches public samples"]
 fn dataflash() {
     check("dataflash", "ardupilot_bin", 1);
-}
-
-#[test]
-#[ignore = "network: fetches public samples"]
-fn can() {
-    let (env, _) = check("can", "can_asc", 1);
-    let c = &env.json(&["roots", "check"])["roots"][0]["candidates"];
-    assert_eq!(c["can_blf"].as_u64(), Some(1), "{c:#}");
 }
 
 #[test]

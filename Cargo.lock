@@ -574,6 +574,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "blf_asc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6025dfd29c56e3d0f782d94e494f0cba824f337546bd6f4063a7df5bdbd2cb33"
+dependencies = [
+ "chrono",
+ "flate2",
+]
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -736,8 +746,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327"
 dependencies = [
  "iana-time-zone",
+ "js-sys",
  "num-traits",
  "serde",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -6395,6 +6407,7 @@ dependencies = [
 name = "wb-data"
 version = "0.1.1"
 dependencies = [
+ "blf_asc",
  "datafusion",
  "futures",
  "hex",
