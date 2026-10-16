@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
+Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:
+
+- **Vehicles and test benches:** CAN logs from Vector tools (ASC, BLF) and MDF4 measurement files. The first time, the agent asks you which DBC file decodes your CAN logs. From then on, every log in that folder is decoded into signals, and the raw frames stay available next to them.
+- **Drones:** ArduPilot logs, alongside PX4 and MAVLink logs.
+- **Boats:** NMEA 0183 and NMEA 2000 logs.
+- **Robots:** MCAP files with protobuf or JSON messages, as Foxglove tools record them.
+
 ### Added
 
 - **CAN logs:** Vector ASC and BLF logs (CANoe, CANalyzer) are extracted into one stream, `frames`: the channel as the log numbers it, the identifier, the extended, CAN FD, remote and error flags, the direction, the DLC and the payload bytes. ASC times count from the start of the measurement, whose date is in `properties`; BLF times start at the file's start time, read as UTC. Error frames and lines that are not frames (statistics, J1939 transport) are counted in `recordings.notes`, and a BLF file cut while logging keeps its valid part.
@@ -51,6 +60,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Documentation as plain Markdown: the README with Wise Bucket's principles, the user guide (with compatible [viewers](https://github.com/MBagory/wise-bucket/blob/main/docs/guide.md#viewers)), troubleshooting and FAQ, generated references (CLI, configuration, errors, tables), [decision records](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/README.md) with the list of possible features that replaces a roadmap, and privacy notes in `SECURITY.md`.
 - Tests: acceptance tests drive the real binary through a real MCP client; format tests check exact values on generated fixtures; per-format sample tests (`cargo test -p wisebucket --test samples -- --ignored`) run in a dedicated CI job per format.
 
-[Unreleased]: https://github.com/MBagory/wise-bucket/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/MBagory/wise-bucket/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/MBagory/wise-bucket/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/MBagory/wise-bucket/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/MBagory/wise-bucket/releases/tag/v0.1.0

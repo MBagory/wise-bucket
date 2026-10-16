@@ -6730,7 +6730,7 @@ dependencies = [
 
 [[package]]
 name = "wb-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "directories",
  "dunce",
@@ -6747,7 +6747,7 @@ dependencies = [
 
 [[package]]
 name = "wb-data"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "blf_asc",
  "canboat",
@@ -7123,7 +7123,7 @@ dependencies = [
 
 [[package]]
 name = "wisebucket"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "anstream",
  "clap",
