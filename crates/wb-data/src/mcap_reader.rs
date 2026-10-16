@@ -9,7 +9,7 @@ use mcap::records::Record;
 use mcap::sans_io::linear_reader::{LinearReadEvent, LinearReader};
 use wb_core::error::{ErrorKind, Result, err};
 
-use crate::extract::Topics;
+use crate::extract::{Schema, Topics};
 
 fn unreadable(path: &std::path::Path, e: impl std::fmt::Display) -> wb_core::WbError {
     err(
@@ -43,19 +43,26 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
                             );
                         }
                         Record::Channel(ch) => {
-                            let (type_, definition) = match schemas.get(&ch.schema_id) {
-                                Some((name, encoding, data)) => (
-                                    name.clone(),
-                                    (encoding == "ros2msg")
-                                        .then(|| String::from_utf8_lossy(data).into_owned()),
-                                ),
-                                None => (String::new(), None),
+                            let (type_, encoding, data) = match schemas.get(&ch.schema_id) {
+                                Some((name, encoding, data)) => {
+                                    (name.clone(), encoding.as_str(), data.as_slice())
+                                }
+                                None => (String::new(), "", &[][..]),
+                            };
+                            let text;
+                            let schema = match encoding {
+                                "ros2msg" => {
+                                    text = String::from_utf8_lossy(data);
+                                    Schema::Ros2(&text)
+                                }
+                                "protobuf" => Schema::Protobuf(data),
+                                _ => Schema::None,
                             };
                             let index = topics.topic(
                                 &ch.topic,
                                 &type_,
                                 &ch.message_encoding,
-                                definition.as_deref(),
+                                schema,
                                 ch.metadata.get("offered_qos_profiles").map(String::as_str),
                             );
                             channels.insert(ch.id, index);

@@ -16,6 +16,7 @@ mod can;
 mod dataflash;
 mod db3;
 mod mcap_reader;
+mod payload;
 mod ros2;
 mod rows;
 mod sink;
@@ -25,7 +26,7 @@ mod ulog;
 
 /// Version of the extraction output. Bump it whenever the content of extracted
 /// streams changes: every recording is then extracted again automatically.
-pub const EXTRACTOR_VERSION: u32 = 4;
+pub const EXTRACTOR_VERSION: u32 = 5;
 
 /// Name of the single stream of a table-like file (CSV, JSON Lines, Parquet, Arrow IPC).
 pub const TABLE_STREAM: &str = "table";

@@ -1,4 +1,4 @@
-Wise Bucket helps an engineer investigate hardware behaviour (robots, drones, vehicles, test benches) from its recordings: ROS 2 bags and MCAP, PX4 ULog, MAVLink telemetry logs (`.tlog`), ArduPilot DataFlash logs (`.bin`), Vector CAN logs (`.asc`, `.blf`), CSV, JSON Lines, Parquet and Arrow files.
+Wise Bucket helps an engineer investigate hardware behaviour (robots, drones, vehicles, test benches) from its recordings: ROS 2 bags and MCAP (ROS 2, protobuf and JSON messages), PX4 ULog, MAVLink telemetry logs (`.tlog`), ArduPilot DataFlash logs (`.bin`), Vector CAN logs (`.asc`, `.blf`), CSV, JSON Lines, Parquet and Arrow files.
 
 Every recording in the engineer's data roots is extracted in the background into a store: a decoded, columnar copy, one table per stream with a nanosecond time column `t`. Nothing is computed in advance: you compute every metric yourself with SQL.
 

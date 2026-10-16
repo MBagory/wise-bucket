@@ -20,6 +20,7 @@ parquet = { version = "58", default-features = false, features = ["arrow", "zstd
 re_ros_msg = "0.38"
 rerun = { version = "0.38", default-features = false, features = ["sdk"] }
 mcap = "0.25"
+prost-reflect = { version = "0.16", features = ["serde"] }
 px4-ulog = "0.6"
 rusqlite = { version = "0.40", features = ["bundled"] }
 futures = "0.3"
@@ -37,4 +38,6 @@ falcon_mdf = { version = "0.7", default-features = false, features = ["dbc"] }
 mavlink = { version = "0.19.1", default-features = false, features = ["std", "serde", "dialect-ardupilotmega"] }
 
 [dev-dependencies]
+prost = "0.14"
+prost-types = "0.14"
 tempfile = "3"
