@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        format: [ros2_mcap, ros2_db3, mcap, ros1_bag, ulog, dataflash, tlog, can, can_dbc, nmea0183, mdf4, parquet]
+        format: [ros2_mcap, ros2_db3, mcap, ros1_bag, ulog, dataflash, tlog, can, can_dbc, nmea0183, nmea2000, mdf4, parquet]
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable

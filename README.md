@@ -21,7 +21,7 @@
 
 ### ⏱️ Built for time series
 
-Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183, CSV, JSON Lines, Parquet and Arrow IPC.
+Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, CSV, JSON Lines, Parquet and Arrow IPC.
 
 ### 🤖 Bring your own agent
 
@@ -116,6 +116,7 @@ Samples are fetched from their upstream projects at pinned commits, SHA-256-veri
 | `tlog` | *"What battery state was reported?"* |
 | `dataflash` | *"How far did the attitude lag the demand?"* · *"Which parameters were set?"* |
 | `nmea0183` | *"What was the speed over ground, and how many satellites?"* |
+| `nmea2000` | *"How did the apparent wind change during the tack?"* |
 | `can` | *"Which CAN IDs are on the bus, at what rate?"* · *"When did error frames occur?"* |
 | `parquet` | *"Which column types does it hold?"* |
 

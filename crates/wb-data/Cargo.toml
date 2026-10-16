@@ -33,6 +33,8 @@ sha2 = "0.11.0"
 tokio = { version = "1.53", features = ["full"] }
 tracing = "0.1.44"
 blf_asc = "0.2"
+# Only its decoder: no serial port, SocketCAN or USB.
+canboat = { version = "8", default-features = false, features = ["decode"] }
 # Without its memory map: a log may still be being written.
 dflog = { version = "0.2", default-features = false }
 # DBC decoding only (can-dbc parses); not its arrow/parquet features (Arrow 59, ADR 0021).

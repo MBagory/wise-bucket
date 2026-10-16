@@ -270,6 +270,21 @@ pub const FORMATS: &[Format] = &[
         }],
     },
     Format {
+        key: "nmea2000",
+        description: "NMEA 2000 capture (canboat PLAIN format, a sailing yacht's bus)",
+        license: "Apache-2.0",
+        files: &[SampleFile {
+            path: "susteranna2020.raw",
+            url: raw!(
+                "canboat/canboat",
+                "ffc3af131c678e4705ce08b547eb18afc7200dd2",
+                "samples/susteranna2020.raw"
+            ),
+            size: 427364,
+            sha256: "9323e2317a9f72b4879d59291aa7992203b4891fc1f9e552816c56cfa161f112",
+        }],
+    },
+    Format {
         key: "mdf4",
         description: "ASAM MDF 4.10 measurement file",
         license: "LGPL-3.0",
