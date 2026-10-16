@@ -96,6 +96,7 @@ A recording folder (a *data root*) is a named folder that Wise Bucket may read. 
 | `.tlog` | a MAVLink telemetry log (QGroundControl, MAVProxy): one stream per message |
 | `.asc` and `.blf` | a Vector CAN log (CANoe, CANalyzer): every frame in one stream (`.asc` only when its first bytes match) |
 | `.bin` | an ArduPilot DataFlash log: one stream per message type (only when its first bytes match) |
+| `.nmea` | an NMEA 0183 log (GNSS receivers, marine instruments): every sentence, and one stream per sentence type decoded |
 | `.csv`, `.jsonl` / `.ndjson`, `.parquet`, `.arrow` / `.feather` / `.ipc` | a table |
 | `.bag` | a ROS 1 bag: listed, not readable yet |
 | `.mf4` (MDF4) | listed, not readable yet |
@@ -207,6 +208,8 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 - **`formats`**: `name`, `fields` as the file declares them (`uint64_t timestamp;float pressure`), and `logged`, false for the message types the file defines but never logged.
 
 **ArduPilot logs** (`.bin`) have one stream per message type the log defines (`ATT`, `IMU`, `GPS`…), as pymavlink reads them: `c`, `C`, `e` and `E` fields divided by 100, latitudes and longitudes (`L`) in degrees. A message type with several instances (`IMU`, `BARO`…) keeps its instance field as a column. `TimeUS` becomes `t`; records without it take the last time before them. `PARM` holds the parameters, `MSG` the messages, `ERR` the error codes (`ECode` 0 means resolved) and `EV` the events; `FMT`, `FMTU`, `UNIT` and `MULT` describe the formats. Units from the log are in `streams.notes`.
+
+**NMEA 0183 logs** (`.nmea`) have a stream `sentences` with every sentence as written: `talker` (`GP`, `GN`…; empty for proprietary `$P…` sentences), `type` (`RMC`, `GGA`, `PGRME`…), `text` and `valid`, whether its checksum matches. Fields of sentences not decoded can be split in SQL (`split_part(text, ',', 2)`). The sentence types the `nmea` crate decodes (`GGA`, `RMC`, `GSV`, `VTG`, `MWV`, `PGRMZ`…) also get one stream each: positions in degrees, one column per field. `t` is the sentence's UTC time on the date of the latest `RMC` or `ZDA` (the first date for the sentences before it); the day moves on at midnight, and a sentence without a time takes the time before it. Without any date, `t` is the time of day on 1970-01-01. `recordings.notes` counts bad checksums and the sentence types not decoded.
 
 **CAN logs** (`.asc`, `.blf`) have one stream, `frames`: `channel` as the log numbers it (CAN 1 is 1), `id` (empty for error frames), `extended`, `fd`, `remote`, `error`, `rx`, `dlc` and `data`, the payload as an array of bytes (`data[1]` is the first). In an ASC log, `t` counts from the start of the measurement, and the `date` it started, as written in the log, is in `properties`. In a BLF log, `t` is the start time in the file header, read as UTC, plus each frame's offset, to the microsecond. Lines that are not frames (statistics, J1939 transport) are counted in `recordings.notes`, and so are error frames. Remote frames written without a length (`2.510001 2 100 Tx r`) are not read.
 
