@@ -5,3 +5,7 @@ extend-exclude = ["LICENSE", "CODE_OF_CONDUCT.md", "*.lock", "crates/wb-data/src
 # Domain vocabulary
 ulog = "ulog"
 sitl = "sitl"  # software in the loop (SITL)
+parm = "parm"  # ArduPilot parameter message (PARM)
+
+[default.extend-identifiers]
+CANoe = "CANoe"  # Vector's CAN tool
