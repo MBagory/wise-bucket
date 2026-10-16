@@ -21,7 +21,7 @@
 
 ### ⏱️ Built for time series
 
-Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, CSV, JSON Lines, Parquet and Arrow IPC.
+Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, Vector CAN logs (ASC, BLF), CSV, JSON Lines, Parquet and Arrow IPC.
 
 ### 🤖 Bring your own agent
 
@@ -114,6 +114,7 @@ Samples are fetched from their upstream projects at pinned commits, SHA-256-veri
 | `ros2-mcap` · `ros2-db3` | *"Is `/topic` published at a steady rate?"* |
 | `ulog` | *"When does CPU load peak, and what runs then?"* · *"Why is the barometric altitude flat?"* · *"Which parameters differ from their defaults?"* |
 | `tlog` | *"What battery state was reported?"* |
+| `can` | *"Which CAN IDs are on the bus, at what rate?"* · *"When did error frames occur?"* |
 | `parquet` | *"Which column types does it hold?"* |
 
 ## Everyday use
