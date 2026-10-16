@@ -54,7 +54,7 @@ Use another time column of the stream, or the row order, and page it by another 
 
 ### A recording is `unsupported`
 
-Wise Bucket recognized the file (ROS 1 bag, ArduPilot DataFlash `.bin`, CAN `.asc` or `.blf`, MDF4 `.mf4`) but cannot read it yet. It stays listed in `recordings`, without streams. See [Why can't Wise Bucket read my format](#why-cant-wise-bucket-read-my-format-can-with-dbc-mdf4-ros-1).
+Wise Bucket recognized the file (ROS 1 bag, MDF4 `.mf4`) but cannot read it yet. It stays listed in `recordings`, without streams. See [Why can't Wise Bucket read my format](#why-cant-wise-bucket-read-my-format).
 
 ### My query fails (`query_failed`)
 
@@ -113,7 +113,7 @@ The column is a counter, a sequence number, a timestamp or an enum, or the peers
 
 Every row your agent receives enters its context, so a result holds about 60 KB of rows. The hint says how to get the rest: aggregate with `date_bin`, filter, or fetch the next page by time, or by another column when the last rows share one time. To plot a long signal, the agent fetches about 150 bins with their min, average and max. ([ADR 0017](decisions/0017-result-size-and-paging.md))
 
-### Why can't Wise Bucket read my format (CAN with DBC, MDF4, ROS 1…)?
+### Why can't Wise Bucket read my format?
 
 A format is added only when an external Rust crate decodes it. Recognized files in such formats are listed with the status `unsupported`. Formats waiting for a crate, or for their turn, are on the list of [possible features](decisions/0014-possible-features-instead-of-milestones.md). ([ADR 0016](decisions/0016-formats-need-an-external-rust-decoder.md))
 
@@ -126,6 +126,7 @@ A format is added only when an external Rust crate decodes it. Recognized files 
 | PX4 ULog | `parameters` (with defaults) | `logged_messages` | `dropouts`, `texts` (boot console, crash dump, performance counters); `properties` (board, firmware) |
 | ROS 2 bags | `/parameter_events` | `/rosout` | `streams.qos` |
 | MAVLink tlog | `PARAM_VALUE` | `STATUSTEXT` | |
+| ArduPilot DataFlash | `PARM` | `MSG`, `ERR` (error codes), `EV` (events) | `properties` (`firmware`, `VER.*`) |
 
 ### How do I say which machine a recording comes from?
 

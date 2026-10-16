@@ -294,7 +294,7 @@ pub enum RecordingKind {
     Tlog,
     /// A ROS 1 bag: recognized, not readable yet.
     Ros1Bag,
-    /// An ArduPilot DataFlash log (`.bin`): recognized, not readable yet.
+    /// An ArduPilot DataFlash log (`.bin`).
     ArdupilotBin,
     /// A Vector CAN log in text (`.asc`).
     CanAsc,
@@ -307,7 +307,7 @@ pub enum RecordingKind {
 impl RecordingKind {
     /// Whether Wise Bucket can extract this kind into the store.
     pub fn supported(self) -> bool {
-        !matches!(self, Self::Ros1Bag | Self::ArdupilotBin | Self::Mdf4)
+        !matches!(self, Self::Ros1Bag | Self::Mdf4)
     }
 
     /// Plural label for summaries.
@@ -323,7 +323,7 @@ impl RecordingKind {
             Self::ArrowIpc => "Arrow IPC",
             Self::Tlog => "MAVLink tlog",
             Self::Ros1Bag => "ROS 1 bags (not readable yet)",
-            Self::ArdupilotBin => "ArduPilot logs (not readable yet)",
+            Self::ArdupilotBin => "ArduPilot logs",
             Self::CanAsc => "CAN ASC logs",
             Self::CanBlf => "CAN BLF logs",
             Self::Mdf4 => "MDF4 files (not readable yet)",

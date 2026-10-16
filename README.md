@@ -7,7 +7,7 @@
 [![CI](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml/badge.svg)](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-guide-blue)](docs/guide.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![MSRV](https://img.shields.io/badge/rust-1.96%2B-orange.svg)](Cargo.toml)
+[![MSRV](https://img.shields.io/badge/rust-1.98%2B-orange.svg)](Cargo.toml)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-red)
 
 [Overview](#overview) · [Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Docs](#documentation)
@@ -21,7 +21,7 @@
 
 ### ⏱️ Built for time series
 
-Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, Vector CAN logs (ASC, BLF) with your DBC files, CSV, JSON Lines, Parquet and Arrow IPC.
+Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, CSV, JSON Lines, Parquet and Arrow IPC.
 
 ### 🤖 Bring your own agent
 
@@ -114,6 +114,7 @@ Samples are fetched from their upstream projects at pinned commits, SHA-256-veri
 | `ros2-mcap` · `ros2-db3` | *"Is `/topic` published at a steady rate?"* |
 | `ulog` | *"When does CPU load peak, and what runs then?"* · *"Why is the barometric altitude flat?"* · *"Which parameters differ from their defaults?"* |
 | `tlog` | *"What battery state was reported?"* |
+| `dataflash` | *"How far did the attitude lag the demand?"* · *"Which parameters were set?"* |
 | `can` | *"Which CAN IDs are on the bus, at what rate?"* · *"When did error frames occur?"* |
 | `parquet` | *"Which column types does it hold?"* |
 

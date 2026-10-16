@@ -13,6 +13,7 @@ pub mod store;
 pub mod tables;
 
 mod can;
+mod dataflash;
 mod db3;
 mod mcap_reader;
 mod ros2;
