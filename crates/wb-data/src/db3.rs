@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use rusqlite::{Connection, OpenFlags};
 use wb_core::error::{ErrorKind, Result, err};
 
-use crate::extract::Topics;
+use crate::extract::{Schema, Topics};
 
 fn unreadable(path: &std::path::Path, e: impl std::fmt::Display) -> wb_core::WbError {
     err(
@@ -99,7 +99,9 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
                     &name,
                     &ty,
                     &format,
-                    definitions.get(&ty).map(String::as_str),
+                    definitions
+                        .get(&ty)
+                        .map_or(Schema::None, |d| Schema::Ros2(d)),
                     qos.as_deref(),
                 );
                 ids.insert(id, index);

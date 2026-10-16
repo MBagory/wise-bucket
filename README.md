@@ -21,7 +21,7 @@
 
 ### ⏱️ Built for time series
 
-Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP, PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, CSV, JSON Lines, Parquet and Arrow IPC.
+Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, CSV, JSON Lines, Parquet and Arrow IPC.
 
 ### 🤖 Bring your own agent
 

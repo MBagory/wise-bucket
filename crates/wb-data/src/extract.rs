@@ -11,7 +11,8 @@ use wb_core::error::{ErrorKind, Result, err};
 use wb_core::roots::{DbcChoice, RecordingKind};
 
 use crate::columns;
-use crate::ros2::{self, Decoder};
+use crate::payload::JsonRows;
+use crate::ros2::{self, Decoded, Decoder};
 use crate::sink::{StreamMeta, StreamSink};
 
 /// Messages per batch (and per decoder run).
@@ -144,10 +145,52 @@ impl LogTally {
     }
 }
 
+/// What a recording says about a topic's messages.
+pub(crate) enum Schema<'a> {
+    /// A full `ros2msg` definition.
+    Ros2(&'a str),
+    /// A protobuf `FileDescriptorSet`.
+    Protobuf(&'a [u8]),
+    None,
+}
+
+/// How a topic's payloads are decoded.
+enum Payload {
+    Cdr(Decoder),
+    /// Protobuf or JSON, as rows.
+    Rows(JsonRows),
+}
+
+impl Payload {
+    fn push(&mut self, payload: &[u8]) -> Result<bool, String> {
+        match self {
+            Self::Cdr(d) => d.push(payload),
+            Self::Rows(r) => r.push(payload),
+        }
+    }
+
+    fn take(&mut self) -> Result<Decoded, String> {
+        match self {
+            Self::Cdr(d) => Ok(d.take(BATCH)),
+            Self::Rows(r) => Ok(Decoded {
+                fields: r.take()?,
+                sensor_time: None,
+            }),
+        }
+    }
+
+    fn failures(&self) -> (u64, Option<&str>) {
+        match self {
+            Self::Cdr(d) => (d.failures, d.first_error.as_deref()),
+            Self::Rows(r) => (r.failures, r.first_error.as_deref()),
+        }
+    }
+}
+
 /// One topic of a message-based recording (MCAP, rosbag2).
 struct Topic {
     sink: StreamSink,
-    decoder: Option<Decoder>,
+    decoder: Option<Payload>,
     t: Vec<i64>,
     bytes: Vec<u32>,
     /// For ROS 2 log topics (`rcl_interfaces/msg/Log`): their warnings and errors.
@@ -177,14 +220,14 @@ impl Topics {
 
     /// Finds or creates the stream of `topic` with message type `type_`.
     ///
-    /// `definition` is the full `ros2msg` definition when the recording has one, and
-    /// `qos` the publishers' `offered_qos_profiles` (rosbag2 YAML).
+    /// `schema` is what the recording says about the messages, and `qos` the
+    /// publishers' `offered_qos_profiles` (rosbag2 YAML).
     pub fn topic(
         &mut self,
         topic: &str,
         type_: &str,
         encoding: &str,
-        definition: Option<&str>,
+        schema: Schema<'_>,
         qos: Option<&str>,
     ) -> usize {
         let key = (topic.to_string(), type_.to_string());
@@ -202,7 +245,23 @@ impl Topics {
         let index = self.topics.len();
         let mut sink = StreamSink::new(&self.dir, index, &name, type_, encoding);
         sink.meta.qos = qos.and_then(ros2::compact_qos);
-        let decoder = if !encoding.eq_ignore_ascii_case("cdr") {
+        let decoder = if encoding.eq_ignore_ascii_case("protobuf") {
+            match schema {
+                Schema::Protobuf(set) => match JsonRows::protobuf(type_, set) {
+                    Ok(rows) => Some(Payload::Rows(rows)),
+                    Err(e) => {
+                        sink.note(format!("payload not decoded: unusable schema: {e}"));
+                        None
+                    }
+                },
+                _ => {
+                    sink.note("payload not decoded: the recording has no protobuf schema for it");
+                    None
+                }
+            }
+        } else if encoding.eq_ignore_ascii_case("json") {
+            Some(Payload::Rows(JsonRows::json()))
+        } else if !encoding.eq_ignore_ascii_case("cdr") {
             sink.note(format!(
                 "payload not decoded: the {encoding} encoding is not supported yet"
             ));
@@ -212,8 +271,8 @@ impl Topics {
             None
         } else {
             let bundled;
-            let def = match definition {
-                Some(d) if !d.trim().is_empty() => Some(d),
+            let def = match schema {
+                Schema::Ros2(d) if !d.trim().is_empty() => Some(d),
                 _ => {
                     bundled = ros2::bundled_definition(type_);
                     bundled.as_deref()
@@ -227,7 +286,7 @@ impl Topics {
                     None
                 }
                 Some(def) => match Decoder::new(type_, def, BATCH) {
-                    Ok(d) => Some(d),
+                    Ok(d) => Some(Payload::Cdr(d)),
                     Err(e) => {
                         sink.note(format!("payload not decoded: unusable definition: {e}"));
                         None
@@ -280,7 +339,15 @@ impl Topics {
         }
         let t = std::mem::replace(&mut topic.t, Vec::with_capacity(BATCH));
         let bytes = std::mem::replace(&mut topic.bytes, Vec::with_capacity(BATCH));
-        let decoded = topic.decoder.as_mut().map(|d| d.take(BATCH));
+        let decoded = match topic.decoder.as_mut().map(Payload::take).transpose() {
+            Ok(d) => d,
+            Err(e) => {
+                return Err(err(
+                    ErrorKind::RecordingUnreadable,
+                    format!("decoding {}: {e}", topic.sink.meta.name),
+                ));
+            }
+        };
         let (batch, dropped) = columns::assemble(
             t,
             decoded.as_ref().and_then(|d| d.sensor_time.clone()),
@@ -313,13 +380,12 @@ impl Topics {
             {
                 notes.push(note);
             }
-            if let Some(d) = &topic.decoder
-                && d.failures > 0
+            if let Some((failures, first)) = topic.decoder.as_ref().map(Payload::failures)
+                && failures > 0
             {
                 topic.sink.note(format!(
-                    "{} message(s) could not be decoded and were skipped (first error: {})",
-                    d.failures,
-                    d.first_error.as_deref().unwrap_or("?")
+                    "{failures} message(s) could not be decoded and were skipped (first error: {})",
+                    first.unwrap_or("?")
                 ));
             }
             if let Some(meta) = topic.sink.finish(out)? {

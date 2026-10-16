@@ -90,7 +90,7 @@ A recording folder (a *data root*) is a named folder that Wise Bucket may read. 
 | Recording | Recognized as |
 | --- | --- |
 | A folder with `metadata.yaml` and `.mcap` or `.db3` splits | one ROS 2 bag (rosbag2) |
-| `.mcap` | MCAP (ROS 2 messages are decoded; other encodings keep their timing and sizes) |
+| `.mcap` | MCAP (ROS 2, protobuf and JSON messages are decoded; other encodings keep their timing and sizes) |
 | `.db3` | a rosbag2 SQLite file |
 | `.ulg` | PX4 ULog |
 | `.tlog` | a MAVLink telemetry log (QGroundControl, MAVProxy): one stream per message |
@@ -195,6 +195,8 @@ Every recording becomes one or more **streams**: the topics of a ROS 2 bag or MC
 - **The message fields**, nested names joined with dots (`linear_acceleration.z`). Arrays stay arrays.
 
 **ROS 2 messages** are decoded from the definitions stored in the recording. ROS 2 Humble bags (`.db3`) don't store them, so standard types (`std_msgs`, `geometry_msgs`, `sensor_msgs`, `nav_msgs`, `diagnostic_msgs`, `trajectory_msgs`, `tf2_msgs`, `/rosout`) are decoded from definitions bundled with Wise Bucket. Other custom types in Humble bags keep their timing and sizes only. Each topic's QoS is in `streams.qos`, in short: `reliable, volatile, depth 10` (` | ` between publishers).
+
+**MCAP protobuf and JSON messages** are decoded with the schema the file stores (protobuf) or as they are (JSON): one column per field, named as in the `.proto` file; nested messages are structs (`inner.label`), repeated fields are arrays, enums are their names, and `bytes` fields are their length in bytes, so images and point clouds keep their sizes only.
 
 **ULog files** have one stream per message (`sensor_accel`). A second instance of a message is `sensor_accel.1`: pyulog's `sensor_accel` with multi_id 1, ulog2csv's `…_sensor_accel_1.csv`. Five more streams hold the log's own records, timed as pyulog does (records without a timestamp take the last data timestamp before them):
 
