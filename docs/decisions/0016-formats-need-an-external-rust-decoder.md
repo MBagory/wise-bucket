@@ -10,7 +10,7 @@
 
 Wise Bucket reads a format only when an **external Rust crate decodes it**; our code only maps the crate's output to streams. The demo offers only such formats. The others are listed as possible features ([0014](0014-possible-features-instead-of-milestones.md)) until a crate exists.
 
-Crates added for this rule: `mavlink` (MAVLink telemetry logs, `ardupilotmega` dialect), `blf_asc` (Vector CAN logs, ASC and BLF), `dflog` (ArduPilot DataFlash logs), `prost-reflect` (MCAP protobuf messages), `nmea` (NMEA 0183 sentences), `canboat` (NMEA 2000 captures), `falcon_mdf` (MDF4 files, and CAN frames decoded with a DBC file, [0029](0029-can-signals-from-confirmed-dbc.md)). Messages are turned into columns through `serde` and Arrow's JSON decoder, so a message's arrays stay arrays.
+Crates added for this rule: `mavlink` (MAVLink telemetry logs, `ardupilotmega` dialect). Messages are turned into columns through `serde` and Arrow's JSON decoder, so a message's arrays stay arrays.
 
 ## Alternatives
 
@@ -21,4 +21,4 @@ Crates added for this rule: `mavlink` (MAVLink telemetry logs, `ardupilotmega` d
 
 - Fewer formats, each backed by a crate that others test too.
 - A young crate can still be wrong: each format keeps tests with exact expected values on its demo file.
-- ROS 1 bags and ROS 1-encoded MCAP wait for a crate.
+- ROS 1 bags, ROS 1-encoded MCAP and DBC decoding wait for a crate.

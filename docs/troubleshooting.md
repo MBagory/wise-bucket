@@ -115,7 +115,7 @@ Every row your agent receives enters its context, so a result holds about 60 KB 
 
 ### Why can't Wise Bucket read my format?
 
-A format is added only when an external Rust crate decodes it. Recognized files in such formats are listed with the status `unsupported`. Formats waiting for a crate, or for their turn, are on the list of [possible features](decisions/0014-possible-features-instead-of-milestones.md). ([ADR 0016](decisions/0016-formats-need-an-external-rust-decoder.md))
+A format is added only when an external Rust crate decodes it. Recognized files in such formats are listed with the status `unsupported`. Formats waiting for a crate, or for their turn, are listed in [ADR 0030](decisions/0030-formats-of-0-2-0.md). ([ADR 0016](decisions/0016-formats-need-an-external-rust-decoder.md))
 
 ### Where are a log's parameters and messages?
 
