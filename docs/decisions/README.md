@@ -37,3 +37,4 @@ The principles these decisions add up to are summarized in the [README](../../RE
 | [0027](0027-mimalloc-for-linux-binaries.md) | Linux binaries allocate with mimalloc | 2026-10-15 | Accepted |
 | [0028](0028-release-archives.md) | Release archives: `.tar.gz` and one binary | 2026-10-15 | Accepted |
 | [0029](0029-can-signals-from-confirmed-dbc.md) | CAN signals from the DBC files the engineer confirms | 2026-10-16 | Accepted |
+| [0030](0030-formats-of-0-2-0.md) | The crates of 0.2.0, and the formats still waiting | 2026-10-17 | Accepted (updates the formats of [0014](0014-possible-features-instead-of-milestones.md) and the crates of [0016](0016-formats-need-an-external-rust-decoder.md)) |
