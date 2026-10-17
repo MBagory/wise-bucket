@@ -4,7 +4,7 @@ Why Wise Bucket is built the way it is. Each **architecture decision record** (A
 
 ADRs are **never rewritten**. When a decision changes, a new ADR supersedes the old one, which stays here, marked with what replaced it. To propose one, copy the [template](template.md) and take the next number.
 
-The principles these decisions add up to are summarized in the [README](../../README.md#overview).
+These records are history: new designs follow the [engineering tenets](../tenets.md) and may reverse any record here.
 
 | # | Decision | Date | Status |
 | --- | --- | --- | --- |

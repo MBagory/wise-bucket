@@ -9,7 +9,7 @@ authors:
 license: Apache-2.0
 repository-code: "https://github.com/MBagory/wise-bucket"
 version: 0.2.0
-date-released: 2026-10-16
+date-released: 2026-10-17
 keywords:
   - robotics
   - time series

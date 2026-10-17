@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-10-16
+## [0.2.0] - 2026-10-17
 
 Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:
 
@@ -23,6 +23,7 @@ Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:
 - **NMEA 0183 logs** (`.nmea`): every sentence in the stream `sentences`, as written, with its talker, type and checksum validity, so proprietary sentences stay queryable; the sentence types the `nmea` crate decodes also get one stream each (`GGA`, `RMC`, `GSV`…). Times are the sentences' UTC times on the date of the latest `RMC` or `ZDA`. Bad checksums and the sentence types not decoded are counted in `recordings.notes`.
 - **NMEA 2000 captures** (`.raw`, canboat's PLAIN format): every frame in the stream `frames`, and one stream per message decoded with the CANboat PGN database (`windData`, `vesselHeading`…), fast-packet messages reassembled, values in SI units with each stream's units in its notes. The PGNs whose frames were not decoded are listed in `recordings.notes`.
 - **MDF4 files** (`.mf4`): one stream per channel group, with physical values and units, timed from the file's start time and the group's time master; the header's comment and properties go to `properties`.
+- [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the four ranked rules the design follows.
 
 ### Changed
 
