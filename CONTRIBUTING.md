@@ -6,6 +6,7 @@ Thank you for your interest! Wise Bucket is built in **small steps**; each one i
 
 - Be kind: see the [Code of Conduct](CODE_OF_CONDUCT.md).
 - For anything bigger than a small fix, **open an issue first** so we can agree on the approach.
+- **Design follows the [engineering tenets](docs/tenets.md)**, ranked: when two conflict, the higher one wins.
 - **Documentation is part of the change.** A pull request that changes behaviour updates `docs/guide.md` or `docs/troubleshooting.md` (troubleshooting and FAQ) when useful, and `CHANGELOG.md`.
 
 ## Development setup
