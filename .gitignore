@@ -23,3 +23,6 @@
 
 # Local notes (demos, spikes), not versioned
 /doc/
+
+# Private: notes, agent context, growth work; not versioned
+/private/
