@@ -2,7 +2,7 @@
 
 Why Wise Bucket is built the way it is. Each **architecture decision record** (ADR) states one decision: its context, what was chosen, the alternatives set aside, and the consequences.
 
-ADRs are **never rewritten**. When a decision changes, a new ADR supersedes the old one, which stays here, marked with what replaced it. To propose one, copy the [template](template.md) and take the next number.
+ADRs are **never rewritten once released**. When a released decision changes, a new ADR supersedes the old one, which stays here, marked with what replaced it. To propose one, copy the [template](template.md) and take the next number.
 
 These records are history: new designs follow the [engineering tenets](../tenets.md) and may reverse any record here.
 

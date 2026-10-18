@@ -63,7 +63,7 @@ CI runs the same checks on Linux and macOS, plus `cargo deny`, link checking and
 - **Metrics are SQL, not features:** a new metric is a recipe the agent can follow (`RECIPES` in `crates/wb-data/src/tables.rs`), not a new tool or a precomputed column ([ADR 0010](docs/decisions/0010-metrics-are-sql-written-by-the-agent.md), [ADR 0017](docs/decisions/0017-result-size-and-paging.md)).
 - **Formats:** a new format needs an external Rust crate that decodes it; our code only maps the crate's output to streams, with exact-value tests on a fixture ([ADR 0016](docs/decisions/0016-formats-need-an-external-rust-decoder.md)).
 - **Tables:** the tables and columns the agent can query are documented in `TABLES` in `crates/wb-data/src/tables.rs`, rendered to `docs/reference/tables.md` and to the `sql` tool's description.
-- **Design decisions:** a change of design comes with an [ADR](docs/decisions/README.md) in `docs/decisions/`. ADRs are never rewritten: a new one supersedes the old.
+- **Design decisions:** a change of design comes with an [ADR](docs/decisions/README.md) in `docs/decisions/`. ADRs are never rewritten once released: a new one supersedes the old.
 - **Tests:** acceptance tests live in `crates/wb-server/tests/` and drive the real binary with a real MCP client; format tests live in `crates/wb-data/tests/` and check exact values on generated fixtures.
 - **Commits:** clear, imperative messages ("Add roots check command"). Sign off your commits (`git commit -s`) to certify the [Developer Certificate of Origin](https://developercertificate.org).
 

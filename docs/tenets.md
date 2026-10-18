@@ -22,9 +22,9 @@ Every recording is stored again as decoded data, never as precomputed answers; t
 
 ## 4. Decision records are history, not precedent
 
-An ADR is a historical record, never edited once written. New designs are judged on these tenets, and a new ADR may update or reverse any earlier one.
+An ADR may be edited until the release that ships it, then never again: a released ADR is a historical record. New designs are judged on these tenets, and a new ADR may update or reverse any earlier one.
 
-*Gives up:* past decisions as an argument, and fixing an old record in place. · [0011], [0021], [0025]
+*Gives up:* past decisions as an argument, and fixing a released record in place. · [0011], [0021], [0025]
 
 [0010]: decisions/0010-metrics-are-sql-written-by-the-agent.md
 [0011]: decisions/0011-no-database.md
