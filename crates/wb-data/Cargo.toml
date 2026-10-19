@@ -15,8 +15,8 @@ workspace = true
 wb-core = { path = "../wb-core" }
 # One Arrow version (58) is shared by DataFusion 54, parquet 58, re_ros_msg 0.38 and
 # rerun 0.38: upgrade them together (ADR 0021).
-datafusion = { version = "54.1", default-features = false, features = ["nested_expressions", "datetime_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "parquet", "recursive_protection", "sql"] }
-parquet = { version = "58", default-features = false, features = ["arrow", "zstd"] }
+datafusion = { version = "55.2", default-features = false, features = ["nested_expressions", "datetime_expressions", "regex_expressions", "string_expressions", "unicode_expressions", "parquet", "recursive_protection", "sql"] }
+parquet = { version = "59", default-features = false, features = ["arrow", "zstd"] }
 re_ros_msg = "0.38"
 rerun = { version = "0.38", default-features = false, features = ["sdk"] }
 mcap = "0.25"
