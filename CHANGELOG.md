@@ -7,7 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the four ranked rules the design follows.
+- [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the five ranked rules the design follows.
 
 ## [0.2.0] - 2026-10-16
 

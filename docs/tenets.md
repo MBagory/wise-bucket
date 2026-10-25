@@ -26,6 +26,13 @@ An ADR may be edited until the release that ships it, then never again: a releas
 
 *Gives up:* past decisions as an argument, and fixing a released record in place. · [0011], [0021], [0025]
 
+## 5. Spike findings are versioned
+
+A spike's findings are written in Markdown in [`spikes/`](spikes/) and committed with the change they inform.
+
+*Gives up:* throwaway local notes. · [0003]
+
+[0003]: decisions/0003-managed-postgresql.md
 [0010]: decisions/0010-metrics-are-sql-written-by-the-agent.md
 [0011]: decisions/0011-no-database.md
 [0012]: decisions/0012-trade-storage-for-query-speed.md
