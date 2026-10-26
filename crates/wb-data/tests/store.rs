@@ -539,7 +539,8 @@ async fn every_format_is_extracted_and_queryable() {
         );
     }
 
-    // Warnings and errors of a log topic are counted in the recording's notes.
+    // Warnings and errors of a log topic are counted in the recording's notes, and the
+    // extraction checks find the 2 s gap of the 10 Hz stream.
     let r = one(
         &f,
         "SELECT notes FROM recordings WHERE recording = 'bags:run1.mcap'",
@@ -547,7 +548,17 @@ async fn every_format_is_extracted_and_queryable() {
     .await;
     assert_eq!(
         r["notes"],
-        "1 ERROR log messages (stream /rosout), first: \"lost link to /dev/ttyUSB0\""
+        "1 ERROR log messages (stream /rosout), first: \"lost link to /dev/ttyUSB0\"; \
+         1 gap(s) in 1 periodic stream(s), largest 2 s in /sample at 2023-11-14 22:13:23.005"
+    );
+    let r = one(
+        &f,
+        "SELECT notes FROM streams WHERE recording = 'bags:run1.mcap' AND stream = '/sample'",
+    )
+    .await;
+    assert_eq!(
+        r["notes"],
+        "1 gap(s) longer than 5× the median interval (100 ms), largest 2 s at 2023-11-14 22:13:23.005"
     );
     let r = one(
         &f,

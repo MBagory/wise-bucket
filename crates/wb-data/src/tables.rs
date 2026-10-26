@@ -38,7 +38,7 @@ pub const TABLES: &[TableDoc] = &[
             "start" "timestamp" "First `t` over all streams; for ULog, the log header's start time; for ArduPilot, the UTC time of boot from its first GPS fix",
             "end" "timestamp" "Last `t` over all streams",
             "streams" "int" "Number of streams extracted",
-            "notes" "text" "What to look at first: warnings and errors logged (counted per level, with the first message), ULog logger dropouts and crash dumps, and remarks about the extraction (a file cut or damaged). No note means none of these",
+            "notes" "text" "What to look at first: warnings and errors logged (counted per level, with the first message), ULog logger dropouts and crash dumps, remarks about the extraction (a file cut or damaged), and the extraction checks: gaps in periodic streams (an interval over 5× the median and over 1 s), periodic streams that stop early, `t` going backwards in a periodic stream, and streams whose every float column is constant or empty (details in `streams.notes`). The checks are heuristics: verify with SQL. No note means none of these",
         ],
     },
     TableDoc {
@@ -54,7 +54,7 @@ pub const TABLES: &[TableDoc] = &[
             "end" "timestamp" "Last `t`",
             "decoded" "boolean" "`false` when only timing and size were kept (images, point clouds, unknown types)",
             "columns" "text" "Comma-separated column names",
-            "notes" "text" "Remarks: what was left out and why",
+            "notes" "text" "Remarks: what was left out and why, and what the extraction checks found (gaps with the median interval, `t` going backwards, `t - t_sensor` varying by over 1 s, every float column constant or empty)",
             "qos" "text" "ROS 2 bags: the publishers' QoS in short (`reliable, volatile, depth 10`; ` | ` between publishers)",
         ],
     },

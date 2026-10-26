@@ -395,7 +395,8 @@ pub async fn ingest(store: &Store, root: &Root, candidate: &Candidate) -> Result
     let outcome = match extract::extract(&source, candidate.kind, candidate.dbc.as_ref(), &tmp)
         .await
     {
-        Ok(x) => {
+        Ok(mut x) => {
+            x.notes.extend(crate::checks::summary(&x.streams));
             let meta = RecordingMeta {
                 recording: recording_id(candidate),
                 root: candidate.root.clone(),

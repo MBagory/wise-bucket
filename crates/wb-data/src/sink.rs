@@ -16,6 +16,7 @@ use parquet::file::properties::{EnabledStatistics, WriterProperties};
 use serde::{Deserialize, Serialize};
 use wb_core::error::{ErrorKind, Result, WbError, err};
 
+use crate::checks::{Checks, Scan};
 use crate::columns::T;
 
 /// Stream note for a time that never changes.
@@ -43,6 +44,9 @@ pub struct StreamMeta {
     /// The publishers' QoS in short (ROS 2 bags): `reliable, volatile, depth 10`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qos: Option<String>,
+    /// What the extraction checks found, for the recording's notes.
+    #[serde(default, skip_serializing_if = "Checks::is_empty")]
+    pub checks: Checks,
 }
 
 pub fn io_err(what: impl std::fmt::Display) -> impl FnOnce(std::io::Error) -> WbError {
@@ -81,6 +85,7 @@ impl StreamSink {
                 dataset: format!("data/{index:04}.parquet"),
                 notes: Vec::new(),
                 qos: None,
+                checks: Checks::default(),
             },
             spill: dir.join(format!("spill-{index:04}.arrow")),
             writer: None,
@@ -165,10 +170,18 @@ impl StreamSink {
         let file = File::create(&path).map_err(io_err(path.display()))?;
         let mut out =
             ArrowWriter::try_new(file, reader.schema(), Some(props)).map_err(parquet_err)?;
+        let mut scan = Scan::new(self.meta.rows);
         for batch in reader {
-            out.write(&batch.map_err(arrow_err)?).map_err(parquet_err)?;
+            let batch = batch.map_err(arrow_err)?;
+            scan.observe(&batch);
+            out.write(&batch).map_err(parquet_err)?;
         }
         out.close().map_err(parquet_err)?;
+        let (checks, notes) = scan.finish(self.meta.rows);
+        self.meta.checks = checks;
+        for n in notes {
+            self.note(n);
+        }
         std::fs::remove_file(&self.spill).map_err(io_err(self.spill.display()))?;
         Ok(Some(self.meta))
     }

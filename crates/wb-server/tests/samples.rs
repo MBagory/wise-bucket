@@ -188,7 +188,7 @@ async fn ulog() {
         serde_json::json!([{
             "s": 112_500_176_000_i64,
             "e": 181_493_506_000_i64,
-            "notes": "4 ERROR log messages (stream logged_messages), first: \"[sensors] no barometer found on /dev/baro0 (2)\"; 4 logger dropouts, 119 ms in total (stream dropouts)"
+            "notes": "4 ERROR log messages (stream logged_messages), first: \"[sensors] no barometer found on /dev/baro0 (2)\"; 4 logger dropouts, 119 ms in total (stream dropouts); every float column constant or without values in 2 stream(s): actuator_outputs, vehicle_attitude_setpoint"
         }])
     );
     assert_eq!(
