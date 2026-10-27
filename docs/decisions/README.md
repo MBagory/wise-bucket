@@ -39,3 +39,4 @@ These records are history: new designs follow the [engineering tenets](../tenets
 | [0029](0029-can-signals-from-confirmed-dbc.md) | CAN signals from the DBC files the engineer confirms | 2026-10-16 | Accepted |
 | [0030](0030-formats-of-0-2-0.md) | The crates of 0.2.0, and the formats still waiting | 2026-10-17 | Accepted (updates the formats of [0014](0014-possible-features-instead-of-milestones.md) and the crates of [0016](0016-formats-need-an-external-rust-decoder.md)) |
 | [0031](0031-gitflow-and-semver.md) | GitFlow branches and semantic versions | 2026-10-17 | Accepted |
+| [0032](0032-website-on-github-pages.md) | A landing page on GitHub Pages | 2026-10-27 | Accepted |

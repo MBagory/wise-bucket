@@ -1,0 +1,136 @@
+/* Styles of wisebucket.io. `site/build.sh` compiles this file into style.css. */
+
+@import "tailwindcss" source(none);
+@source "./index.html";
+
+/* The palette of docs/assets/banner.svg. Dark is the default; light mode redefines the same tokens below. */
+@theme {
+    --color-page: #0b1220;
+    --color-page-2: #132440;
+    --color-card: #0f192c;
+    --color-line: #1e293b;
+    --color-dots: #334155;
+    --color-fg: #f8fafc;
+    --color-muted: #94a3b8;
+    --color-accent: #2dd4bf;
+    --color-accent-2: #5eead4;
+    --color-on-accent: #0b1220;
+    --color-term: #060b16;
+
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+@layer base {
+    :root {
+        color-scheme: dark;
+    }
+
+    @media (prefers-color-scheme: light) {
+        :root {
+            color-scheme: light;
+            --color-page: #f8fafc;
+            --color-page-2: #e6edf5;
+            --color-card: #ffffff;
+            --color-line: #dbe3ec;
+            --color-dots: #cbd5e1;
+            --color-fg: #0b1220;
+            --color-muted: #475569;
+            --color-accent: #0f766e;
+            --color-accent-2: #0d9488;
+            --color-on-accent: #ffffff;
+        }
+    }
+
+    html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 5rem;
+    }
+
+    body {
+        @apply bg-page font-sans text-fg antialiased;
+    }
+
+    ::selection {
+        @apply bg-accent text-on-accent;
+    }
+}
+
+@layer components {
+    .wrap {
+        @apply mx-auto w-full max-w-6xl px-4 sm:px-6;
+    }
+
+    .section {
+        @apply border-t border-line py-20 sm:py-24;
+    }
+
+    .eyebrow {
+        @apply font-mono text-xs font-semibold tracking-widest text-accent uppercase;
+    }
+
+    .title {
+        @apply mt-3 text-3xl font-extrabold tracking-tight text-balance sm:text-4xl;
+    }
+
+    .lead {
+        @apply mt-4 max-w-3xl text-lg leading-relaxed text-pretty text-muted;
+    }
+
+    .btn {
+        @apply inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
+    }
+
+    /* Used with .btn: class="btn btn-primary". */
+    .btn-primary {
+        @apply bg-accent text-on-accent hover:bg-accent-2;
+    }
+
+    .btn-ghost {
+        @apply border border-line text-fg hover:border-accent hover:text-accent;
+    }
+
+    .card {
+        @apply rounded-2xl border border-line bg-card p-6;
+    }
+
+    .icon {
+        @apply size-10 rounded-lg bg-accent/10 p-2 text-accent;
+    }
+
+    /* Terminals stay dark in light mode too. */
+    .term {
+        @apply overflow-x-auto rounded-xl border border-white/10 bg-term p-5 font-mono text-[13px] leading-relaxed text-slate-300 shadow-2xl shadow-black/20;
+    }
+
+    .cmd {
+        @apply flex items-center gap-3 rounded-xl border border-white/10 bg-term py-2 pr-2 pl-4 font-mono text-[13px] text-slate-200;
+    }
+
+    .cmd code {
+        @apply min-w-0 flex-1 overflow-x-auto py-1.5 whitespace-nowrap;
+    }
+
+    .copy {
+        @apply shrink-0 rounded-md border border-white/15 px-3 py-1.5 font-sans text-xs font-semibold text-slate-200 transition-colors hover:border-teal-400 hover:text-teal-300 focus-visible:outline-2 focus-visible:outline-teal-400;
+    }
+
+    .link {
+        @apply font-medium text-accent underline-offset-4 hover:underline;
+    }
+
+    .chip {
+        @apply rounded-full border border-line px-3 py-1 font-mono text-xs text-muted;
+    }
+
+    /* The banner's dot grid, fading out downwards. */
+    .dots {
+        background-image: radial-gradient(var(--color-dots) 1px, transparent 1px);
+        background-size: 32px 32px;
+        mask-image: linear-gradient(to bottom, #000, transparent 85%);
+    }
+
+    .glow {
+        background-image: radial-gradient(60% 50% at 50% 0%, color-mix(in oklab, var(--color-accent) 16%, transparent), transparent 70%);
+    }
+}
