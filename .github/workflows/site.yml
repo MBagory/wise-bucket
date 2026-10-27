@@ -1,10 +1,10 @@
 # Builds wisebucket.io from site/ and deploys it to GitHub Pages (ADR 0032).
-# Pull requests only build and check it; pushes to main deploy it.
+# Pull requests only build and check it; pushes to develop deploy it.
 name: Site
 
 on:
   push:
-    branches: [main]
+    branches: [develop]
     paths: ["site/**", ".github/workflows/site.yml", "lychee.toml"]
   pull_request:
     paths: ["site/**", ".github/workflows/site.yml", "lychee.toml"]
