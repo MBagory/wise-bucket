@@ -51,9 +51,11 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     let mut rows = Rows::new(out, 0);
     let mut log = LogTally::default();
     let (mut pos, mut garbage, mut undecoded, mut truncated) = (0usize, 0u64, 0u64, false);
+    let mut first_garbage = None;
     while pos + 8 < bytes.len() {
         let frame = &bytes[pos + 8..];
         let Some(len) = frame_len(frame) else {
+            first_garbage.get_or_insert(pos);
             pos += 1;
             garbage += 1;
             continue;
@@ -86,6 +88,11 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
         }
         pos += 8 + len;
     }
+    // Fewer bytes than a record holds, at the end of the file.
+    if !truncated && pos < bytes.len() {
+        first_garbage.get_or_insert(pos);
+        garbage += (bytes.len() - pos) as u64;
+    }
     let mut extraction = rows.finish(out).await?;
     extraction.notes.extend(log.note("STATUSTEXT"));
     if truncated {
@@ -98,10 +105,10 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
             "{undecoded} frame(s) skipped: unknown message (not in the ardupilotmega dialect) or bad checksum"
         ));
     }
-    if garbage > 0 {
-        extraction
-            .notes
-            .push(format!("{garbage} byte(s) skipped: not MAVLink frames"));
+    if let Some(first) = first_garbage {
+        extraction.notes.push(format!(
+            "{garbage} byte(s) skipped: not MAVLink frames, the first at byte {first}"
+        ));
     }
     Ok(extraction)
 }

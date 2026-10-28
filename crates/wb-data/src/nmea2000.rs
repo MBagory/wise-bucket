@@ -3,12 +3,16 @@
 //! each message it decodes (fast-packet messages reassembled) to one stream per PGN,
 //! named as canboat names it (`windData`), in SI units.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
 
-use canboat::read::{Decoder, FrameSource, InputFormat};
-use canboat::{Database, DecodedField, DecodedPgn, FieldValue, Frame, Units};
+use canboat::read::InputFormat;
+use canboat::schema::PacketType;
+use canboat::{
+    Database, DecodedField, DecodedPgn, FieldValue, Frame, FramePacketType, Reassembled,
+    Reassembler, Units,
+};
 use chrono::{DateTime, NaiveDateTime};
 use datafusion::arrow::array::{
     ArrayRef, ListBuilder, RecordBatch, TimestampNanosecondArray, UInt8Array, UInt8Builder,
@@ -120,15 +124,6 @@ fn units(m: &DecodedPgn) -> Option<String> {
         .filter_map(|f| f.info.unit.map(|u| format!("{} [{u}]", f.info.id)))
         .collect();
     (!u.is_empty()).then(|| format!("units: {}", u.join(", ")))
-}
-
-/// The frames of a capture, already read, as a source for the decoder.
-struct Replay(std::vec::IntoIter<Frame>);
-
-impl FrameSource for Replay {
-    fn read_frame(&mut self) -> std::io::Result<Option<Frame>> {
-        Ok(self.0.next())
-    }
 }
 
 /// The raw `frames` stream, a batch at a time.
@@ -244,13 +239,55 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     }
     raw.flush()?;
 
+    // canboat's `Decoder` loop, counting for the notes what it only logs: fast-packet frames
+    // that end up in no message, and frames or messages it refuses.
+    let db = Database::embedded(Units::Si);
+    let mut reassembler = Reassembler::new();
     let mut rows = Rows::new(out, 1);
-    let mut decoded: BTreeSet<u32> = BTreeSet::new();
+    let mut decoded: BTreeMap<u32, u64> = BTreeMap::new();
+    // Per fast-packet PGN: its frames, and the frames its complete messages took.
+    let mut fast: BTreeMap<u32, (u64, u64)> = BTreeMap::new();
+    let (mut refused, mut first_refusal) = (0u64, None);
     let mut unit_notes: BTreeMap<&str, String> = BTreeMap::new();
-    for message in Decoder::new(Replay(frames.into_iter()), Database::embedded(Units::Si)) {
-        let Ok(m) = message else { continue };
+    for f in frames {
+        let packet_type = match db.first_pgn(f.pgn).or_else(|| db.fallback_pgn(f.pgn)) {
+            Some(p) if p.packet_type == PacketType::Fast => FramePacketType::Fast,
+            Some(p) if p.packet_type == PacketType::Single => FramePacketType::Single,
+            _ => FramePacketType::Other,
+        };
+        let (pgn, fragment) = (
+            f.pgn,
+            packet_type == FramePacketType::Fast && f.data.len() <= 8,
+        );
+        if fragment {
+            fast.entry(pgn).or_default().0 += 1;
+        }
+        let assembled = match reassembler.push(f, packet_type) {
+            Reassembled::PassThrough(f) => f,
+            Reassembled::Complete(f) => {
+                // A fast packet of n bytes takes 1 + n / 7 frames.
+                if fragment {
+                    fast.entry(pgn).or_default().1 += 1 + f.data.len() as u64 / 7;
+                }
+                f
+            }
+            Reassembled::Partial => continue,
+            Reassembled::Error(e) => {
+                refused += 1;
+                first_refusal.get_or_insert_with(|| e.to_string());
+                continue;
+            }
+        };
+        let m = match db.decode(&assembled) {
+            Ok(m) => m,
+            Err(e) => {
+                refused += 1;
+                first_refusal.get_or_insert_with(|| e.to_string());
+                continue;
+            }
+        };
         let t = m.timestamp.as_deref().and_then(timestamp_ns).unwrap_or(0);
-        decoded.insert(m.pgn);
+        *decoded.entry(m.pgn).or_default() += 1;
         if !unit_notes.contains_key(m.id)
             && let Some(u) = units(&m)
         {
@@ -269,13 +306,31 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     }
     let not_decoded: Vec<String> = pgns
         .iter()
-        .filter(|(pgn, _)| !decoded.contains(pgn))
+        .filter(|(pgn, _)| !decoded.contains_key(pgn))
         .map(|(pgn, n)| format!("{pgn} ({n})"))
         .collect();
     if !not_decoded.is_empty() {
         extraction.notes.push(format!(
             "frames of PGNs not decoded, kept in stream {FRAMES}: {}",
             not_decoded.join(", ")
+        ));
+    }
+    let left: Vec<(u32, u64)> = fast
+        .iter()
+        .filter(|(_, (n, used))| n > used)
+        .map(|(pgn, (n, used))| (*pgn, n - used))
+        .collect();
+    if !left.is_empty() {
+        let total: u64 = left.iter().map(|(_, n)| n).sum();
+        let by_pgn: Vec<String> = left.iter().map(|(pgn, n)| format!("{pgn} ({n})")).collect();
+        extraction.notes.push(format!(
+            "{total} fast-packet frame(s) in no message (frames missing or repeated), by PGN: {}",
+            by_pgn.join(", ")
+        ));
+    }
+    if let Some(first) = first_refusal {
+        extraction.notes.push(format!(
+            "{refused} frame(s) or message(s) canboat refused, first: {first}"
         ));
     }
     if unread > 0 {
@@ -367,5 +422,45 @@ mod tests {
         assert_eq!(bg.num_rows(), 1, "seven frames, one message");
         assert!(!bg.column_by_name("list").unwrap().is_null(0));
         assert_eq!(x.notes, ["1 line(s) not read as frames"]);
+    }
+
+    /// The same message, then another with its frame 3 lost: its 6 frames make no message.
+    #[tokio::test]
+    async fn fast_packet_frames_in_no_message() {
+        let mut capture = String::new();
+        for seq in ['a', 'c'] {
+            for (i, rest) in [
+                "2e,7d,99,37,21,fa,3f",
+                "38,21,34,04,7e,20,a9",
+                "01,7c,20,00,00,32,21",
+                "c0,e5,33,21,c5,22,3a",
+                "21,00,00,1d,21,00,00",
+                "50,21,61,96,51,21,ce",
+                "08,52,21,32,f7,ff,ff",
+            ]
+            .iter()
+            .enumerate()
+            {
+                if seq == 'c' && i == 3 {
+                    continue;
+                }
+                capture.push_str(&format!(
+                    "2020-08-22T13:52:36.950Z,3,130824,27,255,8,{seq}{i},{rest}\n"
+                ));
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("boat.raw");
+        std::fs::write(&path, capture).unwrap();
+        let out = dir.path().join("out");
+        std::fs::create_dir_all(out.join("data")).unwrap();
+        let x = read(&path, &out).await.unwrap();
+        assert_eq!(stream(&out, &x, "bGKeyValueData").num_rows(), 1);
+        assert_eq!(
+            x.notes,
+            [
+                "6 fast-packet frame(s) in no message (frames missing or repeated), by PGN: 130824 (6)"
+            ]
+        );
     }
 }

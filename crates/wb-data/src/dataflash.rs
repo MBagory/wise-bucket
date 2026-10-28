@@ -137,6 +137,12 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     let mut streams: Vec<Messages> = Vec::new();
     let mut by_type: HashMap<String, usize> = HashMap::new();
     let mut errors = LogTally::default();
+    // With a GPS fix, `t` is the UTC time of boot plus `TimeUS`; without one, time since boot.
+    // Whole microseconds first: nanoseconds since 1970 are beyond an f64's exact integers.
+    let boot_ns = log
+        .time_base()
+        .map(|base| ((base.wall_clock_unix_ms(0.0) * 1e3).round() as i64).saturating_mul(1000));
+    extraction.declared_start_ns = boot_ns;
     // Records without a time take the last time before them, as pymavlink does.
     let mut last_us: u64 = 0;
     for record in log.records() {
@@ -155,7 +161,8 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
         }
         let t_ns = i64::try_from(last_us)
             .unwrap_or(i64::MAX)
-            .saturating_mul(1000);
+            .saturating_mul(1000)
+            .saturating_add(boot_ns.unwrap_or(0));
         match name.as_str() {
             // ECode 0 means the error was resolved.
             "ERR" => {
@@ -262,12 +269,6 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
             log.stats.unknown_type_records
         ));
     }
-    // When the log has a GPS fix, its start in UTC.
-    if let Some(base) = log.time_base() {
-        // Whole microseconds first: nanoseconds since 1970 are beyond an f64's exact integers.
-        let us = (base.wall_clock_unix_ms(0.0) * 1e3).round() as i64;
-        extraction.declared_start_ns = Some(us.saturating_mul(1000));
-    }
     Ok(extraction)
 }
 
@@ -365,5 +366,46 @@ mod tests {
             x.notes,
             ["the file is cut or damaged: its valid part was extracted"]
         );
+    }
+
+    #[tokio::test]
+    async fn a_gps_fix_puts_t_in_utc() {
+        let mut w = LogWriter::new();
+        w.define(10, "ATT", "QccC", &["TimeUS", "Roll", "Pitch", "Yaw"])
+            .unwrap();
+        w.define(13, "GPS", "QBIH", &["TimeUS", "Status", "GMS", "GWk"])
+            .unwrap();
+        let zero = Value::F64(0.0);
+        w.record(
+            "ATT",
+            &[Value::U64(1_000_000), zero.clone(), zero.clone(), zero],
+        )
+        .unwrap();
+        // A 3D fix 2 s after boot: GPS week 2300, 1 s into the week.
+        w.record(
+            "GPS",
+            &[
+                Value::U64(2_000_000),
+                Value::I64(3),
+                Value::I64(1000),
+                Value::I64(2300),
+            ],
+        )
+        .unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("gps.bin");
+        std::fs::write(&path, w.into_bytes()).unwrap();
+        let out = dir.path().join("out");
+        std::fs::create_dir_all(out.join("data")).unwrap();
+        let x = read(&path, &out).await.unwrap();
+        // The GPS epoch (1980-01-06) in Unix ms, 18 leap seconds in 2300, 2 s since boot.
+        let boot_ms: i64 = 315_964_800_000 + 2300 * 604_800_000 + 1000 - 18_000 - 2000;
+        assert_eq!(x.declared_start_ns, Some(boot_ms * 1_000_000));
+        let att = stream(&out, &x, "ATT");
+        let t = att
+            .column_by_name(T)
+            .unwrap()
+            .as_primitive::<TimestampNanosecondType>();
+        assert_eq!(t.value(0), (boot_ms + 1000) * 1_000_000);
     }
 }

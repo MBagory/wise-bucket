@@ -10,6 +10,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Extraction checks in the notes:** gaps in periodic streams, periodic streams that stop early, `t` going backwards, `t - t_sensor` drifting, and streams whose every float column is constant or empty are reported in `streams.notes`, with a summary in `recordings.notes` ([ADR 0032](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0032-extraction-checks-in-notes.md)). Every recording is extracted again.
 - [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the five ranked rules the design follows.
 
+### Changed
+
+- **UTC times for ArduPilot and ASC logs:** an ArduPilot log with a GPS fix has its `t` in UTC (the UTC time of boot plus `TimeUS`), so its `start` and `end` agree; an ASC log's `t` is its `date`, read as UTC, plus each frame's time ([ADR 0034](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0034-utc-t-for-ardupilot-and-asc-logs.md)). Every recording is extracted again.
+
+### Fixed
+
+- **NMEA 2000:** fast-packet frames that end up in no message (frames missing or repeated) and the frames or messages canboat refuses are counted in `recordings.notes`; they were only in the server log.
+- **MAVLink logs:** the last bytes of a file, too few for a record, are counted in the skipped-bytes note, which now also says where the first skipped byte is.
+- A recording whose extraction can't be read (written by another build of the same extractor version) is `failed`, with the reason, instead of `pending` forever.
+
 ## [0.2.0] - 2026-10-16
 
 Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:

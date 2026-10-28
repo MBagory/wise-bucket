@@ -280,10 +280,13 @@ async fn tlog() {
         "{r:#}"
     );
     assert_eq!(row["system_id"], 1, "{r:#}");
-    // The truncated tail is reported, not an error.
+    // The 14 bytes after the only record (8 + 48) are reported, not an error.
     let r = s.sql("SELECT notes FROM recordings").await;
     assert!(
-        r["rows"][0]["notes"].as_str().unwrap().contains("skipped"),
+        r["rows"][0]["notes"]
+            .as_str()
+            .unwrap()
+            .contains("14 byte(s) skipped: not MAVLink frames, the first at byte 56"),
         "{r:#}"
     );
     s.close().await;
@@ -317,7 +320,8 @@ async fn can() {
         ))
         .await;
     let row = &r["rows"][0];
-    assert_eq!(row["t"], 3_098_426_000_i64, "{r:#}");
+    // The log's date, 2017-09-30T15:06:13.191 read as UTC, plus 3.098426 s.
+    assert_eq!(row["t"], 1_506_783_976_289_426_000_i64, "{r:#}");
     assert_eq!(row["channel"], 1, "{r:#}");
     assert_eq!(row["extended"], true, "{r:#}");
     assert_eq!(row["dlc"], 8, "{r:#}");
@@ -334,7 +338,7 @@ async fn can() {
         ))
         .await;
     let row = &r["rows"][0];
-    assert_eq!(row["t"], 30_506_898_000_i64, "{r:#}");
+    assert_eq!(row["t"], 1_506_784_003_697_898_000_i64, "{r:#}");
     assert_eq!(
         (&row["channel"], &row["id"]),
         (&4.into(), &0x4EE.into()),
@@ -473,7 +477,12 @@ async fn dataflash() {
         .sql("SELECT CAST(t AS BIGINT) AS t, \"Roll\", \"Pitch\" FROM stream('ATT') ORDER BY t LIMIT 1")
         .await;
     let row = &r["rows"][0];
-    assert_eq!(row["t"], 81_795_644_000_i64, "{r:#}");
+    // The UTC time of boot (below) plus `TimeUS` (pymavlink: 81.795644 s).
+    assert_eq!(
+        row["t"],
+        1_509_241_548_145_000_000_i64 + 81_795_644_000,
+        "{r:#}"
+    );
     assert_eq!(
         (&row["Roll"], &row["Pitch"]),
         (&(-7.18).into(), &2.58.into()),
@@ -511,8 +520,9 @@ async fn dataflash() {
     );
     // The sample is the first 64 KiB of a longer log. It starts at the UTC time of boot
     // that its GPS gives (pymavlink: 2017-10-29T01:45:48.1445Z, to the GPS millisecond).
+    // `end` is on the same clock: the last `TimeUS` is 82.770403 s.
     let r = s
-        .sql("SELECT notes, CAST(start AS BIGINT) AS start FROM recordings")
+        .sql("SELECT notes, CAST(start AS BIGINT) AS start, CAST(\"end\" AS BIGINT) - CAST(start AS BIGINT) AS span FROM recordings")
         .await;
     assert!(
         r["rows"][0]["notes"].as_str().unwrap().contains("cut"),
@@ -522,6 +532,7 @@ async fn dataflash() {
         r["rows"][0]["start"], 1_509_241_548_145_000_000_i64,
         "{r:#}"
     );
+    assert_eq!(r["rows"][0]["span"], 82_770_403_000_i64, "{r:#}");
     s.close().await;
 }
 
@@ -594,6 +605,16 @@ async fn nmea2000() {
     let r = s.sql("SELECT notes FROM recordings").await;
     let notes = r["rows"][0]["notes"].as_str().unwrap();
     assert!(notes.contains("2 line(s) not read as frames"), "{r:#}");
+    // Frames no decoded message took: canboat restarts 89 B&G sequences (130824, 130860)
+    // on a repeated frame, and the one 130845 frame is frame 1 of a message whose frame 0
+    // is not in the capture.
+    assert!(
+        notes.contains(
+            "695 fast-packet frame(s) in no message (frames missing or repeated), by PGN: \
+             130820 (10), 130822 (9), 130824 (666), 130845 (1), 130847 (1), 130860 (8)"
+        ),
+        "{r:#}"
+    );
     assert_eq!(
         number(&s, "SELECT count(*) AS n FROM stream('windData')").await,
         506

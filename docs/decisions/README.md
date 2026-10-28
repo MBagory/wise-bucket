@@ -40,3 +40,4 @@ These records are history: new designs follow the [engineering tenets](../tenets
 | [0030](0030-formats-of-0-2-0.md) | The crates of 0.2.0, and the formats still waiting | 2026-10-17 | Accepted (updates the formats of [0014](0014-possible-features-instead-of-milestones.md) and the crates of [0016](0016-formats-need-an-external-rust-decoder.md)) |
 | [0031](0031-gitflow-and-semver.md) | GitFlow branches and semantic versions | 2026-10-17 | Accepted |
 | [0032](0032-extraction-checks-in-notes.md) | Extraction checks in the notes | 2026-10-26 | Accepted |
+| [0034](0034-utc-t-for-ardupilot-and-asc-logs.md) | UTC `t` for ArduPilot and ASC logs | 2026-10-29 | Accepted |

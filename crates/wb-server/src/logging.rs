@@ -12,8 +12,9 @@ use tracing_subscriber::{EnvFilter, fmt};
 fn filter(verbose: u8) -> EnvFilter {
     EnvFilter::try_from_env("WB_LOG").unwrap_or_else(|_| {
         EnvFilter::new(match verbose {
-            // The Rerun SDK repeats on exit the error `rerun` already reports.
-            0 => "warn,re_sdk=off,re_grpc_client=off",
+            // The Rerun SDK repeats on exit the error `rerun` already reports, and canboat warns
+            // of each incomplete fast packet, which the recording's notes count.
+            0 => "warn,re_sdk=off,re_grpc_client=off,canboat=error",
             1 => "info,datafusion=warn",
             _ => "debug",
         })

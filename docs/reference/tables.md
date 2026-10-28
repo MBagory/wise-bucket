@@ -59,7 +59,7 @@ Table function: the rows of one stream across all recordings (or those whose `re
 | Column | Type | Description |
 | --- | --- | --- |
 | `recording` | text | `root:path` of the row's recording |
-| `t` | timestamp | Receive time (MCAP log time, bag timestamp), ULog `timestamp` (time since boot, shown near 1970; seconds: `date_part('epoch', t)`), the tlog record time, ArduPilot `TimeUS` (time since boot), NMEA 0183 UTC times on the date of the latest `RMC` or `ZDA`, NMEA 2000 capture times, MDF4 start time plus the group's time master, CAN frame times (ASC: since the start of the measurement; BLF: the file's start time, read as UTC, plus each frame's offset), or the table's time column. Nanoseconds |
+| `t` | timestamp | Receive time (MCAP log time, bag timestamp), ULog `timestamp` (time since boot, shown near 1970; seconds: `date_part('epoch', t)`), the tlog record time, ArduPilot `TimeUS` plus the UTC time of boot from its first GPS fix (time since boot without one), NMEA 0183 UTC times on the date of the latest `RMC` or `ZDA`, NMEA 2000 capture times, MDF4 start time plus the group's time master, CAN frame times (ASC: the log's `date`, read as UTC, plus each frame's time; BLF: the file's start time, read as UTC, plus each frame's offset), or the table's time column. Nanoseconds |
 | `t_sensor` | timestamp | ROS `header.stamp`, when the message has one |
 | `message_bytes` | int | Size of each message on the wire (bags and MCAP) |
 | `<field>` | any | Message fields, nested names flattened with dots: quote them, `"linear_acceleration.z"`. Arrays stay arrays (`unnest`). Table files keep their own columns |

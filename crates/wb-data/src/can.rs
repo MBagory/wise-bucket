@@ -154,6 +154,28 @@ fn asc_date(path: &Path) -> Option<String> {
     (line.get(..5)?.eq_ignore_ascii_case("date ") && !date.is_empty()).then(|| date.to_string())
 }
 
+/// An ASC `date` (`Sam Sep 30 15:06:13.191 2017`, `Thu Sep 26 08:42:39.517 pm 2019`) in
+/// nanoseconds, read as UTC: the weekday is skipped, and German months read as English.
+fn asc_start_ns(date: &str) -> Option<i64> {
+    let words: Vec<&str> = date
+        .split_whitespace()
+        .skip(1)
+        .map(|w| match w.to_lowercase().as_str() {
+            "mär" => "Mar",
+            "mai" => "May",
+            "okt" => "Oct",
+            "dez" => "Dec",
+            _ => w,
+        })
+        .collect();
+    let text = words.join(" ");
+    ["%b %d %H:%M:%S%.f %Y", "%b %d %I:%M:%S%.f %p %Y"]
+        .iter()
+        .find_map(|f| chrono::NaiveDateTime::parse_from_str(&text, f).ok())?
+        .and_utc()
+        .timestamp_nanos_opt()
+}
+
 /// What a recording note asks the engineer about a CAN log's DBC.
 fn ask(files: &[DbcFile]) -> String {
     const UNTIL: &str = "until then, frames are not decoded";
@@ -437,7 +459,7 @@ pub(crate) async fn read(
     };
     let mut extraction = Extraction::default();
     let (mut reader, encoding) = if kind == RecordingKind::CanAsc {
-        // Relative times: the `date` header has no time zone.
+        // Relative times: blf_asc would read the `date` in this machine's time zone.
         let reader = AscReader::open(path).map_err(|e| unreadable(&e))?;
         (Reader::Asc(reader), "asc")
     } else {
@@ -446,8 +468,17 @@ pub(crate) async fn read(
     };
     let mut sink = StreamSink::new(out, 0, FRAMES, "can", encoding);
     sink.meta.decoded = true;
+    let mut start_ns = 0;
     if let Some(date) = asc_date(path) {
-        sink.note("t counts from the start of the measurement; it started at the property date");
+        match asc_start_ns(&date) {
+            Some(ns) => {
+                start_ns = ns;
+                sink.note("t is the log's date (the logging PC's local time, read as UTC) plus each frame's time");
+            }
+            None => {
+                sink.note("t counts from the start of the measurement: its date could not be read")
+            }
+        }
         extraction.properties.push(("date".into(), date));
     } else if kind == RecordingKind::CanBlf {
         sink.note("t is the start time in the file header, read as UTC, plus each frame's offset, to the microsecond");
@@ -460,7 +491,7 @@ pub(crate) async fn read(
             Ok(Some(m)) => {
                 error_frames += u64::from(m.is_error_frame);
                 let t_ns = match reader {
-                    Reader::Asc(_) => (m.timestamp * 1e9).round() as i64,
+                    Reader::Asc(_) => start_ns + (m.timestamp * 1e9).round() as i64,
                     // Seconds since 1970 in an f64 are precise to about 0.24 µs.
                     Reader::Blf(_) => (m.timestamp * 1e6).round() as i64 * 1000,
                 };
@@ -639,6 +670,19 @@ mod tests {
             vec!["1 line(s) not read as frames (statistics, J1939 transport…)"]
         );
         assert_eq!(x.properties[0].0, "date");
+    }
+
+    #[test]
+    fn asc_dates_read_as_utc() {
+        let cases = [
+            ("Sam Sep 30 15:06:13.191 2017", 1_506_783_973_191_000_000),
+            ("Thu Sep 26 08:42:39.517 pm 2019", 1_569_530_559_517_000_000),
+            ("Mo Okt 2 10:00:00 2017", 1_506_938_400_000_000_000),
+        ];
+        for (date, ns) in cases {
+            assert_eq!(asc_start_ns(date), Some(ns), "{date}");
+        }
+        assert_eq!(asc_start_ns("Sam 30.09.2017"), None);
     }
 
     const HEAD: &str = "VERSION \"\"\n\nNS_ :\n\nBS_:\n\nBU_: ECU\n\n";

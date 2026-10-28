@@ -215,7 +215,9 @@ impl Store {
             keys.insert(Self::key(c));
             let dir = self.current_dir(c);
             let meta = Self::read_meta(&dir);
-            let error = std::fs::read_to_string(dir.join("error.txt")).ok();
+            let error = std::fs::read_to_string(dir.join("error.txt"))
+                .ok()
+                .or_else(|| meta.is_none().then(|| unreadable_meta(&dir)).flatten());
             let status = if !c.kind.supported() {
                 Status::Unsupported
             } else if meta.is_some() {
@@ -352,6 +354,16 @@ impl Store {
         std::fs::write(tmp.join("error.txt"), message).map_err(io_err(tmp.display()))?;
         std::fs::rename(&tmp, &dir).map_err(io_err(dir.display()))
     }
+}
+
+/// Why a published `recording.json` can't be read: a build with the same
+/// [`EXTRACTOR_VERSION`] wrote it differently. `None` when there is none, or it reads.
+fn unreadable_meta(dir: &Path) -> Option<String> {
+    let bytes = std::fs::read(dir.join("recording.json")).ok()?;
+    let e = serde_json::from_slice::<RecordingMeta>(&bytes).err()?;
+    Some(format!(
+        "recording.json unreadable ({e}): written by another build of extractor version {EXTRACTOR_VERSION}"
+    ))
 }
 
 /// What [`ingest`] did.
@@ -601,5 +613,31 @@ mod tests {
             ..can.clone()
         };
         assert_ne!(s.current_dir(&can), s.current_dir(&confirmed));
+    }
+
+    #[test]
+    fn an_unreadable_extraction_has_failed() {
+        let state = tempfile::tempdir().unwrap();
+        let s = Store::new(state.path());
+        let c = Candidate {
+            root: "bags".into(),
+            path: "a.mcap".into(),
+            kind: RecordingKind::Mcap,
+            size: 10,
+            mtime_ns: 5,
+            dbc: None,
+        };
+        std::fs::create_dir_all(s.current_dir(&c)).unwrap();
+        s.write_candidates(std::slice::from_ref(&c)).unwrap();
+        // A field type another build of the same extractor version wrote.
+        std::fs::write(
+            s.current_dir(&c).join("recording.json"),
+            r#"{"streams": 5}"#,
+        )
+        .unwrap();
+        let row = s.rows().remove(0);
+        assert_eq!(row.status, Status::Failed);
+        assert!(row.error.unwrap().starts_with("recording.json unreadable"));
+        assert!(s.pending(Duration::ZERO).is_empty(), "not extracted again");
     }
 }
