@@ -22,12 +22,14 @@ jobs:
         os: [ubuntu-latest, macos-15]
     steps:
       - uses: actions/checkout@v7
-      - name: Free runner disk (the store pauses extraction below 10 GB free)
+      # The tests keep their state under /tmp, and the store pauses extraction below
+      # 10 GB free there. A tmpfs /tmp can be smaller than that: grow it.
+      - name: Room in /tmp for the store
         if: runner.os == 'Linux'
         run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
+          findmnt -T /tmp
+          if [ "$(findmnt -n -o FSTYPE -T /tmp)" = tmpfs ]; then sudo mount -o remount,size=16G /tmp; fi
+          df -Pk /tmp
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -52,12 +54,14 @@ jobs:
         format: [ros2_mcap, ros2_db3, mcap, ros1_bag, ulog, dataflash, tlog, can, can_dbc, nmea0183, nmea2000, mdf4, parquet]
     steps:
       - uses: actions/checkout@v7
-      - name: Free runner disk (the store pauses extraction below 10 GB free)
+      # The tests keep their state under /tmp, and the store pauses extraction below
+      # 10 GB free there. A tmpfs /tmp can be smaller than that: grow it.
+      - name: Room in /tmp for the store
         if: runner.os == 'Linux'
         run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          df -h /
+          findmnt -T /tmp
+          if [ "$(findmnt -n -o FSTYPE -T /tmp)" = tmpfs ]; then sudo mount -o remount,size=16G /tmp; fi
+          df -Pk /tmp
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
