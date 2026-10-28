@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the five ranked rules the design follows.
 
+### Security
+
+- rustls-webpki and webpki-roots updated: `demo` downloads no longer trust the distrusted emSign certificates (RUSTSEC-2026-0381, RUSTSEC-2026-0382).
+
 ## [0.2.0] - 2026-10-16
 
 Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:
