@@ -1,4 +1,4 @@
-The folder `{{DIR}}` holds public sample recordings of the format `{{FORMAT}}`. Wise Bucket, an MCP server, has them in its `demo` root.
+The folder `{{DIR}}` holds {{WHAT}}. Wise Bucket, an MCP server, has them in its `{{ROOT}}` root.
 
 Investigate them twice, in this order:
 

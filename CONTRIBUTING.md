@@ -22,7 +22,7 @@ Tests generate their own fixtures; nothing is downloaded except by the sample te
 
 To install your local build: `cargo reinstall` (alias in `.cargo/config.toml` for `cargo install --path crates/wb-server --locked --force`; `--force` replaces a release install), then reconnect the MCP server in your harness.
 
-To see what an agent gets from Wise Bucket on a format, run `evals/crosscheck.sh [format…]` (needs Claude Code and `jq`; costs tokens, asks first). On the sample recordings of each chosen format, Claude compares what it finds through Wise Bucket with what it finds on its own from the raw files, and writes a report to `evals/reports/` (not versioned) to paste into a development session. `CC_MODEL` (default `sonnet`) and `CC_BUDGET` (USD per format, default 5) set the model and the cap.
+To see what an agent gets from Wise Bucket, run `evals/crosscheck.sh [format…]` on the sample recordings of each chosen format, or `evals/crosscheck.sh <folder>…` on your own recordings (needs Claude Code and `jq`; costs tokens, asks first). It extracts every recording into an empty store of its own, then, per format or folder, Claude compares what it finds through Wise Bucket with what it finds on its own from the raw files, and writes a report to `evals/reports/` (not versioned) to paste into a development session. `CC_MODEL` (default `sonnet`) and `CC_BUDGET` (USD per report, default 5) set the model and the cap.
 
 ### Branches
 
