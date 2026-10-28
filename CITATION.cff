@@ -8,6 +8,7 @@ authors:
     given-names: "Matthieu"
 license: Apache-2.0
 repository-code: "https://github.com/MBagory/wise-bucket"
+url: "https://wisebucket.io"
 version: 0.2.0
 date-released: 2026-10-16
 keywords:

@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the five ranked rules the design follows.
+- A website, [wisebucket.io](https://wisebucket.io): one page on what Wise Bucket does, the formats it reads and how to start ([ADR 0032](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0032-website-on-github-pages.md)).
 
 ## [0.2.0] - 2026-10-16
 

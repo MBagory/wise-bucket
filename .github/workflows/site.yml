@@ -1,0 +1,59 @@
+# Builds wisebucket.io from site/ and deploys it to GitHub Pages (ADR 0032).
+# Pull requests only build and check it; pushes to develop deploy it.
+name: Site
+
+on:
+  push:
+    branches: [develop]
+    paths: ["site/**", ".github/workflows/site.yml", "lychee.toml"]
+  pull_request:
+    paths: ["site/**", ".github/workflows/site.yml", "lychee.toml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time, never cancelled halfway; pull request builds replace each other.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('site-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Cache the Tailwind CSS CLI
+        uses: actions/cache@v6
+        with:
+          path: target/tailwindcss-*
+          key: tailwindcss-${{ runner.os }}-${{ hashFiles('site/build.sh') }}
+      - name: Build the stylesheet
+        run: site/build.sh
+      - name: Collect the published files
+        # Everything in site/ but the stylesheet's sources.
+        run: |
+          cp -r site _site
+          rm _site/input.css _site/build.sh
+      - name: Link check
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --config lychee.toml --no-progress _site/index.html
+          fail: true
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

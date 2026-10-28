@@ -5,6 +5,7 @@
 **An open-source MCP server that gives R&D teams long-term context and insights on their time-series data.**
 
 [![CI](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml/badge.svg)](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml)
+[![Website](https://img.shields.io/badge/web-wisebucket.io-2dd4bf)](https://wisebucket.io)
 [![Docs](https://img.shields.io/badge/docs-guide-blue)](docs/guide.md)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rust-1.98%2B-orange.svg)](Cargo.toml)

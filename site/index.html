@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Wise Bucket: long-term context for your time-series data</title>
+    <meta name="description" content="An open-source MCP server that gives your AI agent long-term context and fast SQL over your time-series recordings: ROS 2 bags, MCAP, PX4 ULog, MAVLink, ArduPilot, CAN, NMEA, MDF4, CSV and Parquet. Runs on your machine.">
+    <link rel="canonical" href="https://wisebucket.io/">
+    <meta name="color-scheme" content="dark light">
+    <meta name="theme-color" content="#0b1220">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Wise Bucket">
+    <meta property="og:url" content="https://wisebucket.io/">
+    <meta property="og:title" content="Wise Bucket: long-term context for your time-series data">
+    <meta property="og:description" content="An open-source MCP server that connects your AI agent to the recordings on your machine and answers its SQL in milliseconds.">
+    <meta property="og:image" content="https://wisebucket.io/og-image.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Wise Bucket: long-term context and insights for your time-series data">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-4 focus:py-2 focus:text-on-accent">Skip to content</a>
+
+    <header class="sticky top-0 z-40 border-b border-line bg-page/80 backdrop-blur">
+        <nav class="wrap flex h-16 items-center justify-between gap-4" aria-label="Main">
+            <a href="#" class="flex items-center gap-2.5 font-extrabold tracking-tight">
+                <img src="favicon.svg" alt="" width="28" height="28">
+                <span>Wise <span class="text-accent">Bucket</span></span>
+            </a>
+            <div class="flex items-center gap-1 text-sm sm:gap-2">
+                <a href="#how" class="hidden rounded-md px-3 py-2 text-muted hover:text-fg md:block">How it works</a>
+                <a href="#formats" class="hidden rounded-md px-3 py-2 text-muted hover:text-fg md:block">Formats</a>
+                <a href="#privacy" class="hidden rounded-md px-3 py-2 text-muted hover:text-fg md:block">Privacy</a>
+                <a href="https://github.com/MBagory/wise-bucket/blob/main/docs/guide.md" class="hidden rounded-md px-3 py-2 text-muted hover:text-fg sm:block">Docs</a>
+                <a href="https://github.com/MBagory/wise-bucket" class="rounded-md px-3 py-2 text-muted hover:text-fg">GitHub</a>
+                <a href="#start" class="btn btn-primary px-4 py-2">Get started</a>
+            </div>
+        </nav>
+    </header>
+
+    <main id="main">
+        <!-- Hero -->
+        <section class="relative isolate overflow-hidden">
+            <div class="dots absolute inset-0 -z-10 opacity-70" aria-hidden="true"></div>
+            <div class="glow absolute inset-0 -z-10" aria-hidden="true"></div>
+            <div class="wrap pt-16 pb-20 text-center sm:pt-24">
+                <a href="https://github.com/MBagory/wise-bucket/blob/main/CHANGELOG.md" class="chip inline-block hover:border-accent hover:text-accent">Open source · Early alpha: commands and formats may change</a>
+                <h1 class="mx-auto mt-6 max-w-4xl text-4xl font-extrabold tracking-tight text-balance sm:text-6xl">
+                    Long-term context and insights for your <span class="text-accent">time-series data</span>
+                </h1>
+                <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-pretty text-muted">
+                    Wise Bucket is an open-source <a class="link" href="https://modelcontextprotocol.io">MCP</a> server for R&amp;D teams. It connects the AI agent you already use to the recordings on your machine (robot bags, flight logs, CAN traces, measurement files) and answers its SQL in milliseconds.
+                </p>
+
+                <div class="mx-auto mt-10 max-w-2xl text-left">
+                    <div class="cmd">
+                        <span class="select-none text-teal-400" aria-hidden="true">$</span>
+                        <code id="install-hero">curl --proto '=https' --tlsv1.2 -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh</code>
+                        <button type="button" class="copy" data-copy="install-hero" hidden>Copy</button>
+                    </div>
+                    <p class="mt-3 text-center text-sm text-muted">macOS and Linux · Windows through WSL2 · Apache-2.0</p>
+                </div>
+
+                <div class="mt-8 flex flex-wrap justify-center gap-3">
+                    <a href="#start" class="btn btn-primary">Get started</a>
+                    <a href="https://github.com/MBagory/wise-bucket" class="btn btn-ghost">View on GitHub</a>
+                </div>
+
+                <figure class="mx-auto mt-16 max-w-3xl text-left">
+                    <div class="term">
+                        <div class="mb-4 flex gap-1.5" aria-hidden="true"><span class="size-3 rounded-full bg-slate-700"></span><span class="size-3 rounded-full bg-slate-700"></span><span class="size-3 rounded-full bg-slate-700"></span></div>
+<pre><span class="text-teal-300">you</span>   › In the demo ULog, what is the accelerometer noise floor at rest?
+
+<span class="text-slate-500">agent</span> › <span class="text-teal-400">● wise-bucket · sql</span>
+<span class="text-slate-500">          SELECT count(*), stddev("accelerometer_m_s2[2]"), avg("accelerometer_m_s2[2]")
+          FROM stream('sensor_combined')</span>
+        Over 17,070 samples, the vertical acceleration averages −9.62 m/s²
+        (gravity) with a standard deviation of 0.16 m/s²: that is the noise
+        floor at rest.
+
+<span class="text-teal-300">you</span>   › Show me the three accelerometer axes in Rerun.
+
+<span class="text-slate-500">agent</span> › <span class="text-teal-400">● wise-bucket · rerun</span>  <span class="text-slate-500">(entity: sensor_combined)</span>
+<span class="text-slate-500">          SELECT t, "accelerometer_m_s2[0]" AS x, "accelerometer_m_s2[1]" AS y,
+                 "accelerometer_m_s2[2]" AS z
+          FROM stream('sensor_combined')</span>
+        Sent 17,070 rows to the Rerun viewer: sensor_combined/x, y and z,
+        on the timeline t.</pre>
+                    </div>
+                    <figcaption class="mt-3 text-center text-sm text-muted">A session in Claude Code with the demo samples. The rows go straight to Rerun, not through the agent.</figcaption>
+                </figure>
+            </div>
+        </section>
+
+        <!-- How it works -->
+        <section id="how" class="section">
+            <div class="wrap">
+                <p class="eyebrow">How it works</p>
+                <h2 class="title">Decoded once. Queried in milliseconds.</h2>
+                <p class="lead">Each recording is decoded once, in the background, into Parquet files on your machine. Your agent queries all of them with SQL through Apache DataFusion: only the answer comes back to its context, while full-resolution signals go straight to your viewer.</p>
+
+                <div class="mt-12 grid items-center gap-3 lg:grid-cols-[1fr_auto_1.3fr_auto_1fr]">
+                    <div class="card">
+                        <p class="font-semibold">Your recordings</p>
+                        <p class="mt-2 text-sm text-muted">ROS 2, MCAP, ULog, CAN, NMEA, MDF4, CSV… read where they are, never moved.</p>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-1 px-2 text-center font-mono text-xs text-muted">
+                        <span>decoded once</span>
+                        <svg class="size-6 rotate-90 text-accent lg:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
+                    </div>
+
+                    <div class="card border-accent/40">
+                        <p class="font-semibold">Wise <span class="text-accent">Bucket</span></p>
+                        <ol class="mt-3 grid gap-2 font-mono text-sm">
+                            <li class="rounded-lg border border-line px-3 py-2">Parquet files <span class="text-muted">· the store</span></li>
+                            <li class="rounded-lg border border-line px-3 py-2">DataFusion <span class="text-muted">· SQL engine</span></li>
+                            <li class="rounded-lg border border-line px-3 py-2">MCP server <span class="text-muted">· stdio</span></li>
+                        </ol>
+                    </div>
+
+                    <div class="flex flex-col items-center gap-1 px-2 text-center font-mono text-xs text-muted">
+                        <span>SQL, in ms</span>
+                        <svg class="size-6 rotate-90 text-accent lg:rotate-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
+                    </div>
+
+                    <div class="grid gap-3">
+                        <div class="card">
+                            <p class="font-semibold">Your AI agent</p>
+                            <p class="mt-2 text-sm text-muted">Claude Code, Codex, Cursor… It asks in SQL and tells you the answer.</p>
+                        </div>
+                        <div class="card">
+                            <p class="font-semibold">Your viewer</p>
+                            <p class="mt-2 text-sm text-muted">Rerun, Foxglove… It shows query results and the recording at the right time.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Why -->
+        <section id="why" class="section">
+            <div class="wrap">
+                <p class="eyebrow">Why Wise Bucket</p>
+                <h2 class="title">Your agent, fluent in your recordings</h2>
+
+                <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <article class="card">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                        <h3 class="mt-4 font-semibold">Built for time series</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Telemetry, logs and measurements, from robot bags to CAN traces. Every stream becomes a table with a common nanosecond time column.</p>
+                    </article>
+                    <article class="card">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13v1M15 13v1"/></svg>
+                        <h3 class="mt-4 font-semibold">Bring your own agent</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Use the agent you already work with, with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.</p>
+                    </article>
+                    <article class="card">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></svg>
+                        <h3 class="mt-4 font-semibold">Frugal with tokens</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">A fuller context window is slower, costlier and less accurate. Your agent's SQL runs on your machine and only the answer comes back.</p>
+                    </article>
+                    <article class="card">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></svg>
+                        <h3 class="mt-4 font-semibold">Built for speed</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Written in Rust, on <a class="link" href="https://datafusion.apache.org">Apache DataFusion</a> and <a class="link" href="https://parquet.apache.org">Apache Parquet</a>. Answers across all your recordings, in milliseconds.</p>
+                    </article>
+                    <article class="card">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19h16"/><path d="m5 15 4-5 4 3 6-7"/></svg>
+                        <h3 class="mt-4 font-semibold">Instant display in your viewer</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Your agent opens the original recording at the right time in your viewer, and sends any query result straight to Rerun, at full resolution.</p>
+                    </article>
+                    <article class="card">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/></svg>
+                        <h3 class="mt-4 font-semibold">Long-term context</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Tell your agent what the files don't say: the machine, what changed, the conditions, the purpose of a test. Wise Bucket keeps it for every later session.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Formats -->
+        <section id="formats" class="section">
+            <div class="wrap">
+                <p class="eyebrow">Formats</p>
+                <h2 class="title">Reads the logs of robots, drones, vehicles and boats</h2>
+                <p class="lead">A format ships only when an existing Rust crate decodes it. Files Wise Bucket can't read yet are listed as unsupported, never skipped silently.</p>
+
+                <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <article class="card">
+                        <h3 class="font-semibold">Robots</h3>
+                        <ul class="mt-3 grid gap-1.5 text-sm text-muted">
+                            <li>ROS 2 bags: MCAP or SQLite <code class="font-mono text-fg">.db3</code></li>
+                            <li>MCAP with ROS 2, protobuf or JSON messages</li>
+                        </ul>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">Drones</h3>
+                        <ul class="mt-3 grid gap-1.5 text-sm text-muted">
+                            <li>PX4 ULog</li>
+                            <li>MAVLink telemetry logs <code class="font-mono text-fg">.tlog</code></li>
+                            <li>ArduPilot DataFlash logs <code class="font-mono text-fg">.bin</code></li>
+                        </ul>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">Vehicles and test benches</h3>
+                        <ul class="mt-3 grid gap-1.5 text-sm text-muted">
+                            <li>Vector CAN logs (ASC, BLF), decoded with your DBC files</li>
+                            <li>MDF4 measurement files <code class="font-mono text-fg">.mf4</code></li>
+                        </ul>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">Boats</h3>
+                        <ul class="mt-3 grid gap-1.5 text-sm text-muted">
+                            <li>NMEA 0183 logs <code class="font-mono text-fg">.nmea</code></li>
+                            <li>NMEA 2000 captures (canboat PLAIN <code class="font-mono text-fg">.raw</code>)</li>
+                        </ul>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">Tables</h3>
+                        <ul class="mt-3 grid gap-1.5 text-sm text-muted">
+                            <li>CSV and JSON Lines</li>
+                            <li>Parquet and Arrow IPC</li>
+                        </ul>
+                    </article>
+                    <article class="card flex flex-col justify-between border-dashed">
+                        <div>
+                            <h3 class="font-semibold">Another format?</h3>
+                            <p class="mt-3 text-sm text-muted">Tell us which logs you work with and which Rust crate reads them.</p>
+                        </div>
+                        <a class="link mt-4 text-sm" href="https://github.com/MBagory/wise-bucket/issues">Open an issue →</a>
+                    </article>
+                </div>
+
+                <div class="mt-16 grid gap-4 lg:grid-cols-2">
+                    <article class="card">
+                        <h3 class="font-semibold">Works with your agent</h3>
+                        <p class="mt-2 text-sm text-muted">Any agent that speaks MCP, registered once for your user and available in every folder.</p>
+                        <ul class="mt-4 flex flex-wrap gap-2">
+                            <li class="chip">Claude Code</li>
+                            <li class="chip">OpenAI Codex</li>
+                            <li class="chip">Cursor</li>
+                            <li class="chip">Cline</li>
+                            <li class="chip">Kilo Code</li>
+                        </ul>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">Shows in your viewer</h3>
+                        <p class="mt-2 text-sm text-muted">These viewers open the same files. With a viewer's MCP server, your agent moves it to the right time itself.</p>
+                        <ul class="mt-4 flex flex-wrap gap-2">
+                            <li class="chip">Rerun</li>
+                            <li class="chip">Foxglove</li>
+                            <li class="chip">Lichtblick</li>
+                            <li class="chip">PlotJuggler</li>
+                        </ul>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- Get started -->
+        <section id="start" class="section">
+            <div class="wrap">
+                <p class="eyebrow">Get started</p>
+                <h2 class="title">Try it in two minutes</h2>
+                <p class="lead">No database to install, nothing running when no agent session is open.</p>
+
+                <ol class="mt-12 grid gap-8">
+                    <li class="grid gap-3 sm:grid-cols-[3rem_1fr]">
+                        <span class="flex size-9 items-center justify-center rounded-full bg-accent font-mono text-sm font-bold text-on-accent">1</span>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold">Install</h3>
+                            <p class="mt-1 text-sm text-muted">On macOS or Linux, then open a new terminal. Run it again to update.</p>
+                            <div class="cmd mt-3">
+                                <span class="select-none text-teal-400" aria-hidden="true">$</span>
+                                <code id="install">curl --proto '=https' --tlsv1.2 -LsSf https://github.com/MBagory/wise-bucket/releases/latest/download/wisebucket-installer.sh | sh</code>
+                                <button type="button" class="copy" data-copy="install" hidden>Copy</button>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="grid gap-3 sm:grid-cols-[3rem_1fr]">
+                        <span class="flex size-9 items-center justify-center rounded-full bg-accent font-mono text-sm font-bold text-on-accent">2</span>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold">Set up</h3>
+                            <p class="mt-1 text-sm text-muted">Once: it asks which folders hold your recordings.</p>
+                            <div class="cmd mt-3">
+                                <span class="select-none text-teal-400" aria-hidden="true">$</span>
+                                <code id="setup">wisebucket setup</code>
+                                <button type="button" class="copy" data-copy="setup" hidden>Copy</button>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="grid gap-3 sm:grid-cols-[3rem_1fr]">
+                        <span class="flex size-9 items-center justify-center rounded-full bg-accent font-mono text-sm font-bold text-on-accent">3</span>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold">Connect your agent</h3>
+                            <p class="mt-1 text-sm text-muted">Once, with the command <code class="font-mono text-fg">setup</code> prints. Claude Code below; for Codex, Cursor and Cline, see <a class="link" href="https://github.com/MBagory/wise-bucket/blob/main/docs/guide.md#connect-your-agent">Connect your agent</a>.</p>
+                            <div class="cmd mt-3">
+                                <span class="select-none text-teal-400" aria-hidden="true">$</span>
+                                <code id="connect">claude mcp add --scope user wise-bucket -- ~/.cargo/bin/wisebucket serve</code>
+                                <button type="button" class="copy" data-copy="connect" hidden>Copy</button>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="grid gap-3 sm:grid-cols-[3rem_1fr]">
+                        <span class="flex size-9 items-center justify-center rounded-full bg-accent font-mono text-sm font-bold text-on-accent">4</span>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold">No recordings at hand? Fetch samples</h3>
+                            <p class="mt-1 text-sm text-muted">About 4 MB of public samples, fetched from their upstream projects and checked against pinned SHA-256 checksums.</p>
+                            <div class="cmd mt-3">
+                                <span class="select-none text-teal-400" aria-hidden="true">$</span>
+                                <code id="demo">wisebucket demo --all</code>
+                                <button type="button" class="copy" data-copy="demo" hidden>Copy</button>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="grid gap-3 sm:grid-cols-[3rem_1fr]">
+                        <span class="flex size-9 items-center justify-center rounded-full bg-accent font-mono text-sm font-bold text-on-accent">5</span>
+                        <div class="min-w-0">
+                            <h3 class="font-semibold">Ask, in a new agent session</h3>
+                            <ul class="mt-3 grid gap-2 sm:grid-cols-3">
+                                <li class="card p-4 text-sm"><span class="chip">ulog</span><p class="mt-3 italic">“When does CPU load peak, and what runs then?”</p></li>
+                                <li class="card p-4 text-sm"><span class="chip">can</span><p class="mt-3 italic">“Which CAN IDs are on the bus, at what rate?”</p></li>
+                                <li class="card p-4 text-sm"><span class="chip">nmea2000</span><p class="mt-3 italic">“How did the apparent wind change during the tack?”</p></li>
+                            </ul>
+                        </div>
+                    </li>
+                </ol>
+            </div>
+        </section>
+
+        <!-- Privacy -->
+        <section id="privacy" class="section">
+            <div class="wrap">
+                <p class="eyebrow">Private by design</p>
+                <h2 class="title">Your recordings stay on your machine</h2>
+                <p class="lead">Wise Bucket runs locally, for one engineer, next to the agent. Only the tool results your agent sends to its own model leave the machine, under your agent's terms.</p>
+
+                <div class="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <article class="card">
+                        <h3 class="font-semibold">No model calls</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Wise Bucket never contacts an LLM. Your agent owns the model, your key and your token budget.</p>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">Read in place</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Recordings are never uploaded, modified or moved. The decoded copy lives on your machine; delete it any time.</p>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">Read-only SQL</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Writes and file access are refused. Each query is capped at 30 s, 1 GB of memory and about 60 KB of results.</p>
+                    </article>
+                    <article class="card">
+                        <h3 class="font-semibold">No network at runtime</h3>
+                        <p class="mt-2 text-sm leading-relaxed text-muted">Only <code class="font-mono text-fg">demo</code> downloads files: public samples, each verified against a pinned checksum.</p>
+                    </article>
+                </div>
+                <p class="mt-6"><a class="link text-sm" href="https://github.com/MBagory/wise-bucket/blob/main/SECURITY.md#privacy">Security, privacy and threat model →</a></p>
+            </div>
+        </section>
+
+        <!-- Call to action -->
+        <section class="section">
+            <div class="wrap">
+                <div class="relative isolate overflow-hidden rounded-3xl border border-line bg-page-2 px-6 py-14 text-center sm:px-12">
+                    <div class="dots absolute inset-0 -z-10 opacity-60" aria-hidden="true"></div>
+                    <h2 class="mx-auto max-w-2xl text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">Give your agent long-term context on every recording</h2>
+                    <p class="mx-auto mt-4 max-w-xl text-muted">Early alpha, built in small, tested steps, with every design decision recorded. Issues and feedback welcome.</p>
+                    <div class="mt-8 flex flex-wrap justify-center gap-3">
+                        <a href="#start" class="btn btn-primary">Get started</a>
+                        <a href="https://github.com/MBagory/wise-bucket/blob/main/docs/guide.md" class="btn btn-ghost">Read the guide</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="border-t border-line">
+        <div class="wrap grid gap-8 py-12 text-sm sm:grid-cols-[1fr_auto]">
+            <div>
+                <a href="#" class="flex items-center gap-2.5 font-extrabold tracking-tight">
+                    <img src="favicon.svg" alt="" width="24" height="24">
+                    <span>Wise <span class="text-accent">Bucket</span></span>
+                </a>
+                <p class="mt-3 max-w-sm text-muted">Open source under the Apache License 2.0. Built on Apache DataFusion, Apache Parquet and Apache Arrow.</p>
+            </div>
+            <nav class="grid grid-cols-2 gap-x-10 gap-y-2 sm:grid-cols-3" aria-label="Footer">
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/blob/main/docs/guide.md">User guide</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/blob/main/docs/troubleshooting.md">Troubleshooting and FAQ</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/blob/main/CHANGELOG.md">Changelog</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/README.md">Design decisions</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/blob/main/SECURITY.md">Security and privacy</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/blob/main/CONTRIBUTING.md">Contributing</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/blob/main/CITATION.cff">Cite</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket/releases">Releases</a>
+                <a class="text-muted hover:text-fg" href="https://github.com/MBagory/wise-bucket">GitHub</a>
+            </nav>
+        </div>
+    </footer>
+
+    <p id="copied" class="sr-only" aria-live="polite"></p>
+    <script>
+        // Copy buttons, shown only when the clipboard is available.
+        if (navigator.clipboard) {
+            for (const button of document.querySelectorAll("[data-copy]")) {
+                button.hidden = false;
+                button.addEventListener("click", async () => {
+                    await navigator.clipboard.writeText(document.getElementById(button.dataset.copy).textContent);
+                    button.textContent = "Copied";
+                    document.getElementById("copied").textContent = "Copied to the clipboard";
+                    setTimeout(() => (button.textContent = "Copy"), 2000);
+                });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -8,7 +8,7 @@ edition = "2024"
 rust-version = "1.98"
 license = "Apache-2.0"
 repository = "https://github.com/MBagory/wise-bucket"
-homepage = "https://github.com/MBagory/wise-bucket"
+homepage = "https://wisebucket.io"
 authors = ["Matthieu Bagory"]
 
 [workspace.lints.rust]
