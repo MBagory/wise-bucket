@@ -21,6 +21,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **NMEA 2000:** fast-packet frames that end up in no message (frames missing or repeated) and the frames or messages canboat refuses are counted in `recordings.notes`; they were only in the server log.
 - **MAVLink logs:** the last bytes of a file, too few for a record, are counted in the skipped-bytes note, which now also says where the first skipped byte is.
 - A recording whose extraction can't be read (written by another build of the same extractor version) is `failed`, with the reason, instead of `pending` forever.
+- **Two streams in one query:** subqueries over different streams (`(SELECT count(*) FROM stream('a'))`, `(SELECT count(*) FROM stream('b'))`) read the first one's data, and a column name returned twice (`x.n`, `y.n` of a join) kept one value. Each `stream()` now reads its own, and a name returned twice takes its qualifier, in `sql` results and in the series sent to Rerun.
 
 ## [0.2.0] - 2026-10-16
 

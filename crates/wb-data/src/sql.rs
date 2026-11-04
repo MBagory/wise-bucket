@@ -15,7 +15,7 @@ use datafusion::arrow::array::{
 };
 use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{TableFunctionImpl, TableProvider};
-use datafusion::common::{ScalarValue, plan_err};
+use datafusion::common::{ScalarValue, TableReference, plan_err};
 use datafusion::datasource::MemTable;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
 use datafusion::execution::runtime_env::RuntimeEnvBuilder;
@@ -76,13 +76,14 @@ pub async fn query(store: &Store, sql: &str, limit: Option<usize>) -> Result<Que
             df = df.limit(0, Some(n + 1)).map_err(query_err)?;
         }
         let fields = df.schema().fields();
-        let columns: Vec<String> = fields.iter().map(|f| f.name().clone()).collect();
+        let columns = unique_names(&df);
         let types: Vec<String> = fields.iter().map(|f| f.data_type().to_string()).collect();
         let mut stream = df.execute_stream().await.map_err(query_err)?;
         let mut rows = Vec::new();
         let mut bytes = 0;
         while let Some(batch) = stream.next().await {
-            for mut obj in to_json(&[batch.map_err(query_err)?])? {
+            let batch = renamed(batch.map_err(query_err)?, &columns)?;
+            for mut obj in to_json(&[batch])? {
                 if let Some(n) = limit.filter(|&n| rows.len() == n) {
                     return Ok((columns, types, rows, Some(Cut::Limit(n))));
                 }
@@ -164,6 +165,41 @@ pub async fn dataframe(store: &Store, sql: &str) -> Result<DataFrame> {
         .sql_with_options(sql, options)
         .await
         .map_err(query_err)
+}
+
+/// The result's column names, each once: a name twice (`a.t` and `b.t` of a join) takes its
+/// qualifier, and one still repeated its position (`n (2)`). Rows are built by name.
+pub(crate) fn unique_names(df: &DataFrame) -> Vec<String> {
+    let schema = df.schema();
+    let twice = |name: &str| schema.fields().iter().filter(|f| f.name() == name).count() > 1;
+    let mut names: Vec<String> = schema
+        .iter()
+        .map(|(q, f)| match q {
+            Some(q) if twice(f.name()) => format!("{q}.{}", f.name()),
+            _ => f.name().clone(),
+        })
+        .collect();
+    for i in 0..names.len() {
+        if names[..i].contains(&names[i]) {
+            names[i] = format!("{} ({})", names[i], i + 1);
+        }
+    }
+    names
+}
+
+/// `batch` with its columns named `names`.
+pub(crate) fn renamed(batch: RecordBatch, names: &[String]) -> Result<RecordBatch> {
+    let schema = batch.schema();
+    if schema.fields().iter().map(|f| f.name()).eq(names.iter()) {
+        return Ok(batch);
+    }
+    let fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .zip(names)
+        .map(|(f, n)| f.as_ref().clone().with_name(n))
+        .collect();
+    RecordBatch::try_new(Arc::new(Schema::new(fields)), batch.columns().to_vec()).map_err(query_err)
 }
 
 fn to_json(batches: &[RecordBatch]) -> Result<Vec<serde_json::Value>> {
@@ -495,12 +531,13 @@ async fn union_of(
     let mut parts = Vec::new();
     let mut columns: Vec<FlatColumn> = Vec::new();
     for (rec, path) in members {
-        let df = ctx
-            .read_parquet(
-                path.to_string_lossy().as_ref(),
-                ParquetReadOptions::default(),
-            )
+        // Each file as a table of its own name: DataFusion compares scans by name, not by
+        // source, so two streams read as `?table?` made one query's subqueries the same scan.
+        let file = path.to_string_lossy().to_string();
+        let table = TableReference::bare(file.clone());
+        ctx.register_parquet(table.clone(), &file, ParquetReadOptions::default())
             .await?;
+        let df = ctx.table(table).await?;
         let own = flat_columns(df.schema().as_arrow());
         for c in &own {
             match columns.iter_mut().find(|x| x.name == c.name) {

@@ -466,6 +466,29 @@ async fn every_format_is_extracted_and_queryable() {
     )
     .await;
     assert_eq!(r["shared"], 9);
+    // Two streams in one query, as subqueries or joined: each reads its own.
+    let r = one(
+        &f,
+        "SELECT (SELECT count(*) FROM stream('/sample', 'bags:run1%')) AS a,
+                (SELECT count(*) FROM stream('/camera/image', 'bags:run1%')) AS b",
+    )
+    .await;
+    assert_eq!((&r["a"], &r["b"]), (&json!(81), &json!(20)), "{r}");
+    let r = one(
+        &f,
+        "SELECT x.n AS a, y.n AS b
+           FROM (SELECT count(*) AS n FROM stream('/sample', 'bags:run1%')) x
+           CROSS JOIN (SELECT count(*) AS n FROM stream('/camera/image', 'bags:run1%')) y",
+    )
+    .await;
+    assert_eq!((&r["a"], &r["b"]), (&json!(81), &json!(20)), "{r}");
+    // A name twice in the result (`x.n`, `y.n`) keeps its qualifier, and its own value.
+    let r = q(
+        &f,
+        "SELECT x.n, y.n FROM (SELECT 1 AS n) x CROSS JOIN (SELECT 2 AS n) y",
+    )
+    .await;
+    assert_eq!(r, vec![json!({"x.n": 1, "y.n": 2})]);
     // The same metric across every recording of a hardware.
     let rows = q(
         &f,

@@ -77,20 +77,22 @@ async fn send_rows(rec: &RecordingStream, df: DataFrame, entity: Option<&str>) -
         recording: RECORDING,
         url: String::new(),
     };
+    // A name twice (`a.x` and `b.x` of a join) would be one series.
+    let names = sql::unique_names(&df);
     let mut values = Vec::new();
     for (i, f) in df.schema().fields().iter().enumerate() {
+        let name = &names[i];
         match f.data_type() {
-            DataType::Timestamp(..) => sent.timelines.push(f.name().clone()),
+            DataType::Timestamp(..) => sent.timelines.push(name.clone()),
             t if t.is_numeric() || *t == DataType::Boolean => {
                 values.push(i);
-                let name = f.name();
                 sent.entities
                     .push(entity.map_or(name.clone(), |p| format!("{p}/{name}")));
             }
-            _ => sent.skipped.push(f.name().clone()),
+            _ => sent.skipped.push(name.clone()),
         }
     }
-    let Some(t) = df.schema().fields().iter().position(|f| f.name() == T) else {
+    let Some(t) = names.iter().position(|n| n == T) else {
         return Err(query_err(
             "the query must return a timestamp column `t`: it becomes the time axis in Rerun",
         ));
@@ -110,7 +112,7 @@ async fn send_rows(rec: &RecordingStream, df: DataFrame, entity: Option<&str>) -
     let mut durations: HashMap<usize, bool> = HashMap::new();
     let mut stream = df.execute_stream().await.map_err(query_err)?;
     while let Some(batch) = stream.next().await {
-        let batch = batch.map_err(query_err)?;
+        let batch = sql::renamed(batch.map_err(query_err)?, &names)?;
         sent.rows += batch.num_rows() - batch.column(t).null_count();
         send_batch(
             rec,
@@ -227,6 +229,21 @@ mod tests {
             .filter(|m| matches!(m, rerun::log::LogMsg::ArrowMsg(..)))
             .count();
         assert!(chunks >= 2, "{chunks} chunks");
+    }
+
+    #[tokio::test]
+    async fn a_name_twice_is_two_series() {
+        let df = SessionContext::new()
+            .sql(
+                "SELECT a.t, a.x, b.x FROM (SELECT to_timestamp_nanos(1) AS t, 1.0 AS x) a
+                 CROSS JOIN (SELECT 2.0 AS x) b",
+            )
+            .await
+            .unwrap();
+        let (rec, _) = RecordingStreamBuilder::new("test").memory().unwrap();
+        let sent = send_rows(&rec, df, None).await.unwrap();
+        assert_eq!(sent.entities, ["a.x", "b.x"]);
+        assert_eq!(sent.timelines, ["t"]);
     }
 
     #[tokio::test]
