@@ -36,6 +36,14 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
                 }
                 LinearReadEvent::Record { opcode, data } => {
                     match mcap::parse_record(opcode, data).map_err(|e| unreadable(path, e))? {
+                        // The writer: `ros2`, `mcap go #(devel)`.
+                        Record::Header(h) => {
+                            for (key, value) in [("profile", h.profile), ("library", h.library)] {
+                                if !value.is_empty() {
+                                    topics.property(format!("mcap.{key}"), value);
+                                }
+                            }
+                        }
                         Record::Schema { header, data } => {
                             schemas.insert(
                                 header.id,
@@ -66,12 +74,18 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
                                 ch.metadata.get("offered_qos_profiles").map(String::as_str),
                             );
                             channels.insert(ch.id, index);
+                            // The QoS is already in `streams.qos`.
+                            for (key, value) in &ch.metadata {
+                                if key != "offered_qos_profiles" {
+                                    topics.property(format!("{}.{key}", ch.topic), value.clone());
+                                }
+                            }
                         }
                         // The `rosbag2` record repeats the bag summary (topics, counts,
                         // times) that `recordings` and `streams` already show.
                         Record::Metadata(m) if m.name != "rosbag2" => {
                             for (key, value) in m.metadata {
-                                topics.properties.push((format!("{}.{key}", m.name), value));
+                                topics.property(format!("{}.{key}", m.name), value);
                             }
                         }
                         Record::Message { header, data } => {

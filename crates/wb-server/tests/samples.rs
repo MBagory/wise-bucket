@@ -121,6 +121,20 @@ async fn ros2_mcap() {
         .sql("SELECT decoded FROM streams WHERE stream = '/rosout'")
         .await;
     assert_eq!(r["rows"][0]["decoded"], true, "{r:#}");
+    // The MCAP header's writer, and what metadata.yaml says of the bag.
+    let r = s
+        .sql("SELECT key, value FROM properties ORDER BY key")
+        .await;
+    assert_eq!(
+        r["rows"],
+        serde_json::json!([
+            {"key": "mcap.library", "value": "mcap go #(devel)"},
+            {"key": "mcap.profile", "value": "ros2"},
+            {"key": "rosbag2.storage_identifier", "value": "mcap"},
+            {"key": "rosbag2.version", "value": "4"},
+        ]),
+        "{r:#}"
+    );
     s.close().await;
 }
 
@@ -148,6 +162,19 @@ async fn ros2_db3() {
         (&176.into(), &"14".into()),
         "{r:#}"
     );
+    // metadata.yaml, and the distribution in the SQLite file's `schema` table.
+    let r = s
+        .sql("SELECT key, value FROM properties ORDER BY key")
+        .await;
+    assert_eq!(
+        r["rows"],
+        serde_json::json!([
+            {"key": "rosbag2.ros_distro", "value": "rolling"},
+            {"key": "rosbag2.storage_identifier", "value": "sqlite3"},
+            {"key": "rosbag2.version", "value": "4"},
+        ]),
+        "{r:#}"
+    );
     s.close().await;
 }
 
@@ -162,6 +189,13 @@ async fn mcap() {
         .sql("SELECT encode(raw, 'hex') AS h FROM stream('example') ORDER BY t LIMIT 1")
         .await;
     assert_eq!(r["rows"][0]["h"], "010203", "{r:#}");
+    // The channel's metadata, `foo=bar` (the header's profile and library are empty).
+    let r = s.sql("SELECT key, value FROM properties").await;
+    assert_eq!(
+        r["rows"],
+        serde_json::json!([{"key": "example.foo", "value": "bar"}]),
+        "{r:#}"
+    );
     s.close().await;
 }
 
@@ -279,6 +313,15 @@ async fn parquet() {
         )
         .await,
         8
+    );
+    // pyarrow: `ParquetFile(f).metadata.created_by`.
+    let r = s
+        .sql("SELECT value FROM properties WHERE key = 'parquet.created_by'")
+        .await;
+    assert_eq!(
+        r["rows"][0]["value"],
+        "impala version 1.3.0-INTERNAL (build 8a48ddb1eff84592b3fc06bc6f51ec120e1fffc9)",
+        "{r:#}"
     );
     s.close().await;
 }

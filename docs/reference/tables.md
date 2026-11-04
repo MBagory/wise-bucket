@@ -44,7 +44,7 @@ One row per stream of each extracted recording: topics (ROS 2; MCAP protobuf and
 
 ## `properties`
 
-Short facts each recording states about itself: ULog info (`ver_hw` board, `ver_sw` firmware, `sys_name`, `sys_os_name`, `time_ref_utc`…), MCAP metadata records (`<record>.<key>`), ArduPilot `VER.<field>` and `firmware` (the first `MSG` naming it), the `date` of a CAN ASC log, and the MDF4 header's `comment` and properties (`HD.<tree>/<name>`).
+Short facts each recording states about itself: ULog info (`ver_hw` board, `ver_sw` firmware, `sys_name`, `sys_os_name`, `time_ref_utc`…), MCAP metadata records (`<record>.<key>`), the MCAP writer (`mcap.profile`, `mcap.library`) and channel metadata (`<topic>.<key>`), what a rosbag2 bag says of itself (`rosbag2.version`, `rosbag2.storage_identifier`, `rosbag2.ros_distro`…), Parquet `parquet.created_by` and key-value metadata (`parquet.<key>`), ArduPilot `VER.<field>` and `firmware` (the first `MSG` naming it), the `date` of a CAN ASC log, and the MDF4 header's `comment` and properties (`HD.<tree>/<name>`).
 
 | Column | Type | Description |
 | --- | --- | --- |
@@ -66,7 +66,7 @@ Table function: the rows of one stream across all recordings (or those whose `re
 
 ## Recipes
 
-- **Gaps:** `SELECT t, (lead(t) OVER (ORDER BY t) - t) AS gap FROM stream('/scan') WHERE recording = 'bags:run3' ORDER BY gap DESC LIMIT 10`
+- **Gaps (in seconds):** `SELECT t, (CAST(lead(t) OVER (ORDER BY t) AS BIGINT) - CAST(t AS BIGINT)) / 1e9 AS gap_s FROM stream('/scan') WHERE recording = 'bags:run3' ORDER BY gap_s DESC NULLS LAST LIMIT 10`
 - **Windows:** `SELECT date_bin(INTERVAL '100 milliseconds', t) AS w, count(*) AS n FROM stream('/scan') WHERE recording = 'bags:run3' GROUP BY w ORDER BY w`
 - **Percentiles:** `SELECT approx_percentile_cont(0.99) WITHIN GROUP (ORDER BY "linear_acceleration.z") FROM stream('/imu')`
 - **Join streams on time buckets:** `compute date_bin(...) in each stream, then JOIN ON the bucket and recording`

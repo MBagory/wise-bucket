@@ -140,5 +140,32 @@ pub(crate) async fn read(path: &Path, kind: RecordingKind, out: &Path) -> Result
     if let Some(meta) = sink.finish(out)? {
         extraction.streams.push(meta);
     }
+    if matches!(kind, RecordingKind::Parquet) {
+        extraction.properties = parquet_facts(path);
+    }
     Ok(extraction)
+}
+
+/// What a Parquet file says about itself: `parquet.created_by` (`impala version 1.3.0…`) and
+/// its key-value metadata, except the Arrow schema it repeats.
+fn parquet_facts(path: &Path) -> Vec<(String, String)> {
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+    let Some(reader) = std::fs::File::open(path)
+        .ok()
+        .and_then(|f| SerializedFileReader::new(f).ok())
+    else {
+        return Vec::new();
+    };
+    let meta = reader.metadata().file_metadata();
+    let mut facts: Vec<(String, String)> = meta
+        .created_by()
+        .map(|c| ("parquet.created_by".to_string(), c.to_string()))
+        .into_iter()
+        .collect();
+    for kv in meta.key_value_metadata().into_iter().flatten() {
+        if let Some(value) = kv.value.as_ref().filter(|_| kv.key != "ARROW:schema") {
+            facts.push((format!("parquet.{}", kv.key), value.clone()));
+        }
+    }
+    facts
 }

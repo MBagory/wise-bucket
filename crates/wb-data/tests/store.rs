@@ -581,13 +581,19 @@ async fn every_format_is_extracted_and_queryable() {
         ]
     );
 
-    // Facts the recording states about itself.
+    // Facts the recording states about itself, and the library that wrote it.
     let rows = q(
         &f,
-        "SELECT key, value FROM properties WHERE recording = 'bags:run1.mcap'",
+        "SELECT key, value FROM properties WHERE recording = 'bags:run1.mcap' ORDER BY key",
     )
     .await;
-    assert_eq!(rows, vec![json!({"key": "rig.serial", "value": "R-17"})]);
+    assert_eq!(rows.len(), 2, "{rows:?}");
+    assert_eq!(rows[0]["key"], "mcap.library");
+    assert!(
+        rows[0]["value"].as_str().unwrap().starts_with("mcap-rust/"),
+        "{rows:?}"
+    );
+    assert_eq!(rows[1], json!({"key": "rig.serial", "value": "R-17"}));
 
     // A time that never changes is flagged.
     let r = one(

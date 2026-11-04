@@ -82,6 +82,7 @@ pub async fn extract(
                     ),
                 ));
             }
+            bag_facts(path, &mut topics);
             crate::mcap_reader::read(&mcap, &mut topics)?;
             crate::db3::read(&db3, &mut topics)?;
             topics.finish(out).await
@@ -197,6 +198,34 @@ impl Payload {
     }
 }
 
+/// What a rosbag2 folder's `metadata.yaml` says about the bag (`rosbag2.version`,
+/// `rosbag2.storage_identifier`, its compression and ROS distribution, when set).
+fn bag_facts(path: &Path, topics: &mut Topics) {
+    let Ok(text) = std::fs::read_to_string(path.join("metadata.yaml")) else {
+        return;
+    };
+    // Keys of `rosbag2_bagfile_information`, two spaces in.
+    let keys = [
+        "version",
+        "storage_identifier",
+        "compression_format",
+        "compression_mode",
+        "ros_distro",
+    ];
+    for line in text.lines() {
+        let Some(rest) = line.strip_prefix("  ").filter(|r| !r.starts_with(' ')) else {
+            continue;
+        };
+        let Some((key, value)) = rest.split_once(':') else {
+            continue;
+        };
+        let value = value.trim().trim_matches(['"', '\'']);
+        if keys.contains(&key) && !value.is_empty() {
+            topics.property(format!("rosbag2.{key}"), value.to_string());
+        }
+    }
+}
+
 /// One topic of a message-based recording (MCAP, rosbag2).
 struct Topic {
     sink: StreamSink,
@@ -235,6 +264,13 @@ impl Topics {
             properties: Vec::new(),
             messages: 0,
             rejected: RawRecords::default(),
+        }
+    }
+
+    /// Adds a fact the recording states about itself, once (the splits of a bag repeat them).
+    pub fn property(&mut self, key: String, value: String) {
+        if !self.properties.iter().any(|(k, _)| *k == key) {
+            self.properties.push((key, value));
         }
     }
 

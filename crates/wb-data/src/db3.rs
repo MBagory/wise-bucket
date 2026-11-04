@@ -35,6 +35,23 @@ pub(crate) fn read(paths: &[PathBuf], topics: &mut Topics) -> Result<()> {
         .map_err(|e| unreadable(path, e))?;
         let fail = |e: rusqlite::Error| unreadable(path, e);
 
+        // The ROS distribution that wrote the bag, in the `schema` table since Foxy.
+        let has_schema: bool = db
+            .query_row(
+                "SELECT count(*) > 0 FROM sqlite_master WHERE type = 'table' AND name = 'schema'",
+                [],
+                |r| r.get(0),
+            )
+            .map_err(fail)?;
+        if has_schema
+            && let Ok(distro) = db.query_row("SELECT ros_distro FROM schema", [], |r| {
+                r.get::<_, String>(0)
+            })
+            && !distro.is_empty()
+        {
+            topics.property("rosbag2.ros_distro".into(), distro);
+        }
+
         // Newer rosbag2 versions store the definitions; Humble does not.
         let mut definitions: HashMap<String, String> = HashMap::new();
         let has_definitions: bool = db
