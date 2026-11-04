@@ -64,6 +64,8 @@ fn parquet_err(e: impl std::fmt::Display) -> WbError {
 /// A stream being extracted.
 pub struct StreamSink {
     pub meta: StreamMeta,
+    /// Whether the extraction checks run on it.
+    pub checked: bool,
     spill: PathBuf,
     writer: Option<FileWriter<File>>,
     schema: Option<SchemaRef>,
@@ -87,6 +89,7 @@ impl StreamSink {
                 qos: None,
                 checks: Checks::default(),
             },
+            checked: true,
             spill: dir.join(format!("spill-{index:04}.arrow")),
             writer: None,
             schema: None,
@@ -170,17 +173,21 @@ impl StreamSink {
         let file = File::create(&path).map_err(io_err(path.display()))?;
         let mut out =
             ArrowWriter::try_new(file, reader.schema(), Some(props)).map_err(parquet_err)?;
-        let mut scan = Scan::new(self.meta.rows);
+        let mut scan = self.checked.then(|| Scan::new(self.meta.rows));
         for batch in reader {
             let batch = batch.map_err(arrow_err)?;
-            scan.observe(&batch);
+            if let Some(scan) = scan.as_mut() {
+                scan.observe(&batch);
+            }
             out.write(&batch).map_err(parquet_err)?;
         }
         out.close().map_err(parquet_err)?;
-        let (checks, notes) = scan.finish(self.meta.rows);
-        self.meta.checks = checks;
-        for n in notes {
-            self.note(n);
+        if let Some(scan) = scan {
+            let (checks, notes) = scan.finish(self.meta.rows);
+            self.meta.checks = checks;
+            for n in notes {
+                self.note(n);
+            }
         }
         std::fs::remove_file(&self.spill).map_err(io_err(self.spill.display()))?;
         Ok(Some(self.meta))

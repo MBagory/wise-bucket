@@ -19,10 +19,14 @@ use wb_core::roots::{DbcChoice, DbcFile, RecordingKind};
 
 use crate::columns::{T, time_type};
 use crate::extract::{BATCH, Extraction};
+use crate::raw::{RAW, RawRecords};
 use crate::sink::StreamSink;
 
 /// The stream holding every frame of a CAN log.
 pub const FRAMES: &str = "frames";
+
+/// Lines of an ASC log searched for a frame's own.
+const ASC_LOOKAHEAD: usize = 4096;
 
 enum Reader {
     Asc(AscReader),
@@ -50,10 +54,12 @@ struct Frames {
     rx: Vec<bool>,
     dlc: Vec<u8>,
     data: ListBuilder<UInt8Builder>,
+    /// Each frame's line, as written (ASC logs only).
+    raw: Option<Vec<Option<String>>>,
 }
 
 impl Frames {
-    fn new() -> Self {
+    fn new(lines: bool) -> Self {
         Self {
             t: Vec::new(),
             channel: Vec::new(),
@@ -65,10 +71,14 @@ impl Frames {
             rx: Vec::new(),
             dlc: Vec::new(),
             data: ListBuilder::new(UInt8Builder::new()),
+            raw: lines.then(Vec::new),
         }
     }
 
-    fn push(&mut self, m: &Message, t_ns: i64) {
+    fn push(&mut self, m: &Message, t_ns: i64, line: Option<&str>) {
+        if let Some(raw) = self.raw.as_mut() {
+            raw.push(line.map(str::to_string));
+        }
         self.t.push(t_ns);
         // blf_asc numbers channels from 0, as python-can does; logs and CANoe from 1.
         self.channel.push(m.channel.saturating_add(1));
@@ -90,7 +100,7 @@ impl Frames {
     }
 
     fn batch(&mut self) -> Result<RecordBatch> {
-        let arrays: Vec<(&str, ArrayRef)> = vec![
+        let mut arrays: Vec<(&str, ArrayRef)> = vec![
             (
                 T,
                 Arc::new(TimestampNanosecondArray::from(std::mem::take(&mut self.t))),
@@ -129,6 +139,9 @@ impl Frames {
             ),
             ("data", Arc::new(self.data.finish())),
         ];
+        if let Some(raw) = self.raw.as_mut() {
+            arrays.push((RAW, Arc::new(StringArray::from(std::mem::take(raw)))));
+        }
         let fields: Vec<Field> = arrays
             .iter()
             .map(|(name, a)| match *name {
@@ -152,6 +165,49 @@ fn asc_date(path: &Path) -> Option<String> {
         .ok()?;
     let date = line.trim().get(5..)?.trim();
     (line.get(..5)?.eq_ignore_ascii_case("date ") && !date.is_empty()).then(|| date.to_string())
+}
+
+/// The lines of an ASC log that hold something, with their numbers (from 1).
+fn asc_lines(path: &Path) -> Result<Vec<(u64, String)>> {
+    let bytes = std::fs::read(path).map_err(crate::sink::io_err(path.display()))?;
+    Ok(String::from_utf8_lossy(&bytes)
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| !l.trim().is_empty())
+        .map(|(i, l)| (i as u64 + 1, l.to_string()))
+        .collect())
+}
+
+/// The time an ASC line starts with, in seconds.
+fn asc_time(line: &str) -> Option<f64> {
+    line.split_whitespace().next()?.parse().ok()
+}
+
+/// What an ASC line that gave no frame is: `header` without a time, `frame` for a line
+/// written like one (an identifier then `Rx` or `Tx`), else the word after the time and
+/// channel (`Statistic`, `Status`, `J1939TP`, `Start`).
+fn asc_kind(line: &str) -> &str {
+    let mut words = line.split_whitespace();
+    if words.next().and_then(|w| w.parse::<f64>().ok()).is_none() {
+        return "header";
+    }
+    let mut word = words.next().unwrap_or("");
+    if word.eq_ignore_ascii_case("can") || word.eq_ignore_ascii_case("canfd") {
+        word = words.next().unwrap_or("");
+    }
+    if !word.is_empty() && word.chars().all(|c| c.is_ascii_digit()) {
+        word = words.next().unwrap_or("");
+    }
+    let direction = |w: &str| w.eq_ignore_ascii_case("rx") || w.eq_ignore_ascii_case("tx");
+    let id = !word.is_empty()
+        && word
+            .trim_end_matches('x')
+            .chars()
+            .all(|c| c.is_ascii_hexdigit());
+    if direction(word) || (id && words.next().is_some_and(direction)) {
+        return "frame";
+    }
+    word.split(':').next().unwrap_or(word)
 }
 
 /// An ASC `date` (`Sam Sep 30 15:06:13.191 2017`, `Thu Sep 26 08:42:39.517 pm 2019`) in
@@ -484,8 +540,18 @@ pub(crate) async fn read(
         sink.note("t is the start time in the file header, read as UTC, plus each frame's offset, to the microsecond");
     }
     let mut decoders = Decoders::new(dbc, &mut extraction.notes);
-    let mut frames = Frames::new();
-    let (mut error_frames, mut skipped, mut cut) = (0u64, 0u64, false);
+    // An ASC log's lines: each frame takes its own, the others go to the stream `raw`.
+    let lines = match reader {
+        Reader::Asc(_) => asc_lines(path)?,
+        Reader::Blf(_) => Vec::new(),
+    };
+    let (mut next_line, mut other) = (0, RawRecords::default());
+    let other_line = |other: &mut RawRecords, (number, line): &(u64, String)| {
+        let t = asc_time(line).map(|s| start_ns + (s * 1e9).round() as i64);
+        other.line(t, *number, asc_kind(line), line);
+    };
+    let mut frames = Frames::new(matches!(reader, Reader::Asc(_)));
+    let (mut error_frames, mut cut) = (0u64, false);
     loop {
         match reader.next() {
             Ok(Some(m)) => {
@@ -495,7 +561,26 @@ pub(crate) async fn read(
                     // Seconds since 1970 in an f64 are precise to about 0.24 µs.
                     Reader::Blf(_) => (m.timestamp * 1e6).round() as i64 * 1000,
                 };
-                frames.push(&m, t_ns);
+                // ponytail: the next line written like a frame with the frame's time (blf_asc
+                // parses the same token), within ASC_LOOKAHEAD lines; a frame line blf_asc
+                // drops, with the time of the next frame, takes that frame's line. Line
+                // numbers from blf_asc would make it exact.
+                let mut line = None;
+                if let Some(j) = lines[next_line..]
+                    .iter()
+                    .take(ASC_LOOKAHEAD)
+                    .position(|(_, l)| {
+                        asc_time(l) == Some(m.timestamp)
+                            && matches!(asc_kind(l), "frame" | "ErrorFrame")
+                    })
+                {
+                    for l in &lines[next_line..next_line + j] {
+                        other_line(&mut other, l);
+                    }
+                    line = Some(lines[next_line + j].1.as_str());
+                    next_line += j + 1;
+                }
+                frames.push(&m, t_ns, line);
                 // Channels as the log numbers them (blf_asc counts from 0).
                 decoders.push(&m, t_ns, m.channel.saturating_add(1), out, encoding)?;
                 if frames.len() >= BATCH {
@@ -504,8 +589,8 @@ pub(crate) async fn read(
             }
             Ok(None) => break,
             // An ASC line that is not a frame (statistics, J1939 transport…): blf_asc has
-            // consumed it, so reading goes on.
-            Err(BlfError::Parse(_)) if matches!(reader, Reader::Asc(_)) => skipped += 1,
+            // consumed it, so reading goes on, and the line goes to `raw`.
+            Err(BlfError::Parse(_)) if matches!(reader, Reader::Asc(_)) => {}
             // A BLF file cut while logging ends mid-object.
             Err(BlfError::Io(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
                 cut = true;
@@ -522,20 +607,25 @@ pub(crate) async fn read(
     if frames.len() > 0 {
         sink.append(frames.batch()?)?;
     }
+    for l in &lines[next_line..] {
+        other_line(&mut other, l);
+    }
     if let Some(meta) = sink.finish(out)? {
         extraction.streams.push(meta);
     }
+    let raw_index = 1 + decoders.streams.len();
     decoders.finish(out, &mut extraction)?;
     if error_frames > 0 {
         extraction.notes.push(format!(
             "{error_frames} error frames (stream {FRAMES}, error = true)"
         ));
     }
-    if skipped > 0 {
-        extraction.notes.push(format!(
-            "{skipped} line(s) not read as frames (statistics, J1939 transport…)"
-        ));
-    }
+    extraction
+        .notes
+        .extend(other.note("line(s) not read as frames"));
+    extraction
+        .streams
+        .extend(other.finish(out, raw_index, encoding)?);
     if cut {
         extraction
             .notes
@@ -667,9 +757,28 @@ mod tests {
         assert_eq!(id.values(), &[0x100, 0x101, 0x102]);
         assert_eq!(
             x.notes,
-            vec!["1 line(s) not read as frames (statistics, J1939 transport…)"]
+            vec![
+                "7 line(s) not read as frames, kept in stream raw: header 5, Start 1, Statistic 1"
+            ]
         );
         assert_eq!(x.properties[0].0, "date");
+        // Every line is a frame's `raw` or a row of `raw`, once.
+        let lines: Vec<String> = std::fs::read_to_string(&path)
+            .unwrap()
+            .lines()
+            .filter(|l| !l.trim().is_empty())
+            .map(str::to_string)
+            .collect();
+        let raw = b.column_by_name(RAW).unwrap().as_string::<i32>();
+        let mut kept: Vec<String> = (0..raw.len()).map(|i| raw.value(i).to_string()).collect();
+        let r = stream(&out, &x, RAW);
+        let text = r.column_by_name("text").unwrap().as_string::<i32>();
+        kept.extend((0..text.len()).map(|i| text.value(i).to_string()));
+        kept.sort();
+        let mut all = lines.clone();
+        all.sort();
+        assert_eq!(kept, all);
+        assert!(raw.value(0).contains(" 100 "), "{}", raw.value(0));
     }
 
     #[test]

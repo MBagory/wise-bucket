@@ -16,6 +16,7 @@ use wb_core::error::{ErrorKind, Result, err};
 
 use crate::columns::{T, time_type};
 use crate::extract::{BATCH, Extraction};
+use crate::raw::{RAW, RawRecords};
 use crate::rows::Rows;
 use crate::sink::StreamSink;
 
@@ -177,26 +178,37 @@ impl Raw {
 pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     let bytes = std::fs::read(path).map_err(crate::sink::io_err(path.display()))?;
     let text = String::from_utf8_lossy(&bytes);
-    let sentences: Vec<Sentence<'_>> = text
-        .lines()
-        .map(str::trim)
-        .filter(|l| (l.starts_with('$') || l.starts_with('!')) && l.len() > 1)
-        .map(|l| {
-            let address = l[1..].split(',').next().unwrap_or("");
-            let (talker, kind) = if address.starts_with('P') || address.len() < 3 {
-                (None, address)
+    // Lines that are no sentence (comments, other text) go to the stream `raw`.
+    let mut not_sentences = RawRecords::default();
+    let mut sentences: Vec<Sentence<'_>> = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        let l = line.trim();
+        if l.is_empty() {
+            continue;
+        }
+        if !((l.starts_with('$') || l.starts_with('!')) && l.len() > 1) {
+            let kind = if l.starts_with('#') {
+                "comment"
             } else {
-                (Some(&address[..2]), &address[2..])
+                "other"
             };
-            Sentence {
-                text: l,
-                talker,
-                kind,
-                valid: checksum_ok(l),
-                decoded: nmea::parse_str(l).ok(),
-            }
-        })
-        .collect();
+            not_sentences.line(None, i as u64 + 1, kind, line);
+            continue;
+        }
+        let address = l[1..].split(',').next().unwrap_or("");
+        let (talker, kind) = if address.starts_with('P') || address.len() < 3 {
+            (None, address)
+        } else {
+            (Some(&address[..2]), &address[2..])
+        };
+        sentences.push(Sentence {
+            text: l,
+            talker,
+            kind,
+            valid: checksum_ok(l),
+            decoded: nmea::parse_str(l).ok(),
+        });
+    }
     let (times, dated) = times(&sentences);
 
     let mut raw = Raw {
@@ -241,6 +253,7 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
                     other => serde_json::Map::from_iter([("value".to_string(), other)]),
                 };
                 fields.insert("talker".into(), s.talker.map_or(Value::Null, |t| t.into()));
+                fields.insert(RAW.into(), s.text.into());
                 rows.push(&name, "nmea0183", "nmea0183", t.unwrap_or(0), fields)?;
             }
             _ => *not_decoded.entry(s.kind).or_default() += 1,
@@ -251,10 +264,15 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
         raw.sink
             .note("no RMC or ZDA date: t is the time of day on 1970-01-01");
     }
+    let raw_index = rows.next_index();
     let mut extraction = rows.finish(out).await?;
     if let Some(meta) = raw.sink.finish(out)? {
         extraction.streams.insert(0, meta);
     }
+    let not_sentences_note = not_sentences.note("line(s) not read as sentences");
+    extraction
+        .streams
+        .extend(not_sentences.finish(out, raw_index, "nmea0183")?);
     if bad > 0 {
         extraction.notes.push(format!(
             "{bad} sentence(s) with a bad checksum (stream {SENTENCES}, valid = false)"
@@ -270,6 +288,7 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
             kinds.join(", ")
         ));
     }
+    extraction.notes.extend(not_sentences_note);
     Ok(extraction)
 }
 
@@ -321,7 +340,7 @@ mod tests {
         std::fs::create_dir_all(out.join("data")).unwrap();
         let x = read(&path, &out).await.unwrap();
         let names: Vec<&str> = x.streams.iter().map(|s| s.name.as_str()).collect();
-        assert_eq!(names, ["sentences", "GSV", "GGA", "RMC"]);
+        assert_eq!(names, ["sentences", "GSV", "GGA", "RMC", "raw"]);
 
         let day = 991_785_600_000_000_000; // 2001-06-06T00:00:00Z
         let raw = stream(&out, &x, SENTENCES);
@@ -345,14 +364,22 @@ mod tests {
         let valid = raw.column_by_name("valid").unwrap().as_boolean();
         assert_eq!((valid.value(4), valid.value(5)), (true, false));
         // The bad checksum is not decoded.
-        assert_eq!(stream(&out, &x, "GGA").num_rows(), 2);
+        let gga = stream(&out, &x, "GGA");
+        assert_eq!(gga.num_rows(), 2);
         assert_eq!(
             x.notes,
             [
                 "1 sentence(s) with a bad checksum (stream sentences, valid = false)",
-                "not decoded, kept in stream sentences: GGA (1), PGRME (1)"
+                "not decoded, kept in stream sentences: GGA (1), PGRME (1)",
+                "1 line(s) not read as sentences, kept in stream raw: comment 1"
             ]
         );
+        // Each decoded row keeps its sentence; the comment line is in `raw`, as written.
+        let raw = gga.column_by_name(RAW).unwrap().as_string::<i32>();
+        assert!(raw.value(0).starts_with("$GPGGA,235959,"));
+        let r = stream(&out, &x, RAW);
+        let text = r.column_by_name("text").unwrap().as_string::<i32>();
+        assert_eq!(text.value(0), "# a comment line");
     }
 
     #[tokio::test]

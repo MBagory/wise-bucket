@@ -96,6 +96,14 @@ async fn extracted(env: &TestEnv, done: u64) -> common::Session {
     s
 }
 
+/// Lines of a file that hold something: each is a decoded row's `raw` or a row of `raw`.
+fn non_empty_lines(path: &Path) -> u64 {
+    String::from_utf8_lossy(&std::fs::read(path).unwrap())
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .count() as u64
+}
+
 async fn number(s: &common::Session, query: &str) -> u64 {
     let r = s.sql(query).await;
     r["rows"][0]["n"]
@@ -129,6 +137,17 @@ async fn ros2_db3() {
         .await
             > 0
     );
+    // The bag defines rcl_interfaces/msg/Log as `uint8 level` alone, so the decoded level is
+    // wrong; the raw payload keeps the real one: 0x14 (INFO) at byte 12, after the CDR
+    // header and the stamp.
+    let r = s
+        .sql("SELECT length(encode(raw, 'hex')) / 2 AS n, substr(encode(raw, 'hex'), 25, 2) AS level FROM stream('/rosout') ORDER BY t LIMIT 1")
+        .await;
+    assert_eq!(
+        (&r["rows"][0]["n"], &r["rows"][0]["level"]),
+        (&176.into(), &"14".into()),
+        "{r:#}"
+    );
     s.close().await;
 }
 
@@ -138,6 +157,11 @@ async fn mcap() {
     let (env, _) = check("mcap", "mcap", 1);
     let s = extracted(&env, 1).await;
     assert!(number(&s, "SELECT count(*) AS n FROM streams").await > 0);
+    // The encoding `a` is not decoded; the payloads stay in `raw`.
+    let r = s
+        .sql("SELECT encode(raw, 'hex') AS h FROM stream('example') ORDER BY t LIMIT 1")
+        .await;
+    assert_eq!(r["rows"][0]["h"], "010203", "{r:#}");
     s.close().await;
 }
 
@@ -262,7 +286,7 @@ async fn parquet() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
 async fn tlog() {
-    let (env, _) = check("tlog", "tlog", 1);
+    let (env, dir) = check("tlog", "tlog", 1);
     let s = extracted(&env, 1).await;
     let r = s
         .sql(
@@ -283,12 +307,30 @@ async fn tlog() {
     // The 14 bytes after the only record (8 + 48) are reported, not an error.
     let r = s.sql("SELECT notes FROM recordings").await;
     assert!(
-        r["rows"][0]["notes"]
-            .as_str()
-            .unwrap()
-            .contains("14 byte(s) skipped: not MAVLink frames, the first at byte 56"),
+        r["rows"][0]["notes"].as_str().unwrap().contains(
+            "14 byte(s) skipped: not MAVLink frames, the first at byte 56, kept in stream raw"
+        ),
         "{r:#}"
     );
+    // The record in `raw` and those 14 bytes in the stream `raw`: every byte of the file.
+    let record = number(
+        &s,
+        "SELECT length(encode(raw, 'hex')) / 2 AS n FROM stream('BATTERY_STATUS')",
+    )
+    .await;
+    let r = s
+        .sql("SELECT kind, position, length(encode(bytes, 'hex')) / 2 AS n FROM stream('raw')")
+        .await;
+    let junk = &r["rows"][0];
+    assert_eq!(
+        (&junk["kind"], &junk["position"], &junk["n"]),
+        (&"junk".into(), &56.into(), &14.into()),
+        "{r:#}"
+    );
+    let size = std::fs::metadata(dir.join("capture.mav2.battery_status.tlog"))
+        .unwrap()
+        .len();
+    assert_eq!(record + 14, size);
     s.close().await;
 }
 
@@ -297,7 +339,7 @@ async fn tlog() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
 async fn can() {
-    let (env, _) = check("can", "can_asc", 1);
+    let (env, dir) = check("can", "can_asc", 1);
     let c = &env.json(&["roots", "check"])["roots"][0]["candidates"];
     assert_eq!(c["can_blf"].as_u64(), Some(1), "{c:#}");
     let s = extracted(&env, 2).await;
@@ -359,7 +401,28 @@ async fn can() {
         .await;
     let notes = r["rows"][0]["notes"].as_str().unwrap();
     assert!(notes.contains("4 error frames"), "{r:#}");
-    assert!(notes.contains("8 line(s) not read as frames"), "{r:#}");
+    assert!(
+        notes.contains(
+            "20 line(s) not read as frames, kept in stream raw: header 7, Statistic 6, Status 3, J1939TP 2, Start 1, frame 1"
+        ),
+        "{r:#}"
+    );
+    // Every line is a frame's `raw` or a row of `raw`. The remote frame blf_asc drops is
+    // line 16, kept as written.
+    let raw = number(
+        &s,
+        "SELECT count(*) AS n FROM stream('raw', 's:logfile.asc')",
+    )
+    .await;
+    assert_eq!(19 + raw, non_empty_lines(&dir.join("logfile.asc")));
+    let r = s
+        .sql("SELECT position, trim(text) AS text FROM stream('raw', 's:logfile.asc') WHERE kind = 'frame'")
+        .await;
+    assert_eq!(
+        (&r["rows"][0]["position"], &r["rows"][0]["text"]),
+        (&16.into(), &"2.510001 2 100 Tx r".into()),
+        "{r:#}"
+    );
     let r = s
         .sql("SELECT value FROM properties WHERE recording = 's:logfile.asc' AND key = 'date'")
         .await;
@@ -540,11 +603,21 @@ async fn dataflash() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
 async fn nmea0183() {
-    let (env, _) = check("nmea0183", "nmea0183", 1);
+    let (env, dir) = check("nmea0183", "nmea0183", 1);
     let s = extracted(&env, 1).await;
     assert_eq!(
         number(&s, "SELECT count(*) AS n FROM stream('sentences')").await,
         92
+    );
+    // The other lines (the header's comments) are in `raw`: every line, once.
+    let raw = number(&s, "SELECT count(*) AS n FROM stream('raw')").await;
+    assert_eq!(92 + raw, non_empty_lines(&dir.join("garmin48.nmea")));
+    let r = s
+        .sql("SELECT raw FROM stream('GGA') ORDER BY t LIMIT 1")
+        .await;
+    assert!(
+        r["rows"][0]["raw"].as_str().unwrap().starts_with("$GPGGA,"),
+        "{r:#}"
     );
     assert_eq!(
         number(&s, "SELECT count(*) AS n FROM stream('RMC')").await,
@@ -595,7 +668,7 @@ async fn nmea0183() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "network: fetches public samples"]
 async fn nmea2000() {
-    let (env, _) = check("nmea2000", "nmea2000", 1);
+    let (env, dir) = check("nmea2000", "nmea2000", 1);
     let s = extracted(&env, 1).await;
     // 6104 lines; two are cut short (`cannot find sixth comma` for the analyzer too).
     assert_eq!(
@@ -604,7 +677,12 @@ async fn nmea2000() {
     );
     let r = s.sql("SELECT notes FROM recordings").await;
     let notes = r["rows"][0]["notes"].as_str().unwrap();
-    assert!(notes.contains("2 line(s) not read as frames"), "{r:#}");
+    assert!(
+        notes.contains("8 line(s) not read as frames, kept in stream raw: comment 6, unread 2"),
+        "{r:#}"
+    );
+    let raw = number(&s, "SELECT count(*) AS n FROM stream('raw')").await;
+    assert_eq!(6102 + raw, non_empty_lines(&dir.join("susteranna2020.raw")));
     // Frames no decoded message took: canboat restarts 89 B&G sequences (130824, 130860)
     // on a repeated frame, and the one 130845 frame is frame 1 of a message whose frame 0
     // is not in the capture.

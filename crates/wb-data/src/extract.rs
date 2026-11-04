@@ -12,11 +12,18 @@ use wb_core::roots::{DbcChoice, RecordingKind};
 
 use crate::columns;
 use crate::payload::JsonRows;
+use crate::raw::{self, RawRecords};
 use crate::ros2::{self, Decoded, Decoder};
 use crate::sink::{StreamMeta, StreamSink};
 
 /// Messages per batch (and per decoder run).
 pub(crate) const BATCH: usize = 8192;
+
+/// Larger messages keep their size only, not their `raw` bytes.
+const RAW_MAX_BYTES: usize = 64 * 1024;
+
+/// `raw` bytes held per topic before its batch is written.
+const RAW_BATCH_BYTES: usize = 32 << 20;
 
 /// The streams extracted from one recording.
 #[derive(Debug, Default)]
@@ -196,6 +203,11 @@ struct Topic {
     decoder: Option<Payload>,
     t: Vec<i64>,
     bytes: Vec<u32>,
+    /// Each message's payload, as the file holds it (`None` above [`RAW_MAX_BYTES`]); none
+    /// for images and point clouds, which keep their timing and size only.
+    raw: Option<Vec<Option<Vec<u8>>>>,
+    raw_len: usize,
+    raw_left_out: u64,
     /// For ROS 2 log topics (`rcl_interfaces/msg/Log`): their warnings and errors.
     log: Option<LogTally>,
 }
@@ -208,6 +220,9 @@ pub(crate) struct Topics {
     names: HashMap<String, usize>,
     /// Facts the recording states about itself (MCAP metadata records).
     pub properties: Vec<(String, String)>,
+    /// Messages read so far, and those the decoder rejected.
+    messages: u64,
+    rejected: RawRecords,
 }
 
 impl Topics {
@@ -218,6 +233,8 @@ impl Topics {
             by_key: HashMap::new(),
             names: HashMap::new(),
             properties: Vec::new(),
+            messages: 0,
+            rejected: RawRecords::default(),
         }
     }
 
@@ -305,6 +322,9 @@ impl Topics {
             decoder,
             t: Vec::with_capacity(BATCH),
             bytes: Vec::with_capacity(BATCH),
+            raw: (!ros2::timing_only(type_)).then(|| Vec::with_capacity(BATCH)),
+            raw_len: 0,
+            raw_left_out: 0,
             log,
         });
         self.by_key.insert(key, index);
@@ -313,6 +333,7 @@ impl Topics {
 
     /// Adds one message (CDR payload with its encapsulation header).
     pub fn push(&mut self, index: usize, time_ns: i64, payload: &[u8]) -> Result<()> {
+        self.messages += 1;
         let topic = &mut self.topics[index];
         if let Some(d) = topic.decoder.as_mut() {
             let accepted = d.push(payload).map_err(|e| {
@@ -322,6 +343,10 @@ impl Topics {
                 )
             })?;
             if !accepted {
+                // Its position is its number in the recording.
+                let name = &topic.sink.meta.name;
+                self.rejected
+                    .bytes(Some(time_ns), self.messages, name, payload);
                 return Ok(());
             }
         }
@@ -329,7 +354,16 @@ impl Topics {
         topic
             .bytes
             .push(payload.len().try_into().unwrap_or(u32::MAX));
-        if topic.t.len() >= BATCH {
+        if let Some(raw) = topic.raw.as_mut() {
+            if payload.len() <= RAW_MAX_BYTES {
+                topic.raw_len += payload.len();
+                raw.push(Some(payload.to_vec()));
+            } else {
+                topic.raw_left_out += 1;
+                raw.push(None);
+            }
+        }
+        if topic.t.len() >= BATCH || topic.raw_len >= RAW_BATCH_BYTES {
             self.flush(index)?;
         }
         Ok(())
@@ -342,6 +376,11 @@ impl Topics {
         }
         let t = std::mem::replace(&mut topic.t, Vec::with_capacity(BATCH));
         let bytes = std::mem::replace(&mut topic.bytes, Vec::with_capacity(BATCH));
+        let payloads = topic
+            .raw
+            .as_mut()
+            .map(|r| std::mem::replace(r, Vec::with_capacity(BATCH)));
+        topic.raw_len = 0;
         let decoded = match topic.decoder.as_mut().map(Payload::take).transpose() {
             Ok(d) => d,
             Err(e) => {
@@ -366,6 +405,13 @@ impl Topics {
         if let Some(tally) = topic.log.as_mut() {
             tally_ros_log(tally, &batch);
         }
+        let batch = match payloads {
+            Some(p) => raw::with_raw(
+                batch,
+                std::sync::Arc::new(datafusion::arrow::array::LargeBinaryArray::from_iter(p)),
+            )?,
+            None => batch,
+        };
         topic.sink.append(batch)
     }
 
@@ -373,6 +419,7 @@ impl Topics {
         for i in 0..self.topics.len() {
             self.flush(i)?;
         }
+        let raw_index = self.topics.len();
         let mut streams = Vec::new();
         let mut notes = Vec::new();
         for mut topic in self.topics {
@@ -387,13 +434,23 @@ impl Topics {
                 && failures > 0
             {
                 topic.sink.note(format!(
-                    "{failures} message(s) could not be decoded and were skipped (first error: {})",
+                    "{failures} message(s) could not be decoded, kept in stream {} (first error: {})",
+                    raw::RAW,
                     first.unwrap_or("?")
+                ));
+            }
+            if topic.raw_left_out > 0 {
+                topic.sink.note(format!(
+                    "{} message(s) over 64 KiB without their raw bytes (message_bytes keeps their size)",
+                    topic.raw_left_out
                 ));
             }
             if let Some(meta) = topic.sink.finish(out)? {
                 streams.push(meta);
             }
+        }
+        if let Some(meta) = self.rejected.finish(out, raw_index, "messages")? {
+            streams.push(meta);
         }
         Ok(Extraction {
             streams,
@@ -429,7 +486,43 @@ fn tally_ros_log(tally: &mut LogTally, batch: &datafusion::arrow::array::RecordB
 
 #[cfg(test)]
 mod tests {
-    use super::LogTally;
+    use super::{LogTally, Schema, Topics};
+
+    /// A decoded message keeps its payload in `raw`; one the decoder rejects goes to the
+    /// stream `raw`, with its number in the recording.
+    #[tokio::test]
+    async fn every_message_is_kept_raw() {
+        use datafusion::arrow::array::{AsArray, RecordBatch};
+        use datafusion::arrow::datatypes::UInt64Type;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("data")).unwrap();
+        let mut topics = Topics::new(dir.path());
+        let i = topics.topic("/chatter", "std_msgs/msg/String", "cdr", Schema::None, None);
+        // CDR, little endian: the header, then "hi" with its length and terminating zero.
+        let hi = [0u8, 1, 0, 0, 3, 0, 0, 0, b'h', b'i', 0, 0];
+        topics.push(i, 1, &hi).unwrap();
+        topics.push(i, 2, &[0, 1]).unwrap();
+        let x = topics.finish(dir.path()).await.unwrap();
+        let stream = |name: &str| -> RecordBatch {
+            let meta = x.streams.iter().find(|s| s.name == name).unwrap();
+            let file = std::fs::File::open(dir.path().join(&meta.dataset)).unwrap();
+            let mut reader =
+                parquet::arrow::arrow_reader::ParquetRecordBatchReader::try_new(file, 1024)
+                    .unwrap();
+            reader.next().unwrap().unwrap()
+        };
+        let chatter = stream("/chatter");
+        assert_eq!(chatter.num_rows(), 1);
+        let raw = chatter.column_by_name("raw").unwrap().as_binary::<i64>();
+        assert_eq!(raw.value(0), &hi);
+        let rejected = stream("raw");
+        let kind = rejected.column_by_name("kind").unwrap().as_string::<i32>();
+        let position = rejected.column_by_name("position").unwrap();
+        let bytes = rejected.column_by_name("bytes").unwrap().as_binary::<i64>();
+        assert_eq!(kind.value(0), "/chatter");
+        assert_eq!(position.as_primitive::<UInt64Type>().value(0), 2);
+        assert_eq!(bytes.value(0), &[0, 1]);
+    }
 
     #[test]
     fn log_notes_point_to_the_worst_first() {

@@ -9,6 +9,7 @@ use mavlink::{MavlinkReader, Message};
 use wb_core::error::{ErrorKind, Result, err};
 
 use crate::extract::{Extraction, LogTally};
+use crate::raw::{RAW, RawRecords};
 use crate::rows::Rows;
 
 /// Counts a `STATUSTEXT` of severity WARNING or worse (RFC 5424: 0 EMERGENCY … 4 WARNING).
@@ -49,13 +50,17 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     // stream it if huge tlogs show up.
     let bytes = std::fs::read(path).map_err(crate::sink::io_err(path.display()))?;
     let mut rows = Rows::new(out, 0);
+    let mut raw = RawRecords::default();
     let mut log = LogTally::default();
     let (mut pos, mut garbage, mut undecoded, mut truncated) = (0usize, 0u64, 0u64, false);
     let mut first_garbage = None;
+    // Where the bytes that are no record, before `pos`, start.
+    let mut junk: Option<usize> = None;
     while pos + 8 < bytes.len() {
         let frame = &bytes[pos + 8..];
         let Some(len) = frame_len(frame) else {
             first_garbage.get_or_insert(pos);
+            junk.get_or_insert(pos);
             pos += 1;
             garbage += 1;
             continue;
@@ -64,10 +69,14 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
             truncated = true;
             break;
         }
+        if let Some(start) = junk.take() {
+            raw.bytes(None, start as u64, "junk", &bytes[start..pos]);
+        }
+        let record = &bytes[pos..pos + 8 + len];
+        let us = u64::from_be_bytes(bytes[pos..pos + 8].try_into().expect("8 bytes"));
+        let t = i64::try_from(us).unwrap_or(i64::MAX).saturating_mul(1000);
         match MavlinkReader::new(&frame[..len]).read_any_message::<MavMessage>() {
             Ok((header, msg)) => {
-                let us = u64::from_be_bytes(bytes[pos..pos + 8].try_into().expect("8 bytes"));
-                let t = i64::try_from(us).unwrap_or(i64::MAX).saturating_mul(1000);
                 let serde_json::Value::Object(mut fields) =
                     serde_json::to_value(&msg).map_err(|e| {
                         err(ErrorKind::Internal, format!("{}: {e}", msg.message_name()))
@@ -81,33 +90,49 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
                 }
                 fields.insert("system_id".into(), header.system_id.into());
                 fields.insert("component_id".into(), header.component_id.into());
-                rows.push(msg.message_name(), "mavlink", "mavlink", t, fields)?;
+                let name = msg.message_name();
+                rows.push_record(name, "mavlink", "mavlink", t, fields, Some(record))?;
             }
-            // Unknown message or bad checksum: skip the whole frame.
-            Err(_) => undecoded += 1,
+            // Unknown message or bad checksum: the whole record stays raw.
+            Err(_) => {
+                undecoded += 1;
+                raw.bytes(Some(t), pos as u64, "frame", record);
+            }
         }
         pos += 8 + len;
     }
     // Fewer bytes than a record holds, at the end of the file.
     if !truncated && pos < bytes.len() {
         first_garbage.get_or_insert(pos);
+        junk.get_or_insert(pos);
         garbage += (bytes.len() - pos) as u64;
+        pos = bytes.len();
     }
+    if let Some(start) = junk {
+        raw.bytes(None, start as u64, "junk", &bytes[start..pos]);
+    }
+    if truncated {
+        raw.bytes(None, pos as u64, "cut", &bytes[pos..]);
+    }
+    let raw_index = rows.next_index();
     let mut extraction = rows.finish(out).await?;
+    extraction
+        .streams
+        .extend(raw.finish(out, raw_index, "mavlink")?);
     extraction.notes.extend(log.note("STATUSTEXT"));
     if truncated {
-        extraction.notes.push(
-            "the file ends mid-frame (cut while logging): its valid part was extracted".into(),
-        );
+        extraction.notes.push(format!(
+            "the file ends mid-frame (cut while logging): its valid part was extracted, the cut record kept in stream {RAW}"
+        ));
     }
     if undecoded > 0 {
         extraction.notes.push(format!(
-            "{undecoded} frame(s) skipped: unknown message (not in the ardupilotmega dialect) or bad checksum"
+            "{undecoded} frame(s) not decoded: unknown message (not in the ardupilotmega dialect) or bad checksum, kept in stream {RAW}"
         ));
     }
     if let Some(first) = first_garbage {
         extraction.notes.push(format!(
-            "{garbage} byte(s) skipped: not MAVLink frames, the first at byte {first}"
+            "{garbage} byte(s) skipped: not MAVLink frames, the first at byte {first}, kept in stream {RAW}"
         ));
     }
     Ok(extraction)
@@ -156,6 +181,53 @@ mod tests {
                 "1 CRITICAL, 1 WARNING log messages (stream STATUSTEXT), first: \"PreArm: Compass not calibrated\""
             ]
         );
+    }
+
+    /// A record, 5 bytes that are none, then a record cut short: the `raw` column and the
+    /// stream `raw` hold every byte of the file.
+    #[tokio::test]
+    async fn every_byte_is_kept() {
+        use datafusion::arrow::array::{AsArray, RecordBatch};
+        use datafusion::arrow::datatypes::UInt64Type;
+        use mavlink::dialects::ardupilotmega::HEARTBEAT_DATA;
+        // Timestamps whose bytes hold no frame start (0xFD, 0xFE).
+        let mut tlog = 1_000_000u64.to_be_bytes().to_vec();
+        let heartbeat = MavMessage::HEARTBEAT(HEARTBEAT_DATA::default());
+        mavlink::write_v2_msg(&mut tlog, mavlink::MavHeader::default(), &heartbeat).unwrap();
+        let record = tlog.len();
+        tlog.extend([0u8; 5]);
+        let cut = tlog.len();
+        tlog.extend(2_000_000u64.to_be_bytes());
+        tlog.extend(tlog[8..14].to_vec());
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("cut.tlog");
+        std::fs::write(&path, &tlog).unwrap();
+        let out = dir.path().join("out");
+        std::fs::create_dir_all(out.join("data")).unwrap();
+        let x = read(&path, &out).await.unwrap();
+        let stream = |name: &str| -> RecordBatch {
+            let meta = x.streams.iter().find(|s| s.name == name).unwrap();
+            let file = std::fs::File::open(out.join(&meta.dataset)).unwrap();
+            let mut reader =
+                parquet::arrow::arrow_reader::ParquetRecordBatchReader::try_new(file, 1024)
+                    .unwrap();
+            reader.next().unwrap().unwrap()
+        };
+        let hb = stream("HEARTBEAT");
+        let bytes = hb.column_by_name(RAW).unwrap().as_binary::<i64>();
+        assert_eq!(bytes.value(0), &tlog[..record]);
+        let r = stream(RAW);
+        let kind = r.column_by_name("kind").unwrap().as_string::<i32>();
+        let position = r
+            .column_by_name("position")
+            .unwrap()
+            .as_primitive::<UInt64Type>();
+        let bytes = r.column_by_name("bytes").unwrap().as_binary::<i64>();
+        assert_eq!((kind.value(0), position.value(0)), ("junk", record as u64));
+        assert_eq!(bytes.value(0), &tlog[record..cut]);
+        assert_eq!((kind.value(1), position.value(1)), ("cut", cut as u64));
+        assert_eq!(bytes.value(1), &tlog[cut..]);
+        assert_eq!(r.num_rows(), 2);
     }
 
     #[test]

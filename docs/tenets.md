@@ -2,31 +2,37 @@
 
 Ranked: when two conflict, the higher one wins. Changing a tenet takes a new [decision record](decisions/README.md).
 
-## 1. Frugal and efficient with the agent's context
+## 1. Nothing lost in decoding
+
+Every record of a recording is decoded or kept raw, the notes count what wasn't decoded, and each format is cross-checked against its reference decoder.
+
+*Gives up:* disk space, extraction time, longer notes. · [0035]
+
+## 2. Frugal and efficient with the agent's context
 
 Return the least data that answers, in the fewest calls.
 
 *Gives up:* future-proofing and backward compatibility. · [0017], [0024], [0026]
 
-## 2. Context stays attached to the data
+## 3. Context stays attached to the data
 
 What the files and the engineer say about a recording sits where the agent already looks, and a missing piece is stated.
 
 *Gives up:* slower extraction, a longer first result. · [0022], [0024], [0025]
 
-## 3. Decode once, query fast
+## 4. Decode once, query fast
 
 Every recording is stored again as decoded data, never as precomputed answers; the agent writes the SQL.
 
 *Gives up:* disk space. · [0010], [0012], [0021]
 
-## 4. Decision records are history, not precedent
+## 5. Decision records are history, not precedent
 
 An ADR may be edited until the release that ships it, then never again: a released ADR is a historical record. New designs are judged on these tenets, and a new ADR may update or reverse any earlier one.
 
 *Gives up:* past decisions as an argument, and fixing a released record in place. · [0011], [0021], [0025]
 
-## 5. Spike findings are versioned
+## 6. Spike findings are versioned
 
 A spike's findings are written in Markdown in [`spikes/`](spikes/) and committed with the change they inform.
 
@@ -42,3 +48,4 @@ A spike's findings are written in Markdown in [`spikes/`](spikes/) and committed
 [0024]: decisions/0024-recording-context-from-the-files.md
 [0025]: decisions/0025-context-from-the-engineer.md
 [0026]: decisions/0026-column-types-and-ulog-formats.md
+[0035]: decisions/0035-raw-records-next-to-decoded-data.md

@@ -23,6 +23,10 @@
 
 Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, MDF4, CSV, JSON Lines, Parquet and Arrow IPC.
 
+### 🔍 Nothing lost in decoding
+
+Every record of a recording is decoded or kept raw, and the notes count what wasn't decoded. Each format is cross-checked against its reference decoder (python-can, pyulog, pymavlink, pynmea2, canboat, asammdf).
+
 ### 🤖 Bring your own agent
 
 Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.

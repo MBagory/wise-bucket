@@ -15,8 +15,8 @@ use canboat::{
 };
 use chrono::{DateTime, NaiveDateTime};
 use datafusion::arrow::array::{
-    ArrayRef, ListBuilder, RecordBatch, TimestampNanosecondArray, UInt8Array, UInt8Builder,
-    UInt32Array,
+    ArrayRef, ListBuilder, RecordBatch, StringArray, TimestampNanosecondArray, UInt8Array,
+    UInt8Builder, UInt32Array,
 };
 use datafusion::arrow::datatypes::{Field, Schema};
 use serde_json::Value;
@@ -24,6 +24,7 @@ use wb_core::error::{ErrorKind, Result, err};
 
 use crate::columns::{T, time_type};
 use crate::extract::{BATCH, Extraction};
+use crate::raw::{RAW, RawRecords};
 use crate::rows::Rows;
 use crate::sink::StreamSink;
 
@@ -135,10 +136,12 @@ struct Raw {
     src: Vec<u8>,
     dst: Vec<u8>,
     data: ListBuilder<UInt8Builder>,
+    /// Each frame's line, as written.
+    raw: Vec<String>,
 }
 
 impl Raw {
-    fn push(&mut self, f: &Frame) -> Result<()> {
+    fn push(&mut self, f: &Frame, line: &str) -> Result<()> {
         self.t.push(f.timestamp.as_deref().and_then(timestamp_ns));
         self.prio.push(f.prio);
         self.pgn.push(f.pgn);
@@ -146,6 +149,7 @@ impl Raw {
         self.dst.push(f.dst);
         self.data.values().append_slice(&f.data);
         self.data.append(true);
+        self.raw.push(line.to_string());
         if self.t.len() >= BATCH {
             self.flush()?;
         }
@@ -178,6 +182,10 @@ impl Raw {
                 Arc::new(UInt8Array::from(std::mem::take(&mut self.dst))),
             ),
             ("data", Arc::new(self.data.finish())),
+            (
+                RAW,
+                Arc::new(StringArray::from(std::mem::take(&mut self.raw))),
+            ),
         ];
         let fields: Vec<Field> = arrays
             .iter()
@@ -200,19 +208,27 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     let text = String::from_utf8_lossy(&bytes);
     // The format of the first line that is not a comment, as canboat detects it.
     let mut format: Option<InputFormat> = None;
-    let mut frames = Vec::new();
-    let mut unread = 0u64;
-    for line in text.lines().map(str::trim) {
-        if line.is_empty() || line.starts_with('#') {
+    // Each frame with its line; the other lines go to the stream `raw`.
+    let (mut frames, mut lines) = (Vec::new(), Vec::new());
+    let mut other = RawRecords::default();
+    for (i, line) in text.lines().enumerate() {
+        let (number, l) = (i as u64 + 1, line.trim());
+        if l.is_empty() {
             continue;
         }
-        let f = *format.get_or_insert_with(|| {
-            canboat::codec::line::detect(line).unwrap_or(InputFormat::Plain)
-        });
-        match canboat::codec::line::parse(f, line) {
-            Ok(Some(frame)) => frames.push(frame),
-            Ok(None) => {}
-            Err(_) => unread += 1,
+        if l.starts_with('#') {
+            other.line(None, number, "comment", line);
+            continue;
+        }
+        let f = *format
+            .get_or_insert_with(|| canboat::codec::line::detect(l).unwrap_or(InputFormat::Plain));
+        match canboat::codec::line::parse(f, l) {
+            Ok(Some(frame)) => {
+                frames.push(frame);
+                lines.push(line);
+            }
+            Ok(None) => other.line(None, number, "no frame", line),
+            Err(_) => other.line(None, number, "unread", line),
         }
     }
     if frames.is_empty() {
@@ -230,11 +246,12 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
         src: Vec::new(),
         dst: Vec::new(),
         data: ListBuilder::new(UInt8Builder::new()),
+        raw: Vec::new(),
     };
     raw.sink.meta.decoded = true;
     let mut pgns: BTreeMap<u32, u64> = BTreeMap::new();
-    for f in &frames {
-        raw.push(f)?;
+    for (f, line) in frames.iter().zip(&lines) {
+        raw.push(f, line)?;
         *pgns.entry(f.pgn).or_default() += 1;
     }
     raw.flush()?;
@@ -295,6 +312,7 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
         }
         rows.push(m.id, &format!("PGN {}", m.pgn), "nmea2000", t, row(&m))?;
     }
+    let raw_index = rows.next_index();
     let mut extraction = rows.finish(out).await?;
     for s in &mut extraction.streams {
         if let Some(u) = unit_notes.get(s.name.as_str()) {
@@ -333,11 +351,12 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
             "{refused} frame(s) or message(s) canboat refused, first: {first}"
         ));
     }
-    if unread > 0 {
-        extraction
-            .notes
-            .push(format!("{unread} line(s) not read as frames"));
-    }
+    extraction
+        .notes
+        .extend(other.note("line(s) not read as frames"));
+    extraction
+        .streams
+        .extend(other.finish(out, raw_index, "nmea2000")?);
     Ok(extraction)
 }
 
@@ -390,7 +409,7 @@ mod tests {
         std::fs::create_dir_all(out.join("data")).unwrap();
         let x = read(&path, &out).await.unwrap();
         let names: Vec<&str> = x.streams.iter().map(|s| s.name.as_str()).collect();
-        assert_eq!(names, ["frames", "windData", "bGKeyValueData"]);
+        assert_eq!(names, ["frames", "windData", "bGKeyValueData", "raw"]);
         assert_eq!(stream(&out, &x, FRAMES).num_rows(), 8);
 
         let w = stream(&out, &x, "windData");
@@ -421,7 +440,17 @@ mod tests {
         let bg = stream(&out, &x, "bGKeyValueData");
         assert_eq!(bg.num_rows(), 1, "seven frames, one message");
         assert!(!bg.column_by_name("list").unwrap().is_null(0));
-        assert_eq!(x.notes, ["1 line(s) not read as frames"]);
+        assert_eq!(
+            x.notes,
+            ["2 line(s) not read as frames, kept in stream raw: comment 1, unread 1"]
+        );
+        // Each frame keeps its line.
+        let f = stream(&out, &x, FRAMES);
+        let raw = f.column_by_name(RAW).unwrap().as_string::<i32>();
+        assert_eq!(
+            raw.value(0),
+            "2020-08-22T13:52:36.950Z,2,130306,33,255,8,b7,3a,04,28,9e,fa,ff,ff"
+        );
     }
 
     /// The same message, then another with its frame 3 lost: its 6 frames make no message.

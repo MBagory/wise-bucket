@@ -19,7 +19,7 @@ pub const T_SENSOR: &str = "t_sensor";
 /// Size of each message on the wire, in bytes (bag and MCAP recordings).
 pub const MESSAGE_BYTES: &str = "message_bytes";
 
-const RESERVED: &[&str] = &[T, T_SENSOR, MESSAGE_BYTES, "recording"];
+const RESERVED: &[&str] = &[T, T_SENSOR, MESSAGE_BYTES, crate::raw::RAW, "recording"];
 
 /// Byte arrays longer than this on average (images, blobs) are dropped from decoded messages.
 const MAX_BYTE_ARRAY_LEN: usize = 64;

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use datafusion::arrow::array::LargeBinaryArray;
 use datafusion::arrow::datatypes::{DataType, Field, Schema};
 use datafusion::arrow::json::reader::{Decoder, ReaderBuilder, infer_json_schema_from_iterator};
 use serde_json::{Map, Value};
@@ -12,11 +13,14 @@ use wb_core::error::{ErrorKind, Result, err};
 
 use crate::columns::{T, time_type};
 use crate::extract::{BATCH, Extraction};
+use crate::raw::{RAW, with_raw};
 use crate::sink::StreamSink;
 
 struct Stream {
     sink: StreamSink,
     rows: Vec<Value>,
+    /// Each row's record as the file holds it, when the reader gives it.
+    records: Vec<Vec<u8>>,
     decoder: Option<Decoder>,
 }
 
@@ -50,6 +54,11 @@ impl Rows {
         }
     }
 
+    /// The dataset number of a stream created after these.
+    pub fn next_index(&self) -> usize {
+        self.first_index + self.streams.len()
+    }
+
     /// Adds a row to stream `name` (created with `type_` and `encoding` on first use).
     pub fn push(
         &mut self,
@@ -58,6 +67,19 @@ impl Rows {
         encoding: &str,
         t_ns: i64,
         fields: Map<String, Value>,
+    ) -> Result<()> {
+        self.push_record(name, type_, encoding, t_ns, fields, None)
+    }
+
+    /// [`Rows::push`], with the row's record as the file holds it, for the column `raw`.
+    pub fn push_record(
+        &mut self,
+        name: &str,
+        type_: &str,
+        encoding: &str,
+        t_ns: i64,
+        fields: Map<String, Value>,
+        record: Option<&[u8]>,
     ) -> Result<()> {
         let index = match self.by_name.get(name) {
             Some(&i) => i,
@@ -69,6 +91,7 @@ impl Rows {
                 self.streams.push(Stream {
                     sink,
                     rows: Vec::new(),
+                    records: Vec::new(),
                     decoder: None,
                 });
                 self.by_name.insert(name.to_string(), i);
@@ -78,11 +101,17 @@ impl Rows {
         let mut row: Map<String, Value> = fields
             .into_iter()
             .filter(|(k, _)| k != T)
-            .map(|(k, v)| (k, simplify(v)))
+            .map(|(k, v)| match k.as_str() {
+                RAW if record.is_some() => (format!("{RAW}_field"), simplify(v)),
+                _ => (k, simplify(v)),
+            })
             .collect();
         row.insert(T.into(), t_ns.into());
         let stream = &mut self.streams[index];
         stream.rows.push(Value::Object(row));
+        if let Some(r) = record {
+            stream.records.push(r.to_vec());
+        }
         if stream.rows.len() >= BATCH {
             flush(stream)?;
         }
@@ -135,7 +164,11 @@ fn flush(stream: &mut Stream) -> Result<()> {
     decoder
         .serialize(&std::mem::take(&mut stream.rows))
         .map_err(|e| unreadable(&e))?;
-    if let Some(batch) = decoder.flush().map_err(|e| unreadable(&e))? {
+    if let Some(mut batch) = decoder.flush().map_err(|e| unreadable(&e))? {
+        if !stream.records.is_empty() {
+            let records = std::mem::take(&mut stream.records);
+            batch = with_raw(batch, Arc::new(LargeBinaryArray::from_iter_values(records)))?;
+        }
         stream.sink.append(batch)?;
     }
     Ok(())

@@ -8,7 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **Extraction checks in the notes:** gaps in periodic streams, periodic streams that stop early, `t` going backwards, `t - t_sensor` drifting, and streams whose every float column is constant or empty are reported in `streams.notes`, with a summary in `recordings.notes` ([ADR 0032](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0032-extraction-checks-in-notes.md)). Every recording is extracted again.
-- [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the five ranked rules the design follows.
+- **Records as written:** decoded rows of ROS 2 and MCAP messages, MAVLink, NMEA and ASC logs keep their record in a `raw` column (the line, or the bytes); the records that gave no row (comments, headers, status lines, junk bytes, rejected messages) are in the stream `raw`, counted by kind in `recordings.notes` ([ADR 0035](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0035-raw-records-next-to-decoded-data.md)). Every recording is extracted again.
+- [Engineering tenets](https://github.com/MBagory/wise-bucket/blob/main/docs/tenets.md): the six ranked rules the design follows.
 
 ### Changed
 
