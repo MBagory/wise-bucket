@@ -42,3 +42,4 @@ These records are history: new designs follow the [engineering tenets](../tenets
 | [0032](0032-extraction-checks-in-notes.md) | Extraction checks in the notes | 2026-10-26 | Accepted |
 | [0034](0034-utc-t-for-ardupilot-and-asc-logs.md) | UTC `t` for ArduPilot and ASC logs | 2026-10-29 | Accepted |
 | [0035](0035-raw-records-next-to-decoded-data.md) | Raw records next to decoded data | 2026-11-04 | Accepted (adds the first [engineering tenet](../tenets.md)) |
+| [0036](0036-recipes-only-for-the-dialect.md) | Recipes only for Wise Bucket's dialect and schema | 2026-11-05 | Accepted (updates [0017](0017-result-size-and-paging.md) and [0020](0020-abnormality-and-similarity-as-sql-recipes.md)) |

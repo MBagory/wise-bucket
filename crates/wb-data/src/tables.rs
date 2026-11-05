@@ -80,20 +80,11 @@ pub const TABLES: &[TableDoc] = &[
     },
 ];
 
-/// SQL recipes shown to the agent.
+/// SQL recipes shown to the agent: only for what the model cannot know, Wise Bucket's
+/// dialect and schema (ADR 0036).
 pub const RECIPES: &str = r#"- Gaps (in seconds): SELECT t, (CAST(lead(t) OVER (ORDER BY t) AS BIGINT) - CAST(t AS BIGINT)) / 1e9 AS gap_s FROM stream('/scan') WHERE recording = 'bags:run3' ORDER BY gap_s DESC NULLS LAST LIMIT 10
-- Windows: SELECT date_bin(INTERVAL '100 milliseconds', t) AS w, count(*) AS n FROM stream('/scan') WHERE recording = 'bags:run3' GROUP BY w ORDER BY w
-- Percentiles: SELECT approx_percentile_cont(0.99) WITHIN GROUP (ORDER BY "linear_acceleration.z") FROM stream('/imu')
-- Join streams on time buckets: compute date_bin(...) in each stream, then JOIN ON the bucket and recording
-- Names: SELECT * FROM streams WHERE stream ILIKE '%imu%' OR columns ILIKE '%current%'
-- Properties: SELECT key, value FROM properties WHERE recording = 'bags:run3'
-- Context (what the engineer said): SELECT recording, context FROM recordings WHERE context['hardware'] = 'rover-b'
 - Plot (about 150 bins, width = (end - start) / 150 from streams): SELECT date_bin(INTERVAL '1 second', t) AS t, min("linear_acceleration.z") AS lo, avg("linear_acceleration.z") AS mean, max("linear_acceleration.z") AS hi FROM stream('/imu') WHERE recording = 'bags:run3' GROUP BY 1 ORDER BY 1
-- Page by time window: SELECT t, "linear_acceleration.z" FROM stream('/imu') WHERE recording = 'bags:run3' AND t >= TIMESTAMP '1970-01-01T00:00:00' AND t < TIMESTAMP '2100-01-01T00:00:00' ORDER BY t
-- Page by key, after the last row seen: SELECT recording, t, "linear_acceleration.z" FROM stream('/imu') WHERE recording > 'bags:run3' OR (recording = 'bags:run3' AND t > TIMESTAMP '1970-01-01T00:00:00') ORDER BY recording, t
-- Peers (robust z-score of one value per recording; 3 or more is unusual against these peers): WITH per AS (SELECT recording, approx_percentile_cont(0.99) WITHIN GROUP (ORDER BY "linear_acceleration.z") AS v FROM stream('/imu') GROUP BY recording), m AS (SELECT *, median(v) OVER () AS med FROM per), d AS (SELECT *, median(abs(v - med)) OVER () AS mad FROM m) SELECT recording, v, (v - med) / (1.4826 * mad) AS score FROM d ORDER BY abs((v - med) / (1.4826 * mad)) DESC NULLS LAST LIMIT 10
-- Spikes (the same score over the last 200 samples): WITH a AS (SELECT t, "linear_acceleration.z" AS x, median("linear_acceleration.z") OVER (ORDER BY t ROWS BETWEEN 200 PRECEDING AND CURRENT ROW) AS med FROM stream('/imu') WHERE recording = 'bags:run3'), b AS (SELECT *, median(abs(x - med)) OVER (ORDER BY t ROWS BETWEEN 200 PRECEDING AND CURRENT ROW) AS mad FROM a) SELECT t, x, (x - med) / (1.4826 * mad) AS score FROM b WHERE mad > 0 ORDER BY abs((x - med) / (1.4826 * mad)) DESC LIMIT 10
-- Similar (closest distribution to a reference recording): WITH q AS (SELECT recording, make_array(approx_percentile_cont(0.05) WITHIN GROUP (ORDER BY "linear_acceleration.z"), approx_percentile_cont(0.25) WITHIN GROUP (ORDER BY "linear_acceleration.z"), approx_percentile_cont(0.5) WITHIN GROUP (ORDER BY "linear_acceleration.z"), approx_percentile_cont(0.75) WITHIN GROUP (ORDER BY "linear_acceleration.z"), approx_percentile_cont(0.95) WITHIN GROUP (ORDER BY "linear_acceleration.z")) AS v FROM stream('/imu') GROUP BY recording) SELECT o.recording, array_distance(o.v, r.v) AS distance FROM q o JOIN q r ON r.recording = 'bags:run3' WHERE o.recording <> r.recording ORDER BY distance LIMIT 10"#;
+- Page by time window: SELECT t, "linear_acceleration.z" FROM stream('/imu') WHERE recording = 'bags:run3' AND t >= TIMESTAMP '1970-01-01T00:00:00' AND t < TIMESTAMP '2100-01-01T00:00:00' ORDER BY t"#;
 
 /// The tables, as Markdown (`docs/reference/tables.md`).
 pub fn render_reference() -> String {

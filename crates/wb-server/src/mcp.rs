@@ -77,7 +77,7 @@ pub struct RerunArgs {
 
 fn sql_description() -> String {
     format!(
-        "Run one read-only SQL query (DataFusion dialect, close to PostgreSQL) over the store: a decoded, columnar copy of every recording in the data roots. Compute any metric with it; nothing is precomputed. Rows are arrays in the order of `columns`; `types` gives each column's type (`LIMIT 0` for the columns of a stream). Every row enters your context: aggregate or filter before fetching raw rows. A result is capped at {} KB and at `limit` rows if you set one; `truncated` and `hint` say when more exist and how to get them. Page by time window or by key (recipes), not with OFFSET: the store changes while you page. {} s per query; only SELECT is allowed. Quote dotted or upper-case column names (\"linear_acceleration.z\"). Times are nanosecond timestamps.\n\nTables:\n{}\nRecipes:\n{}",
+        "Run one read-only SQL query (DataFusion dialect, close to PostgreSQL) over the store: a decoded, columnar copy of every recording in the data roots. Compute any metric with it; nothing is precomputed. Rows are arrays in the order of `columns`; `types` gives each column's type (`LIMIT 0` for the columns of a stream). Every row enters your context: aggregate or filter before fetching raw rows. A result is capped at {} KB and at `limit` rows if you set one; `truncated` and `hint` say when more exist and how to get them. Page by time window (recipe), not with OFFSET: the store changes while you page. {} s per query; only SELECT is allowed. Quote dotted or upper-case column names (\"linear_acceleration.z\"). Times are nanosecond timestamps; their differences are durations, so use `CAST(t AS BIGINT)` (nanoseconds) for arithmetic (the Gaps recipe).\n\nTables:\n{}\nRecipes:\n{}",
         wb_data::sql::MAX_BYTES / 1000,
         wb_data::sql::TIMEOUT.as_secs(),
         wb_data::tables::summary(),
@@ -394,4 +394,28 @@ async fn shutdown_signal() {
     {
         let _ = tokio::signal::ctrl_c().await;
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Everything here enters the agent's context in every session (tenet 2): a change
+    /// that grows it past the cap must make room first.
+    #[test]
+    fn context_budget() {
+        let (sql, instructions) = (sql_description().len(), INSTRUCTIONS.len());
+        assert!(
+            sql <= SQL_DESCRIPTION_CAP,
+            "sql description: {sql} characters"
+        );
+        assert!(
+            instructions <= INSTRUCTIONS_CAP,
+            "instructions: {instructions} characters"
+        );
+    }
+
+    /// The lengths after ADR 0036, plus 2,000 characters (about 500 tokens).
+    const SQL_DESCRIPTION_CAP: usize = 5_029 + 2_000;
+    const INSTRUCTIONS_CAP: usize = 5_483 + 2_000;
 }
