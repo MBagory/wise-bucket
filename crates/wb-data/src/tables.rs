@@ -35,7 +35,7 @@ pub const TABLES: &[TableDoc] = &[
             "error" "text" "Why extraction failed",
             "size_bytes" "bigint" "Size of the recording",
             "modified" "timestamp" "Last modification of the file",
-            "start" "timestamp" "First `t` over all streams; for ULog, the log header's start time; for ArduPilot, the UTC time of boot from its first GPS fix",
+            "start" "timestamp" "First `t` over all streams; for ULog, the log header's start time; for ArduPilot, its first timed record (the UTC time of boot is `boot_utc` in `properties`)",
             "end" "timestamp" "Last `t` over all streams",
             "streams" "int" "Number of streams extracted",
             "notes" "text" "What to look at first: warnings and errors logged (counted per level, with the first message), ULog logger dropouts and crash dumps, remarks about the extraction (a file cut or damaged, the records kept in the stream `raw`, by kind), and the extraction checks: gaps in periodic streams (an interval over 5× the median and over 1 s), periodic streams that stop early, `t` going backwards in a periodic stream, and streams whose every float column is constant or empty (details in `streams.notes`). The checks are heuristics: verify with SQL. No note means none of these",
@@ -60,7 +60,7 @@ pub const TABLES: &[TableDoc] = &[
     },
     TableDoc {
         name: "properties",
-        description: "Short facts each recording states about itself: ULog info (`ver_hw` board, `ver_sw` firmware, `sys_name`, `sys_os_name`, `time_ref_utc`…), MCAP metadata records (`<record>.<key>`), the MCAP writer (`mcap.profile`, `mcap.library`) and channel metadata (`<topic>.<key>`), what a rosbag2 bag says of itself (`rosbag2.version`, `rosbag2.storage_identifier`, `rosbag2.ros_distro`…), Parquet `parquet.created_by` and key-value metadata (`parquet.<key>`), ArduPilot `VER.<field>` and `firmware` (the first `MSG` naming it), the `date` of a CAN ASC log, and the MDF4 header's `comment` and properties (`HD.<tree>/<name>`).",
+        description: "Short facts each recording states about itself: ULog info (`ver_hw` board, `ver_sw` firmware, `sys_name`, `sys_os_name`, `time_ref_utc`…), MCAP metadata records (`<record>.<key>`), the MCAP writer (`mcap.profile`, `mcap.library`) and channel metadata (`<topic>.<key>`), what a rosbag2 bag says of itself (`rosbag2.version`, `rosbag2.storage_identifier`, `rosbag2.ros_distro`…), Parquet `parquet.created_by` and key-value metadata (`parquet.<key>`), ArduPilot `VER.<field>`, `firmware` (the first `MSG` naming it) and `boot_utc` (the UTC time of boot, from the GPS), the `date` of a CAN ASC log, and the MDF4 header's `comment` and properties (`HD.<tree>/<name>`).",
         columns: cols![
             "recording" "text" "`root:path`",
             "key" "text" "Name of the fact",

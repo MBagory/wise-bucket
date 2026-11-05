@@ -624,9 +624,10 @@ async fn dataflash() {
         r["rows"][0]["value"], "ArduPlane V3.8.2-dev (8178ab40)",
         "{r:#}"
     );
-    // The sample is the first 64 KiB of a longer log. It starts at the UTC time of boot
-    // that its GPS gives (pymavlink: 2017-10-29T01:45:48.1445Z, to the GPS millisecond).
-    // `end` is on the same clock: the last `TimeUS` is 82.770403 s.
+    // The sample is the first 64 KiB of a longer log. Its GPS gives the UTC time of boot
+    // (pymavlink: 2017-10-29T01:45:48.1445Z, to the GPS millisecond), kept as `boot_utc`;
+    // the recording starts at its first timed record (`TimeUS` 81.718843 s) and ends at
+    // its last (82.770403 s): 1.05 s of data.
     let r = s
         .sql("SELECT notes, CAST(start AS BIGINT) AS start, CAST(\"end\" AS BIGINT) - CAST(start AS BIGINT) AS span FROM recordings")
         .await;
@@ -635,10 +636,15 @@ async fn dataflash() {
         "{r:#}"
     );
     assert_eq!(
-        r["rows"][0]["start"], 1_509_241_548_145_000_000_i64,
+        r["rows"][0]["start"],
+        1_509_241_548_145_000_000_i64 + 81_718_843_000,
         "{r:#}"
     );
-    assert_eq!(r["rows"][0]["span"], 82_770_403_000_i64, "{r:#}");
+    assert_eq!(r["rows"][0]["span"], 1_051_560_000_i64, "{r:#}");
+    let r = s
+        .sql("SELECT value FROM properties WHERE key = 'boot_utc'")
+        .await;
+    assert_eq!(r["rows"][0]["value"], "2017-10-29T01:45:48.145Z", "{r:#}");
     s.close().await;
 }
 

@@ -15,7 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - **Recipes only for Wise Bucket's dialect and schema:** the `sql` description keeps three (gaps in seconds, plot bins, paging by time window) and says how to turn `t` into numbers (`CAST(t AS BIGINT)`); the peer-score method is an agent guideline ([ADR 0036](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0036-recipes-only-for-the-dialect.md)).
-- **UTC times for ArduPilot and ASC logs:** an ArduPilot log with a GPS fix has its `t` in UTC (the UTC time of boot plus `TimeUS`), so its `start` and `end` agree; an ASC log's `t` is its `date`, read as UTC, plus each frame's time ([ADR 0034](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0034-utc-t-for-ardupilot-and-asc-logs.md)). Every recording is extracted again.
+- **UTC times for ArduPilot and ASC logs:** an ArduPilot log with a GPS fix has its `t` in UTC (the UTC time of boot plus `TimeUS`), its `start` is its first timed record and `end` its last (the UTC time of boot is the property `boot_utc`); an ASC log's `t` is its `date`, read as UTC, plus each frame's time ([ADR 0034](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/0034-utc-t-for-ardupilot-and-asc-logs.md)). Every recording is extracted again.
 
 ### Fixed
 

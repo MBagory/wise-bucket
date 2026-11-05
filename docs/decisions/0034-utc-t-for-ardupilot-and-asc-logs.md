@@ -13,7 +13,7 @@ The cross-checks of the ArduPilot and CAN samples (`evals/crosscheck.sh`) found 
 
 ## Decision
 
-- **ArduPilot:** with a GPS fix (the time base of `dflog`), `t` is the UTC time of boot plus `TimeUS`, and `start` stays the UTC time of boot. Without a fix, `t` stays time since boot.
+- **ArduPilot:** with a GPS fix (the time base of `dflog`), `t` is the UTC time of boot plus `TimeUS`, and the UTC time of boot is the property `boot_utc`. Without a fix, `t` stays time since boot. Either way `start` is the first timed record: format and parameter records come before it without a time, and a log saved from the middle of a flight would otherwise seem to start at boot (the cross-check of the demo log: 82.8 s instead of 1.05 s).
 - **ASC:** `t` is the `date` header, read as UTC, plus each frame's time. Wise Bucket parses the date itself: weekday skipped, English or German month, 24-hour or `am`/`pm`. When it can't, `t` counts from the start of the measurement, and the stream note says so.
 - The ASC stream note says the date is the logging PC's local time, read as UTC, as BLF start times already are.
 

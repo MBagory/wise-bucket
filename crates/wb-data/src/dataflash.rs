@@ -142,9 +142,18 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     let boot_ns = log
         .time_base()
         .map(|base| ((base.wall_clock_unix_ms(0.0) * 1e3).round() as i64).saturating_mul(1000));
-    extraction.declared_start_ns = boot_ns;
+    if let Some(ns) = boot_ns {
+        let boot = chrono::DateTime::from_timestamp_nanos(ns);
+        extraction.properties.push((
+            "boot_utc".into(),
+            boot.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(),
+        ));
+    }
     // Records without a time take the last time before them, as pymavlink does.
     let mut last_us: u64 = 0;
+    // The recording starts at its first timed record, not at boot: format and
+    // parameter records written before it carry no time.
+    let mut first_us: Option<u64> = None;
     for record in log.records() {
         let name = record.type_name().to_string();
         let values = record.values();
@@ -158,6 +167,7 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
             })
         {
             last_us = us;
+            first_us.get_or_insert(us);
         }
         let t_ns = i64::try_from(last_us)
             .unwrap_or(i64::MAX)
@@ -251,6 +261,12 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
         };
         streams[i].push(t_ns, values)?;
     }
+    extraction.declared_start_ns = first_us.map(|us| {
+        i64::try_from(us)
+            .unwrap_or(i64::MAX)
+            .saturating_mul(1000)
+            .saturating_add(boot_ns.unwrap_or(0))
+    });
     for mut s in streams {
         s.flush()?;
         if let Some(meta) = s.sink.finish(out)? {
@@ -400,7 +416,15 @@ mod tests {
         let x = read(&path, &out).await.unwrap();
         // The GPS epoch (1980-01-06) in Unix ms, 18 leap seconds in 2300, 2 s since boot.
         let boot_ms: i64 = 315_964_800_000 + 2300 * 604_800_000 + 1000 - 18_000 - 2000;
-        assert_eq!(x.declared_start_ns, Some(boot_ms * 1_000_000));
+        // The log starts at its first timed record (ATT, 1 s after boot); boot is a property.
+        assert_eq!(x.declared_start_ns, Some((boot_ms + 1000) * 1_000_000));
+        assert!(
+            x.properties
+                .iter()
+                .any(|(k, v)| k == "boot_utc" && v.ends_with('Z')),
+            "{:?}",
+            x.properties
+        );
         let att = stream(&out, &x, "ATT");
         let t = att
             .column_by_name(T)
