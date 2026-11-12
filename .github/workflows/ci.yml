@@ -12,6 +12,8 @@ env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
 
+# Linux jobs run on ubuntu-24.04, not ubuntu-latest: on some ubuntu-26.04 runner images
+# the tests' extraction stays paused (store below 10 GB free in /tmp).
 jobs:
   test:
     name: test (${{ matrix.os }})
@@ -19,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-15]
+        os: [ubuntu-24.04, macos-15]
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -39,7 +41,7 @@ jobs:
 
   samples:
     name: samples (${{ matrix.format }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -60,7 +62,7 @@ jobs:
 
   docs:
     name: docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -77,7 +79,7 @@ jobs:
 
   supply-chain:
     name: cargo-deny
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
