@@ -6,6 +6,7 @@ use std::path::Path;
 
 use mavlink::dialects::ardupilotmega::MavMessage;
 use mavlink::{MavlinkReader, Message};
+use mavlink_tlog::{FrameError, FrameRef, TlogSlice};
 use wb_core::error::{ErrorKind, Result, err};
 
 use crate::extract::{Extraction, LogTally};
@@ -34,17 +35,6 @@ fn tally_statustext(log: &mut LogTally, fields: &serde_json::Map<String, serde_j
     log.add(rank, level, rank < 4, text);
 }
 
-/// Length of the MAVLink frame starting at `b[0]`, if `b` starts like one.
-fn frame_len(b: &[u8]) -> Option<usize> {
-    let payload = usize::from(*b.get(1)?);
-    match b[0] {
-        0xFE => Some(8 + payload),
-        // Header 10 + checksum 2, plus a 13-byte signature when flagged.
-        0xFD => Some(12 + payload + if b.get(2)? & 1 == 1 { 13 } else { 0 }),
-        _ => None,
-    }
-}
-
 pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     // ponytail: the whole file is read in memory (tlogs are telemetry, MBs not GBs);
     // stream it if huge tlogs show up.
@@ -54,28 +44,22 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     let mut log = LogTally::default();
     let (mut pos, mut garbage, mut undecoded, mut truncated) = (0usize, 0u64, 0u64, false);
     let mut first_garbage = None;
-    // Where the bytes that are no record, before `pos`, start.
-    let mut junk: Option<usize> = None;
-    while pos + 8 < bytes.len() {
-        let frame = &bytes[pos + 8..];
-        let Some(len) = frame_len(frame) else {
+    // mavlink-tlog checks each frame's checksum and resyncs byte by byte past a damaged
+    // record, so a bad length byte costs that record, not the rest of the log.
+    let mut tlog = TlogSlice::new(&bytes);
+    while let Some(rec) = tlog.next() {
+        let end = tlog.position();
+        let start = end - 8 - rec.frame.len();
+        if start > pos {
             first_garbage.get_or_insert(pos);
-            junk.get_or_insert(pos);
-            pos += 1;
-            garbage += 1;
-            continue;
-        };
-        if len > frame.len() {
-            truncated = true;
-            break;
+            garbage += (start - pos) as u64;
+            raw.bytes(None, pos as u64, "junk", &bytes[pos..start]);
         }
-        if let Some(start) = junk.take() {
-            raw.bytes(None, start as u64, "junk", &bytes[start..pos]);
-        }
-        let record = &bytes[pos..pos + 8 + len];
-        let us = u64::from_be_bytes(bytes[pos..pos + 8].try_into().expect("8 bytes"));
-        let t = i64::try_from(us).unwrap_or(i64::MAX).saturating_mul(1000);
-        match MavlinkReader::new(&frame[..len]).read_any_message::<MavMessage>() {
+        let record = &bytes[start..end];
+        let t = i64::try_from(rec.timestamp_us)
+            .unwrap_or(i64::MAX)
+            .saturating_mul(1000);
+        match MavlinkReader::new(rec.frame.as_bytes()).read_any_message::<MavMessage>() {
             Ok((header, msg)) => {
                 let serde_json::Value::Object(mut fields) =
                     serde_json::to_value(&msg).map_err(|e| {
@@ -93,26 +77,32 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
                 let name = msg.message_name();
                 rows.push_record(name, "mavlink", "mavlink", t, fields, Some(record))?;
             }
-            // Unknown message or bad checksum: the whole record stays raw.
+            // Unknown message: the whole record stays raw.
             Err(_) => {
                 undecoded += 1;
-                raw.bytes(Some(t), pos as u64, "frame", record);
+                raw.bytes(Some(t), start as u64, "frame", record);
             }
         }
-        pos += 8 + len;
+        pos = end;
     }
-    // Fewer bytes than a record holds, at the end of the file.
-    if !truncated && pos < bytes.len() {
-        first_garbage.get_or_insert(pos);
-        junk.get_or_insert(pos);
-        garbage += (bytes.len() - pos) as u64;
-        pos = bytes.len();
-    }
-    if let Some(start) = junk {
-        raw.bytes(None, start as u64, "junk", &bytes[start..pos]);
-    }
-    if truncated {
-        raw.bytes(None, pos as u64, "cut", &bytes[pos..]);
+    // After the last record: junk, then maybe a frame the end of the file cuts short.
+    if pos < bytes.len() {
+        let cut = (pos..bytes.len().saturating_sub(8)).find(|&p| {
+            matches!(
+                FrameRef::parse_unchecked(&bytes[p + 8..]),
+                Err(FrameError::Incomplete { .. })
+            )
+        });
+        let end = cut.unwrap_or(bytes.len());
+        if end > pos {
+            first_garbage.get_or_insert(pos);
+            garbage += (end - pos) as u64;
+            raw.bytes(None, pos as u64, "junk", &bytes[pos..end]);
+        }
+        if let Some(cut) = cut {
+            truncated = true;
+            raw.bytes(None, cut as u64, "cut", &bytes[cut..]);
+        }
     }
     let raw_index = rows.next_index();
     let mut extraction = rows.finish(out).await?;
@@ -127,7 +117,7 @@ pub(crate) async fn read(path: &Path, out: &Path) -> Result<Extraction> {
     }
     if undecoded > 0 {
         extraction.notes.push(format!(
-            "{undecoded} frame(s) not decoded: unknown message (not in the ardupilotmega dialect) or bad checksum, kept in stream {RAW}"
+            "{undecoded} frame(s) not decoded: unknown message (not in the ardupilotmega dialect), kept in stream {RAW}"
         ));
     }
     if let Some(first) = first_garbage {
@@ -230,12 +220,34 @@ mod tests {
         assert_eq!(r.num_rows(), 2);
     }
 
-    #[test]
-    fn frame_lengths() {
-        assert_eq!(frame_len(&[0xFE, 9]), Some(17));
-        assert_eq!(frame_len(&[0xFD, 9, 0]), Some(21));
-        assert_eq!(frame_len(&[0xFD, 9, 1]), Some(34));
-        assert_eq!(frame_len(&[0x00, 9, 0]), None);
-        assert_eq!(frame_len(&[0xFD]), None);
+    /// A damaged length byte in the middle of the log: the records after it are still read.
+    #[tokio::test]
+    async fn damaged_length_does_not_drop_the_rest() {
+        use mavlink::dialects::ardupilotmega::HEARTBEAT_DATA;
+        let heartbeat = MavMessage::HEARTBEAT(HEARTBEAT_DATA::default());
+        let mut tlog = Vec::new();
+        let mut starts = Vec::new();
+        for i in 0..3u64 {
+            starts.push(tlog.len());
+            tlog.extend((1_000_000 + i).to_be_bytes());
+            mavlink::write_v2_msg(&mut tlog, mavlink::MavHeader::default(), &heartbeat).unwrap();
+        }
+        // The second record's payload length now points past the end of the file.
+        tlog[starts[1] + 9] = 0xFF;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("damaged.tlog");
+        std::fs::write(&path, &tlog).unwrap();
+        let out = dir.path().join("out");
+        std::fs::create_dir_all(out.join("data")).unwrap();
+        let x = read(&path, &out).await.unwrap();
+        let hb = x.streams.iter().find(|s| s.name == "HEARTBEAT").unwrap();
+        let file = std::fs::File::open(out.join(&hb.dataset)).unwrap();
+        let rows: usize =
+            parquet::arrow::arrow_reader::ParquetRecordBatchReader::try_new(file, 1024)
+                .unwrap()
+                .map(|b| b.unwrap().num_rows())
+                .sum();
+        assert_eq!(rows, 2);
+        assert!(!x.notes.iter().any(|n| n.contains("ends mid-frame")));
     }
 }
