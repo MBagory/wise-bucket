@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - README and banner: Wise Bucket is a Fast & Frugal MCP server for your time-series data, with each format compared back-to-back with its reference decoder.
 
+### Security
+
+- Dependencies updated past the RustSec advisories published since 0.2.0: the bundled SQLite (rusqlite 0.43), tokio, rmcp, zstd, rustls-webpki, webpki-roots, url and thrift.
+
 ## [0.2.0] - 2026-10-16
 
 Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:
