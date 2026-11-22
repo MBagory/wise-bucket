@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/banner.svg" alt="Wise Bucket: long-term context and insights for your time-series data" width="100%">
-
-**An open-source MCP server that gives R&D teams long-term context and insights on their time-series data.**
+<img src="docs/assets/banner.svg" alt="Wise Bucket: Fast &amp; Frugal MCP server for your time-series data" width="100%">
 
 [![CI](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml/badge.svg)](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-guide-blue)](docs/guide.md)
@@ -19,6 +17,18 @@
 > [!WARNING]
 > **Early alpha.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
 
+### ⚡ Built for speed
+
+Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org). Each recording is decoded once into Parquet files, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
+
+### 🪶 Frugal with tokens
+
+Everything your agent reads fills its context window, and a fuller window makes it slower, costlier and less accurate. So your agent's SQL runs on your machine and only the answer comes back, while full-resolution signals go straight to your viewer.
+
+### ✅ No regression
+
+Each format is compared back-to-back with its reference decoder (python-can, pyulog, pymavlink, pynmea2, canboat, asammdf), and every change is tested against their values on public sample recordings.
+
 ### ⏱️ Built for time series
 
 Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, MDF4, CSV, JSON Lines, Parquet and Arrow IPC.
@@ -26,14 +36,6 @@ Connects your **AI agent** to **your time-series data** (telemetry, logs, measur
 ### 🤖 Bring your own agent
 
 Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.
-
-### 🪶 Frugal with tokens
-
-Everything your agent reads fills its context window, and a fuller window makes it slower, costlier and less accurate. So your agent's SQL runs on your machine and only the answer comes back, while full-resolution signals go straight to your viewer.
-
-### ⚡ Built for speed
-
-Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org). Each recording is decoded once into Parquet files, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
 
 ### 📈 Instant display in your viewer
 
