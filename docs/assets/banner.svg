@@ -1,26 +1,67 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-labelledby="title">
-  <title id="title">Wise Bucket: long-term context and insights for time-series data</title>
+  <title id="title">Wise Bucket: Fast &amp; Frugal MCP server for your time-series data</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#0b1220"/>
       <stop offset="1" stop-color="#132440"/>
     </linearGradient>
+    <radialGradient id="glow" cx="1" cy="1" r="0.8">
+      <stop offset="0" stop-color="#f97316" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#f97316" stop-opacity="0"/>
+    </radialGradient>
     <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
       <circle cx="1" cy="1" r="1" fill="#334155"/>
     </pattern>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.48" stop-color="#cbd5e1"/>
+      <stop offset="0.52" stop-color="#475569"/>
+      <stop offset="0.62" stop-color="#e2e8f0"/>
+      <stop offset="1" stop-color="#94a3b8"/>
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fde047"/>
+      <stop offset="0.5" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#dc2626"/>
+    </linearGradient>
+    <linearGradient id="streak" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2dd4bf" stop-opacity="0"/>
+      <stop offset="1" stop-color="#2dd4bf" stop-opacity="0.8"/>
+    </linearGradient>
+    <linearGradient id="streak-hot" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#f97316" stop-opacity="0"/>
+      <stop offset="1" stop-color="#f97316" stop-opacity="0.9"/>
+    </linearGradient>
+    <filter id="offset-shadow" x="-5%" y="-20%" width="115%" height="150%">
+      <feDropShadow dx="3" dy="3" stdDeviation="0" flood-color="#ea580c"/>
+    </filter>
   </defs>
 
-  <!-- Background -->
+  <!-- Background: night street with a warm glow -->
   <rect width="1280" height="320" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="320" rx="24" fill="url(#glow)"/>
   <rect x="880" width="400" height="320" rx="24" fill="url(#grid)" opacity="0.6"/>
 
-  <!-- Logo -->
-  <text x="200" y="168" font-size="180" text-anchor="middle" dominant-baseline="central">🪣</text>
+  <!-- Speed streaks behind the bucket -->
+  <rect x="24" y="112" width="120" height="5" rx="2.5" fill="url(#streak)"/>
+  <rect x="56" y="140" width="96" height="4" rx="2" fill="url(#streak-hot)"/>
+  <rect x="12" y="168" width="128" height="6" rx="3" fill="url(#streak)"/>
+  <rect x="48" y="198" width="100" height="4" rx="2" fill="url(#streak-hot)"/>
+  <rect x="28" y="226" width="112" height="5" rx="2.5" fill="url(#streak)"/>
+
+  <!-- Logo, leaning into the race -->
+  <text x="210" y="168" font-size="180" text-anchor="middle" dominant-baseline="central" transform="rotate(10 210 168)">🪣</text>
 
   <!-- Wordmark -->
   <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
-    <text x="360" y="160" font-size="88" font-weight="800" fill="#f8fafc" letter-spacing="-1.5">Wise <tspan fill="#2dd4bf">Bucket</tspan></text>
-    <text x="364" y="212" font-size="28" fill="#94a3b8">Long-term context &amp; insights for your time-series data</text>
+    <text x="360" y="140" font-size="84" font-weight="800" fill="#f8fafc" letter-spacing="-1.5">Wise <tspan fill="#2dd4bf">Bucket</tspan></text>
+
+    <!-- Tagline: chrome title lettering -->
+    <g transform="translate(366 200) skewX(-12)" filter="url(#offset-shadow)">
+      <text x="0" y="0" font-size="48" font-weight="900" fill="url(#chrome)" stroke="#0b1220" stroke-width="1" letter-spacing="1" textLength="352" lengthAdjust="spacingAndGlyphs">FAST <tspan fill="url(#flame)">&amp;</tspan> FRUGAL</text>
+    </g>
+    <text x="740" y="198" font-size="26" font-weight="600" fill="#e2e8f0">MCP server for your time-series data</text>
+    <rect x="366" y="214" width="352" height="3" rx="1.5" fill="url(#streak-hot)"/>
   </g>
-  <text x="364" y="258" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#5eead4" opacity="0.85">MCP server · NMEA · ROS 2 · MCAP · PX4 · ArduPilot · MAVLink · CAN · MDF4</text>
+  <text x="364" y="258" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#5eead4" opacity="0.85">ROS2 · CAN · NMEA · MCAP · PX4 · ArduPilot · MAVLink · MDF4</text>
 </svg>
