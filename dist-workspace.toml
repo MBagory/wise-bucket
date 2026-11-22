@@ -32,6 +32,7 @@ cache-builds = false
 [dist.bin-aliases]
 wisebucket = ["wbk"]
 
-# Build aarch64 Linux natively instead of cross-compiling
+# Build aarch64 Linux natively instead of cross-compiling; macos-14, dist's default for Apple Silicon, is retired
 [dist.github-custom-runners]
 aarch64-unknown-linux-musl = "ubuntu-24.04-arm"
+aarch64-apple-darwin = "macos-15"
