@@ -17,23 +17,23 @@ ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.t
 
 ## ⚡ Fast
 
-Decoded once, then every question is one SQL query, in milliseconds.
+Each recording is decoded once into Parquet files. Every question after that is a SQL query run by [Apache DataFusion](https://datafusion.apache.org), reading only the columns and time range it needs: answers across all your recordings in milliseconds, not a new pass over your bags.
 
 ## 🪶 Frugal
 
-Only the answer enters your agent's context.
+Everything your agent reads fills its context, and a fuller context makes it slower, costlier and less accurate. The SQL runs on your machine and only the answer comes back; full-resolution signals go straight to your viewer.
 
 ## 🤖 Bring your own agent
 
-Claude Code, Codex, Cursor… on your own subscription.
+Wise Bucket is an MCP server for the agent you already use (Claude Code, Codex, Cursor…), with its model and your subscription. No extra API key, and your files stay on your machine: only the query results your agent reads reach its model.
 
 ## 🎯 Faithful
 
-Never worse than your agent alone: [checked](evals/crosscheck.sh) by asking the same questions with and without Wise Bucket.
+Never worse than your agent alone: your raw files stay where they are, and your agent can still read them with its own tools. [`evals/crosscheck.sh`](evals/crosscheck.sh) checks it by asking an agent the same questions twice, once from the raw files alone and once only through Wise Bucket; whatever Wise Bucket missed becomes a fix.
 
 ## 📈 Works with your viewer
 
-Your agent opens [Rerun or Foxglove](docs/guide.md#viewers) at the right moment, and plots query results in Rerun.
+Your agent opens the original recording at the right moment in [Rerun or Foxglove](docs/guide.md#viewers), through the viewer's MCP server. It also sends any query result straight to Rerun at full resolution, without passing through its context.
 
 ## Compared with your agent alone
 
@@ -46,10 +46,10 @@ Your agent opens [Rerun or Foxglove](docs/guide.md#viewers) at the right moment,
 
 ## Also
 
-- ✔️ **Checked decoding** against python-can, pyulog, pymavlink, pynmea2, canboat and asammdf.
-- 📝 **[Long-term context](docs/guide.md#what-you-know-about-recordings):** what you tell your agent about a recording is kept for later sessions.
-- 🔍 **[Abnormal and similar recordings](docs/guide.md#abnormal-and-similar-recordings)**, found by comparing each with its peers.
-- 📋 **Notes** on each recording: errors, warnings, gaps, what wasn't decoded.
+- ✔️ **Checked decoding:** each format is compared with its reference decoder (python-can, pyulog, pymavlink, pynmea2, canboat, asammdf) on public sample recordings.
+- 📝 **[Long-term context](docs/guide.md#what-you-know-about-recordings):** tell your agent what the files don't say (the machine, what changed, the test conditions); Wise Bucket keeps it for every later session.
+- 🔍 **[Abnormal and similar recordings](docs/guide.md#abnormal-and-similar-recordings):** your agent scores each recording against its peers of the same machine.
+- 📋 **Notes** on each recording: the errors and warnings it logged, gaps, and what wasn't decoded.
 
 ## How it works
 
