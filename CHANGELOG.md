@@ -5,11 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-11-22
+## [0.2.1] - 2026-11-23
 
 ### Changed
 
-- README and banner: Wise Bucket is a Fast & Frugal MCP server for your time-series data, with each format compared back-to-back with its reference decoder.
+- README and banner: Wise Bucket is a Fast & Frugal MCP server for your time-series data. The README leads with five values (fast, frugal, bring your own agent, faithful, works with your viewer) and compares an agent with and without Wise Bucket.
 
 ### Security
 
