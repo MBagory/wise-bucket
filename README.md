@@ -19,27 +19,23 @@ ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.t
 
 | ⚡ Fast | 🪶 Frugal | 🤖 Bring your own agent | 🎯 Faithful | 📈 Works with your viewer |
 | --- | --- | --- | --- | --- |
-| Decoded once into Parquet, then every question is a SQL query, answered in milliseconds across all your recordings. | The SQL runs on your machine and only the answer enters your agent's context. | Claude Code, Codex, Cursor… with their model and your subscription. No extra API key. | Never worse than your agent alone: Wise Bucket adds tools and takes none away. | [Rerun, Foxglove, Lichtblick, PlotJuggler](docs/guide.md#viewers) open the same files. Your agent jumps to the right moment in Rerun or Foxglove, and sends query results to Rerun at full resolution. |
+| Decoded once, then every question is one SQL query, in milliseconds. | Only the answer enters your agent's context. | Claude Code, Codex, Cursor… on your own subscription. | Never worse than your agent alone: [checked](evals/crosscheck.sh) by asking the same questions with and without Wise Bucket. | Your agent opens [Rerun or Foxglove](docs/guide.md#viewers) at the right moment, and plots query results in Rerun. |
 
 ### Compared with your agent alone
 
-| | Agent on the raw files | Agent with Wise Bucket |
+| | Agent alone | Agent with Wise Bucket |
 | --- | --- | --- |
-| Each question | writes and runs a parsing script | one SQL query on decoded columns |
-| What fills its context | script output, tracebacks, retries | the answer rows only |
-| Across recordings | one file at a time | all of them in one query |
-| Decoding | whichever library it picks, however it uses it | checked against the reference decoders |
-| Plots | prints arrays or writes plotting code | full resolution in your viewer |
-| The raw files | its only source | still there, for its own scripts |
-
-**How it stays faithful:** your original files stay where they are, and your agent can still read them with its own tools. To check that its answers are never worse, [`evals/crosscheck.sh`](evals/crosscheck.sh) has an agent investigate the same recordings twice, once on its own from the raw files and once only through Wise Bucket, and compare what each way found. Whatever the agent found on its own and Wise Bucket missed becomes a fix and a test ([Contributing](CONTRIBUTING.md)).
+| Each question | a parsing script over the raw files | one SQL query |
+| Its context fills with | script output, tracebacks, retries | the answer |
+| Across recordings | one file at a time | all at once |
+| Plots | arrays or plotting code | full resolution in Rerun |
 
 ### Also
 
-- ✔️ **Checked decoding:** each format is compared with its reference decoder (python-can, pyulog, pymavlink, pynmea2, canboat, asammdf) on public sample recordings.
-- 📝 **Long-term context:** [tell your agent](docs/guide.md#what-you-know-about-recordings) what the files don't say (the machine, what changed, the conditions, the purpose of a test). Wise Bucket keeps it for every later session.
-- 🔍 **[Abnormal and similar recordings](docs/guide.md#abnormal-and-similar-recordings):** your agent finds them by comparing each recording with its peers.
-- 📋 **Notes:** each recording lists its errors, warnings, gaps and what wasn't decoded.
+- ✔️ **Checked decoding** against python-can, pyulog, pymavlink, pynmea2, canboat and asammdf.
+- 📝 **[Long-term context](docs/guide.md#what-you-know-about-recordings):** what you tell your agent about a recording is kept for later sessions.
+- 🔍 **[Abnormal and similar recordings](docs/guide.md#abnormal-and-similar-recordings)**, found by comparing each with its peers.
+- 📋 **Notes** on each recording: errors, warnings, gaps, what wasn't decoded.
 
 ### How it works
 
