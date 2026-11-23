@@ -8,46 +8,39 @@
 [![MSRV](https://img.shields.io/badge/rust-1.98%2B-orange.svg)](Cargo.toml)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-red)
 
-[Overview](#overview) · [Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Docs](#documentation)
+[Why](#why-wise-bucket) · [Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Docs](#documentation)
 
 </div>
 
-## Overview
+**Your AI agent queries every recording on your machine with SQL.**
+ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, MDF4, CSV, JSON Lines, Parquet and Arrow IPC.
 
-> [!WARNING]
-> **Early alpha.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
+## Why Wise Bucket
 
-### ⚡ Built for speed
+| ⚡ Fast | 🪶 Frugal | 🤖 Bring your own agent | 🎯 Faithful |
+| --- | --- | --- | --- |
+| Each recording is decoded once into Parquet. Every later question is a SQL query, answered in milliseconds across all your recordings. | Your agent's SQL runs on your machine and only the answer enters its context. Full-resolution signals go straight to your viewer. | Claude Code, Codex, Cursor… with their model and your subscription. No other chat app, no extra API key. | Never worse than your agent alone: values checked against the reference decoders, and what isn't decoded is kept raw or counted in the notes. |
 
-Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org). Each recording is decoded once into Parquet files, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
+### Compared with your agent alone
 
-### 🪶 Frugal with tokens
+| | Agent on the raw files | Agent with Wise Bucket |
+| --- | --- | --- |
+| Each question | writes and runs a parsing script | one SQL query on decoded columns |
+| What fills its context | script output, tracebacks, retries | the answer rows only |
+| Across recordings | one file at a time | all of them in one query |
+| Decoding | whichever library it picks, however it uses it | checked against python-can, pyulog, pymavlink, pynmea2, canboat and asammdf |
+| Plots | prints arrays or writes plotting code | full resolution in Rerun, or the original recording in your viewer |
 
-Everything your agent reads fills its context window, and a fuller window makes it slower, costlier and less accurate. So your agent's SQL runs on your machine and only the answer comes back, while full-resolution signals go straight to your viewer.
+**How it stays faithful:** [`evals/crosscheck.sh`](evals/crosscheck.sh) has an agent investigate the same recordings twice, once on its own from the raw files and once through Wise Bucket. Each difference confirmed against the files becomes a test, with the reference decoder's value ([Contributing](CONTRIBUTING.md)).
 
-### ✅ No regression
+### Also
 
-Each format is compared back-to-back with its reference decoder (python-can, pyulog, pymavlink, pynmea2, canboat, asammdf), and every change is tested against their values on public sample recordings.
+- 📈 **Instant display:** your agent opens the original recording at the right moment in the viewer you already use, through its MCP server ([Rerun, Foxglove…](docs/guide.md#viewers)).
+- 📝 **Long-term context:** [tell your agent](docs/guide.md#what-you-know-about-recordings) what the files don't say (the machine, what changed, the conditions, the purpose of a test). Wise Bucket keeps it for every later session.
+- 🔍 **[Abnormal and similar recordings](docs/guide.md#abnormal-and-similar-recordings):** your agent finds them by comparing each recording with its peers.
+- 📋 **Notes:** each recording lists its errors, warnings, gaps and what wasn't decoded.
 
-### 🔍 Nothing lost in decoding
-
-Every record of a recording is decoded or kept raw, and the notes count what wasn't decoded.
-
-### ⏱️ Built for time series
-
-Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, MDF4, CSV, JSON Lines, Parquet and Arrow IPC.
-
-### 🤖 Bring your own agent
-
-Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.
-
-### 📈 Instant display in your viewer
-
-Your agent opens the original recording at the right time in the viewer you already use, through the viewer's MCP server ([Rerun, Foxglove…](docs/guide.md#viewers)). It also sends any query result straight to Rerun, at full resolution.
-
-### 📝 Feed with long-term context
-
-[Tell your agent](docs/guide.md#what-you-know-about-recordings) what the files don't say, for one recording or a whole folder: the machine, what changed, the conditions, the purpose of a test. Wise Bucket keeps it for every later session, and your agent compares recordings of the same machine.
+### How it works
 
 ```mermaid
 flowchart TB
@@ -61,6 +54,11 @@ flowchart TB
     agent -->|"displays the data"| viewer
     agent <-->|"questions, answers"| you
 ```
+
+Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org).
+
+> [!WARNING]
+> **Early alpha.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
 
 ## Getting started
 
