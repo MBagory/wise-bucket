@@ -17,9 +17,25 @@ ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.t
 
 ## Why Wise Bucket
 
-| ⚡ Fast | 🪶 Frugal | 🤖 Bring your own agent | 🎯 Faithful | 📈 Works with your viewer |
-| --- | --- | --- | --- | --- |
-| Decoded once, then every question is one SQL query, in milliseconds. | Only the answer enters your agent's context. | Claude Code, Codex, Cursor… on your own subscription. | Never worse than your agent alone: [checked](evals/crosscheck.sh) by asking the same questions with and without Wise Bucket. | Your agent opens [Rerun or Foxglove](docs/guide.md#viewers) at the right moment, and plots query results in Rerun. |
+### ⚡ Fast
+
+Decoded once, then every question is one SQL query, in milliseconds.
+
+### 🪶 Frugal
+
+Only the answer enters your agent's context.
+
+### 🤖 Bring your own agent
+
+Claude Code, Codex, Cursor… on your own subscription.
+
+### 🎯 Faithful
+
+Never worse than your agent alone: [checked](evals/crosscheck.sh) by asking the same questions with and without Wise Bucket.
+
+### 📈 Works with your viewer
+
+Your agent opens [Rerun or Foxglove](docs/guide.md#viewers) at the right moment, and plots query results in Rerun.
 
 ### Compared with your agent alone
 
