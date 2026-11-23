@@ -24,6 +24,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A recording whose extraction can't be read (written by another build of the same extractor version) is `failed`, with the reason, instead of `pending` forever.
 - **Two streams in one query:** subqueries over different streams (`(SELECT count(*) FROM stream('a'))`, `(SELECT count(*) FROM stream('b'))`) read the first one's data, and a column name returned twice (`x.n`, `y.n` of a join) kept one value. Each `stream()` now reads its own, and a name returned twice takes its qualifier, in `sql` results and in the series sent to Rerun.
 
+## [0.2.1] - 2026-11-23
+
+### Changed
+
+- README and banner: Wise Bucket is a Fast & Frugal MCP server for your time-series data. The README leads with five values (fast, frugal, bring your own agent, faithful, works with your viewer) and compares an agent with and without Wise Bucket.
+
+### Security
+
+- Dependencies updated past the RustSec advisories published since 0.2.0: the bundled SQLite (rusqlite 0.43), tokio, rmcp, zstd, rustls-webpki, webpki-roots, url and thrift.
+
 ## [0.2.0] - 2026-10-16
 
 Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:
@@ -79,7 +89,8 @@ Wise Bucket 0.2.0 reads the logs of vehicles, test benches, drones and boats:
 - Documentation as plain Markdown: the README with Wise Bucket's principles, the user guide (with compatible [viewers](https://github.com/MBagory/wise-bucket/blob/main/docs/guide.md#viewers)), troubleshooting and FAQ, generated references (CLI, configuration, errors, tables), [decision records](https://github.com/MBagory/wise-bucket/blob/main/docs/decisions/README.md) with the list of possible features that replaces a roadmap, and privacy notes in `SECURITY.md`.
 - Tests: acceptance tests drive the real binary through a real MCP client; format tests check exact values on generated fixtures; per-format sample tests (`cargo test -p wisebucket --test samples -- --ignored`) run in a dedicated CI job per format.
 
-[Unreleased]: https://github.com/MBagory/wise-bucket/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/MBagory/wise-bucket/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/MBagory/wise-bucket/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/MBagory/wise-bucket/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/MBagory/wise-bucket/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/MBagory/wise-bucket/releases/tag/v0.1.0

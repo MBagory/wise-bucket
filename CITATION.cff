@@ -8,8 +8,8 @@ authors:
     given-names: "Matthieu"
 license: Apache-2.0
 repository-code: "https://github.com/MBagory/wise-bucket"
-version: 0.2.0
-date-released: 2026-10-16
+version: 0.2.1
+date-released: 2026-11-22
 keywords:
   - robotics
   - time series
