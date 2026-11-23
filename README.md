@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/banner.svg" alt="Wise Bucket: long-term context and insights for your time-series data" width="100%">
-
-**An open-source MCP server that gives R&D teams long-term context and insights on their time-series data.**
+<img src="docs/assets/banner.svg" alt="Wise Bucket: Fast &amp; Frugal MCP server for your time-series data" width="100%">
 
 [![CI](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml/badge.svg)](https://github.com/MBagory/wise-bucket/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-guide-blue)](docs/guide.md)
@@ -10,38 +8,50 @@
 [![MSRV](https://img.shields.io/badge/rust-1.98%2B-orange.svg)](Cargo.toml)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-red)
 
-[Overview](#overview) · [Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Docs](#documentation)
+[Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Docs](#documentation)
 
 </div>
 
-## Overview
+**Your AI agent queries every recording on your machine with SQL.**
+ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, MDF4, CSV, JSON Lines, Parquet and Arrow IPC.
 
-> [!WARNING]
-> **Early alpha.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
+## ⚡ Fast
 
-### ⏱️ Built for time series
+Each recording is decoded once into Parquet files. Every question after that is a SQL query run by [Apache DataFusion](https://datafusion.apache.org), reading only the columns and time range it needs: answers across all your recordings in milliseconds, not a new pass over your bags.
 
-Connects your **AI agent** to **your time-series data** (telemetry, logs, measurements…) on your machine: ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, MDF4, CSV, JSON Lines, Parquet and Arrow IPC.
+## 🪶 Frugal
 
-### 🤖 Bring your own agent
+Everything your agent reads fills its context, and a fuller context makes it slower, costlier and less accurate. The SQL runs on your machine and only the answer comes back; full-resolution signals go straight to your viewer.
 
-Use the agent you already work with (Claude Code, Codex, Cursor…), with its model and your subscription. It finds abnormal and similar recordings by comparing each one with its peers.
+## 🤖 Bring your own agent
 
-### 🪶 Frugal with tokens
+Wise Bucket is an MCP server for the agent you already use (Claude Code, Codex, Cursor…), with its model and your subscription. No extra API key, and your files stay on your machine: only the query results your agent reads reach its model.
 
-Everything your agent reads fills its context window, and a fuller window makes it slower, costlier and less accurate. So your agent's SQL runs on your machine and only the answer comes back, while full-resolution signals go straight to your viewer.
+## 🎯 Faithful
 
-### ⚡ Built for speed
+Never worse than your agent alone: your raw files stay where they are, and your agent can still read them with its own tools. [`evals/crosscheck.sh`](https://github.com/MBagory/wise-bucket/blob/develop/evals/crosscheck.sh) checks it by asking an agent the same questions twice, once from the raw files alone and once only through Wise Bucket; whatever Wise Bucket missed becomes a fix.
 
-Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org). Each recording is decoded once into Parquet files, and your agent queries them with SQL through DataFusion: answers across all your recordings, in milliseconds.
+## 📈 Works with your viewer
 
-### 📈 Instant display in your viewer
+Your agent opens the original recording at the right moment in [Rerun or Foxglove](docs/guide.md#viewers), through the viewer's MCP server. It also sends any query result straight to Rerun at full resolution, without passing through its context.
 
-Your agent opens the original recording at the right time in the viewer you already use, through the viewer's MCP server ([Rerun, Foxglove…](docs/guide.md#viewers)). It also sends any query result straight to Rerun, at full resolution.
+## Compared with your agent alone
 
-### 📝 Feed with long-term context
+| | Agent alone | Agent with Wise Bucket |
+| --- | --- | --- |
+| Each question | a parsing script over the raw files | one SQL query |
+| Its context fills with | script output, tracebacks, retries | the answer |
+| Across recordings | one file at a time | all at once |
+| Plots | arrays or plotting code | full resolution in Rerun |
 
-[Tell your agent](docs/guide.md#what-you-know-about-recordings) what the files don't say, for one recording or a whole folder: the machine, what changed, the conditions, the purpose of a test. Wise Bucket keeps it for every later session, and your agent compares recordings of the same machine.
+## Also
+
+- ✔️ **Checked decoding:** each format is compared with its reference decoder (python-can, pyulog, pymavlink, pynmea2, canboat, asammdf) on public sample recordings.
+- 📝 **[Long-term context](docs/guide.md#what-you-know-about-recordings):** tell your agent what the files don't say (the machine, what changed, the test conditions); Wise Bucket keeps it for every later session.
+- 🔍 **[Abnormal and similar recordings](docs/guide.md#abnormal-and-similar-recordings):** your agent scores each recording against its peers of the same machine.
+- 📋 **Notes** on each recording: the errors and warnings it logged, gaps, and what wasn't decoded.
+
+## How it works
 
 ```mermaid
 flowchart TB
@@ -55,6 +65,11 @@ flowchart TB
     agent -->|"displays the data"| viewer
     agent <-->|"questions, answers"| you
 ```
+
+Written in Rust, on [Apache DataFusion](https://datafusion.apache.org) and [Apache Parquet](https://parquet.apache.org).
+
+> [!WARNING]
+> **Early alpha.** Commands and on-disk formats may change. [Issues](https://github.com/MBagory/wise-bucket/issues) welcome.
 
 ## Getting started
 
