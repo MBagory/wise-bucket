@@ -8,36 +8,34 @@
 [![MSRV](https://img.shields.io/badge/rust-1.98%2B-orange.svg)](Cargo.toml)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-red)
 
-[Why](#why-wise-bucket) · [Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Docs](#documentation)
+[Getting started](#getting-started) · [Sample data](#try-it-with-sample-data) · [Everyday use](#everyday-use) · [Docs](#documentation)
 
 </div>
 
 **Your AI agent queries every recording on your machine with SQL.**
 ROS 2 bags (MCAP or `.db3`), MCAP (ROS 2, protobuf, JSON), PX4 ULog, MAVLink `.tlog`, ArduPilot DataFlash, Vector CAN logs (ASC, BLF) with your DBC files, NMEA 0183 and NMEA 2000, MDF4, CSV, JSON Lines, Parquet and Arrow IPC.
 
-## Why Wise Bucket
-
-### ⚡ Fast
+## ⚡ Fast
 
 Decoded once, then every question is one SQL query, in milliseconds.
 
-### 🪶 Frugal
+## 🪶 Frugal
 
 Only the answer enters your agent's context.
 
-### 🤖 Bring your own agent
+## 🤖 Bring your own agent
 
 Claude Code, Codex, Cursor… on your own subscription.
 
-### 🎯 Faithful
+## 🎯 Faithful
 
 Never worse than your agent alone: [checked](evals/crosscheck.sh) by asking the same questions with and without Wise Bucket.
 
-### 📈 Works with your viewer
+## 📈 Works with your viewer
 
 Your agent opens [Rerun or Foxglove](docs/guide.md#viewers) at the right moment, and plots query results in Rerun.
 
-### Compared with your agent alone
+## Compared with your agent alone
 
 | | Agent alone | Agent with Wise Bucket |
 | --- | --- | --- |
@@ -46,14 +44,14 @@ Your agent opens [Rerun or Foxglove](docs/guide.md#viewers) at the right moment,
 | Across recordings | one file at a time | all at once |
 | Plots | arrays or plotting code | full resolution in Rerun |
 
-### Also
+## Also
 
 - ✔️ **Checked decoding** against python-can, pyulog, pymavlink, pynmea2, canboat and asammdf.
 - 📝 **[Long-term context](docs/guide.md#what-you-know-about-recordings):** what you tell your agent about a recording is kept for later sessions.
 - 🔍 **[Abnormal and similar recordings](docs/guide.md#abnormal-and-similar-recordings)**, found by comparing each with its peers.
 - 📋 **Notes** on each recording: errors, warnings, gaps, what wasn't decoded.
 
-### How it works
+## How it works
 
 ```mermaid
 flowchart TB
